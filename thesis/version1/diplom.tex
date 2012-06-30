@@ -1,0 +1,86 @@
+\documentclass[parskip=half*,a4paper, german, twoside, 11pt]{scrartcl}
+
+\usepackage[latin1]{inputenc}
+\usepackage[pdftex]{graphicx} % Einbindung von Grafiken (pdf, png, jpg)
+\usepackage{color}           % später vermutlich wieder entfernen
+\usepackage{listings}
+
+\usepackage[ngerman]{babel}
+\usepackage{enumerate}
+
+\usepackage{hyperref}
+
+\usepackage{scrpage2} 
+
+\usepackage{tikz}
+
+
+%\usepackage{fancyhdr}		% für Kopf- und Fußzeile
+
+%\usepackage{setspace}         % für onehalfspacing
+
+%\onehalfspacing	              % Zeilenabstand 1.5
+
+\sloppy                       % großzügiger Zeilenumbruch 
+                              % -> keine rechts rausragenden Zeilen mehr
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% Größenanpassungen
+%
+\setlength{\unitlength}{1cm}
+\setlength{\oddsidemargin}{0.3cm}
+\setlength{\evensidemargin}{0.3cm}
+\setlength{\textwidth}{15.5cm}
+\setlength{\topmargin}{-1.2cm}
+\setlength{\textheight}{23cm}
+\columnsep 0.5cm
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+
+\lstset{
+    basicstyle={\ttfamily}
+  , commentstyle={}
+  , showstringspaces=false
+  , frame=single
+  , captionpos=b
+  , commentstyle=\color{dkgreen}
+  , stringstyle=\color{mauve}
+  }
+
+
+\begin{document}
+\clearscrheadfoot 
+\cfoot[\pagemark]{ \pagemark} 
+\pagestyle{scrheadings}
+
+
+\setlength{\parindent}{0pt}		% kein Einrücken nach Absatz
+
+\include{./Titel/Titelblatt}               % und eidesstattliche Erklärung
+
+\pagenumbering{roman}
+\include{./Titel/Erklaerung}
+
+
+
+\pagestyle{plain}
+\tableofcontents
+\lstlistoflistings
+\listoffigures
+\cleardoublepage
+
+\pagenumbering{arabic}
+\setcounter{page}{1}
+\include{Einfuehrung}
+\include{Grundlagen}
+\include{./Hauptteil/Kapitel1}
+\include{./Hauptteil/Kapitel2}
+\include{./Hauptteil/Kapitel3}
+\include{Zusammenfassung}
+
+\end{document}
