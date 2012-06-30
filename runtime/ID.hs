@@ -13,15 +13,17 @@ module ID
   , Decision (..), defaultDecision, isDefaultDecision
     -- * IDs
   , ID (..), leftID, rightID, narrowID, getKey, mkInteger
-  , IDSupply, initSupply, leftSupply, rightSupply, thisID, freeID
+  , IDSupply, initSupply, leftSupply, rightSupply, thisID, freeID, supply
     -- * Decision management
   , traceLookup, traceDecision
   , lookupDecision, lookupID, lookupDecisionID, setDecision, setUnsetDecision
   , nextNIDs, Store (..), Coverable (..)
+  , ExternalConstraint (..), ExtConstraint
   ) where
 
 import Control.Monad (liftM, when, zipWithM_)
 import Data.List (partition)
+import Data.Typeable
 
 import Debug
 import IDSupply hiding (getDecisionRaw, setDecisionRaw, unsetDecisionRaw)
@@ -76,18 +78,44 @@ data Constraint
 data Constraints
   = forall a . ValConstr ID a [Constraint]
   | StructConstr [Constraint]
+  | ExtConstr [ExtConstraint] -- added for support of external constraints
 
 -- a selector to get the strucural constraint information from a constraint
 getConstrList :: Constraints -> [Constraint]
 getConstrList (ValConstr _ _ c) = c
 getConstrList (StructConstr  c) = c
+getConstrList (ExtConstr     _) = error "ID.getConstrList: External Constraints" -- added for support of external constraints
 
 instance Show Constraints where
   showsPrec _ (ValConstr _ _ c) = showString "ValC "    . shows c
   showsPrec _ (StructConstr  c) = showString "StructC " . shows c
+  showsPrec _ (ExtConstr c)     = showString "ExtC " . shows c
 
 instance Eq Constraints where
  c1 == c2 = getConstrList c1 == getConstrList c2
+
+-- ---------------------------------------------------------------------------
+-- External Constraints
+-- ---------------------------------------------------------------------------
+
+-- members of this type class can be wrapped up in the single type ExtConstraint
+class (Typeable e, Show e) => ExternalConstraint e where
+  -- |Wrapping up Constraints in ExtConstraint
+  wrapCs :: e -> ExtConstraint
+  wrapCs = ECWrapper
+  -- |Unwrapping from ExtConstraint and cast to original constraint type
+  unwrapCs :: ExtConstraint -> Maybe e
+  unwrapCs (ECWrapper c) = cast c
+  -- |Update constraints regarding constraint variable bindings introduced by (=:=)
+  updateVars :: Store m => e -> m e
+
+-- heterogenous type, which is used to wrap up different constraint types
+-- implementing the ExternalConstraint type class in the single type
+-- ExtConstraint
+data ExtConstraint = forall e . ExternalConstraint e => ECWrapper e
+
+instance Show ExtConstraint where
+  show (ECWrapper c) = show c
 
 -- ---------------------------------------------------------------------------
 -- Decision

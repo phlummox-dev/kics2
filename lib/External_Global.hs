@@ -89,6 +89,8 @@ instance Coverable (C_Global a) where
   cover x@(C_Global_Temp _)        = x
   cover x@(C_Global_Pers _)        = x
 
+instance FromDecisionTo (C_Global a) where
+  fromDecision _ _ = error "ERROR: No fromDecision for Global"
 
 external_d_C_global :: CP.Curry a => a -> C_GlobalSpec -> ConstStore -> C_Global a
 external_d_C_global val C_Temporary _ = ref `seq` (C_Global_Temp ref)

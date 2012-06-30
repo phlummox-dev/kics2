@@ -128,6 +128,9 @@ instance Coverable (C_IORef a) where
   cover (Guard_C_IORef cd cs x)   = Guard_C_IORef (incCover cd) cs (cover x)
   cover r@(C_IORef _)             = r
 
+instance FromDecisionTo (C_IORef a) where
+  fromDecision _ _ = error "ERROR: No fromDecision for IORef"
+
 instance ConvertCurryHaskell (C_IORef a) (IORef a) where
   fromCurry (C_IORef r) = r
   fromCurry _           = error "IORef with no ground term occurred"

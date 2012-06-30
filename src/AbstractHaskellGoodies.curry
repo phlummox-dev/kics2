@@ -191,7 +191,7 @@ renameSymbolInPat ren pat = case pat of
   PComb qf pats    -> PComb (ren qf) (map (renameSymbolInPat ren) pats)
   PAs var apat     -> PAs var (renameSymbolInPat ren apat)
   PFuncComb f pats -> PFuncComb (ren f) (map (renameSymbolInPat ren) pats)
-  _                 -> pat -- PVar or PLit
+  _                 -> pat -- PVar, PULit or PLit
 
 renameSymbolInBranch :: (QName -> QName) -> BranchExpr -> BranchExpr
 renameSymbolInBranch ren (Branch pat e) =

@@ -75,6 +75,9 @@ instance NormalForm (C_ValueSequence a) where
  ($!<)    = error "SearchTree: ValueSequence: ($!<)"
  searchNF = error "SearchTree: ValueSequence: searchNF"
 
+instance FromDecisionTo (C_ValueSequence a) where
+  fromDecision _ _ = error "SearchTree: ValueSequence: fromDecision"
+
 external_d_C_emptyVS :: ConstStore -> C_ValueSequence a
 external_d_C_emptyVS _ = EmptyVS
 

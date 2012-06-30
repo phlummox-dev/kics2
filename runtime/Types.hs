@@ -3,7 +3,7 @@
 -- in Haskell
 -- ---------------------------------------------------------------------------
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE MultiParamTypeClasses, Rank2Types #-}
+{-# LANGUAGE MultiParamTypeClasses, Rank2Types, FunctionalDependencies #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Types
@@ -362,6 +362,66 @@ instance (ConvertCurryHaskell ca ha, ConvertCurryHaskell cb hb)
   fromCurry f = fromCurry . f . toCurry
   toCurry   f = toCurry   . f . fromCurry
 
+-- ---------------------------------------------------------------------------
+-- Class for reconstructing values from decisions
+-- ---------------------------------------------------------------------------
+
+class Generable a => FromDecisionTo a where
+  -- |Convert a decision into the original value for the given ID 
+  fromDecision :: Store m => ID -> (Decision,ID) -> m a
+
+-- Lookup the decision made for the given ID and convert back
+-- into the original type
+lookupValue :: (Store m,FromDecisionTo a) => ID -> m a
+lookupValue i = do decId <- lookupDecisionID i
+                   fromDecision i decId
+
+-- needs MultiParamTypeClasses and FunctionalDependencies
+class (Unifiable ctype, FromDecisionTo ctype) => Constrainable ctype ttype | ttype -> ctype where
+  -- |Convert a curry type into a constrainable term representation
+  toCsExpr :: ctype -> ttype
+  -- |Check whether the curry representation of a constraint variable was bound
+  -- to another value (possibly by using lookupValue)
+  -- and update the corresponding variable if necessary
+  getVarBinding :: Store m => ttype -> m ttype
+  -- |Bind a curry value to a constraint variable
+  -- (possibly by constructing guard expressions with binding constraints
+  -- using Unifiable.bind)
+  bindLabelVar :: NonDet a => ttype -> ctype -> a -> a
+
+-- Simple generic constraint-term type
+-- needs DeriveDataTypeable
+data Term a = Const a
+            | Var ID
+ deriving (Eq,Show)
+
+-- Representation of constraint solver solutions consisting of
+-- - list of solutions (one solution = list of values)
+-- - list of constraint variables (i.e. the labeling variables)
+-- - and a fresh ID for constructing choices over different variable bindings
+data SolverSolution a b = Sol [[a]] [b] ID
+
+-- Solvers of the Monadic Constraint Programming Framework
+data MCPSolver = Gecode | Overton
+
+-- Binds the solutions for a list of constraint variables (= labeling variables)
+-- to their corresponding curry variables by constructing guard expressions
+-- with appropriate binding constraints
+-- if there are no solutions, return Fail
+bindSolution :: (Constrainable s t, NonDet a) => SolverSolution s t -> a -> a
+bindSolution (Sol [] _ _) _ = failCons 0 defFailInfo
+bindSolution (Sol [sol] lVars lID) e = bindLabelVars lVars sol e
+bindSolution (Sol (sol:sols) lVars lID) e = choiceCons defCover lID solution solutions
+  where solution  = bindLabelVars lVars sol e
+        solutions = bindSolution (Sol sols lVars (leftID lID)) e
+
+-- Bind each value of a solution to its corresponding constraint variable in the
+-- list of the labeling variables by calling Constrainable.bindLabelVar
+bindLabelVars :: (NonDet a, Constrainable s t) => [t] -> [s] -> a -> a
+bindLabelVars []     []     e = e
+bindLabelVars []     (_:_)  _ = error "bindLabelVars: List of labeling variables and solutions have different length"
+bindLabelVars (_:_)  []     _ = error "bindLabelVars: List of labeling variables and solutions have different length"
+bindLabelVars (v:vs) (s:ss) e = bindLabelVar v s (bindLabelVars vs ss e)
 
 -- ---------------------------------------------------------------------------
 -- Auxiliaries for Show and Read
@@ -486,6 +546,13 @@ instance Coverable C_Success where
   cover (Choices_C_Success cd i xs)  = Choices_C_Success (incCover cd) i (map cover xs)
   cover (Fail_C_Success cd info)  = Fail_C_Success (incCover cd) info
   cover (Guard_C_Success cd cs x)    = Guard_C_Success (incCover cd) cs (cover x)
+
+instance FromDecisionTo C_Success where
+  fromDecision _ ((ChooseN 0 0),_) = return C_Success
+  fromDecision _ (NoDecision,j) = return (generate (supply j))
+  fromDecision i (ChooseLeft,_) = error ("Prelude.Success.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision i (ChooseRight,_) = error ("Prelude.Success.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _ ((LazyBind _),_) = error "Prelude.Success.fromDecision: No rule for LazyBind decision yet"
 -- END GENERATED FROM PrimTypes.curry
 
 -- ---------------------------------------------------------------------------
@@ -524,3 +591,6 @@ instance NonDet b => Unifiable (a -> b) where
 
 instance Coverable (a -> b) where
   cover f = f
+
+instance NonDet b => FromDecisionTo (a -> b) where
+  fromDecision _ _ = error "fromDecision for function is undefined"

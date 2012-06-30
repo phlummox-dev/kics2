@@ -14,7 +14,7 @@ CURRYDOC=${BINDIR}/currydoc
 LIB_CURRY = Prelude.curry \
 	    AllSolutions.curry Array.curry Assertion.curry \
 	    CategorizedHtmlList.curry \
-            Char.curry Combinatorial.curry \
+            Char.curry CLPFD.curry Combinatorial.curry \
 	    Constraint.curry CPNS.curry CSV.curry  \
             Dequeue.curry Directory.curry Distribution.curry  \
             FileGoodies.curry FiniteMap.curry Float.curry \

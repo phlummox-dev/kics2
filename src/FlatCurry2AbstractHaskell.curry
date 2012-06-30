@@ -101,7 +101,7 @@ fcy2absBranch (FC.Branch pat expr) =
 
 fcy2absPattern :: FC.Pattern -> Pattern
 fcy2absPattern (FC.Pattern qf nums) = PComb qf (map (PVar . fcy2absVar) nums)
-fcy2absPattern (FC.LPattern lit)    = PLit (fcy2absLit lit)
+fcy2absPattern (FC.LPattern lit)    = PULit (fcy2absLit lit)
 
 fcy2absVis :: FC.Visibility -> Visibility
 fcy2absVis FC.Public  = Public

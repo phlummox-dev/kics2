@@ -15,6 +15,7 @@ import Solver
 import Strategies
 import Types
 import MonadSearch
+import SolverControl -- for solving external constraints
 
 -- ---------------------------------------------------------------------------
 -- Search combinators for top-level search in the IO monad
@@ -120,8 +121,25 @@ type NonDetExpr a = IDSupply -> ConstStore -> a
 getNormalForm :: NormalForm a => NonDetExpr a -> IO a
 getNormalForm goal = do
   s <- initSupply
-  return $ const $!! goal s emptyCs $ emptyCs
+  let normalForm = const $!! goal s emptyCs $ emptyCs
+  return $ searchForExtCs normalForm []
 
+-- search normalized expression for Guards containing external constraints and collect these constraints in one Guard
+searchForExtCs :: NormalForm a => a -> [ExtConstraint] -> a
+searchForExtCs x extCs = match searchChoice searchNarrowed choicesCons failCons searchGuard searchVal x
+  where searchChoice cd i x1 x2          = choiceCons cd i (searchForExtCs x1 extCs) (searchForExtCs x2 extCs)
+        searchNarrowed cd i xs           = choicesCons cd i (map (\x' -> searchForExtCs x' extCs) xs)
+        searchGuard _ (ExtConstr ecs) e = searchForExtCs e (extCs ++ ecs)
+        searchGuard cd c e               = guardCons cd c (searchForExtCs e extCs)
+        searchVal v | null extCs        = v
+                    | otherwise         = guardCons defCover (ExtConstr extCs) v
+
+{-
+getNormalForm :: NormalForm a => NonDetExpr a -> IO a
+getNormalForm goal = do
+  s <- initSupply
+  return $ const $!! goal s emptyCs $ emptyCs
+-}
  -- |Evaluate a deterministic expression without search
 evalD :: Show a => DetExpr a -> IO ()
 evalD goal = print (goal emptyCs)
@@ -338,6 +356,7 @@ searchDFS act goal = do
       follow c             = error $ "Search.dfsNarrowed: Bad choice " ++ show c
     dfsNarrowed _ i _ = error $ "Search.dfsNarrowed: Bad narrowed ID " ++ show i
 
+    dfsGuard _ (ExtConstr extCs) e = solveAll extCs solvers e >>= dfs cont 
     dfsGuard _ cs e = solve cs e >>= \mbSltn -> case mbSltn of
       Nothing          -> mnil
       Just (reset, e') -> dfs cont e' |< reset

@@ -207,6 +207,16 @@ instance Coverable C_Int where
   cover (Fail_C_Int cd info)    = Fail_C_Int (incCover cd) info
   cover (Guard_C_Int cd cs x)   = Guard_C_Int (incCover cd) cs (cover x)
 
+instance FromDecisionTo C_Int where
+  fromDecision i ((ChooseN 0 1),_) = 
+    do
+     x3 <- lookupValue (leftID i)
+     return (C_CurryInt x3)
+  fromDecision _ (NoDecision,j) = return (generate (supply j))
+  fromDecision i (ChooseLeft,_) = error ("Prelude.Int.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision i (ChooseRight,_) = error ("Prelude.Int.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _ ((LazyBind _),_) = error "Prelude.Int.fromDecision: No rule for LazyBind decision yet"
+
 primint2curryint :: Int# -> BinInt
 primint2curryint n
   | n <#  0#  = Neg (primint2currynat (negateInt# n))
@@ -331,6 +341,9 @@ instance Coverable C_Float where
   cover (Choices_C_Float cd i xs) = Choices_C_Float (incCover cd) i (map cover xs)
   cover (Fail_C_Float cd info) = Fail_C_Float (incCover cd) info
   cover (Guard_C_Float cd cs x)   = Guard_C_Float (incCover cd) cs (cover x)
+
+instance FromDecisionTo C_Float where
+  fromDecision _ _ = error "ERROR: No fromDecision for Float"
 
 -- ---------------------------------------------------------------------------
 -- Char
@@ -472,6 +485,16 @@ instance Coverable C_Char where
   cover (Fail_C_Char cd info) = Fail_C_Char (incCover cd) info
   cover (Guard_C_Char cd cs x)   = Guard_C_Char (incCover cd) cs (cover x)
 
+instance FromDecisionTo C_Char where
+  fromDecision i ((ChooseN 0 1),_) = 
+    do
+     x3 <- lookupValue (leftID i)
+     return (CurryChar x3)
+  fromDecision _ (NoDecision,j) = return (generate (supply j))
+  fromDecision i (ChooseLeft,_) = error ("Prelude.Char.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision i (ChooseRight,_) = error ("Prelude.Char.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _ ((LazyBind _),_) = error "Prelude.Char.fromDecision: No rule for LazyBind decision yet"
+
 
 primChar2CurryChar :: Char# -> BinInt
 primChar2CurryChar c = primint2curryint (ord# c)
@@ -563,6 +586,31 @@ instance ConvertCurryHaskell ct ht =>
 --fromOrdering EQ = C_EQ
 --fromOrdering GT = C_GT
 
+-- ---------------------------------------------------------------------------
+-- Constrainable instances:
+-- ---------------------------------------------------------------------------
+
+instance Constrainable C_Int (Term Int) where
+  toCsExpr (Choices_C_Int _ i@(FreeID _ _) _) = Var i
+  toCsExpr v                                  = Const (fromCurry v)
+
+  getVarBinding (Var i)     = do a <- lookupValue i
+                                 return (toCsExpr a)                                  
+  getVarBinding x@(Const _) = return x
+
+  bindLabelVar (Var i) v e   = guardCons defCover (ValConstr i v (bind i v)) e
+  bindLabelVar (Const _) _ e = e
+
+instance Constrainable C_Bool (Term Bool) where
+  toCsExpr (Choices_C_Bool _ i@(FreeID _ _) _) = Var i
+  toCsExpr v                                   = Const (fromCurry v)
+
+  getVarBinding (Var i)     = do a <- lookupValue i
+                                 return (toCsExpr a)                                  
+  getVarBinding x@(Const _) = return x
+
+  bindLabelVar (Var i) v e   = guardCons defCover (ValConstr i v (bind i v)) e
+  bindLabelVar (Const _) _ e = e
 
 -- ---------------------------------------------------------------------------
 -- Auxiliary operations for showing lists

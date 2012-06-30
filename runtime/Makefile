@@ -28,6 +28,7 @@ ${CABAL}: ../Makefile Makefile
 	echo "  Build-Depends: base, containers, ghc, mtl, parallel-tree-search" >> ${CABAL}
 	echo "                 , tree-monad" >> ${CABAL}
 	echo "  Exposed-modules: Basics, Debug, CurryException, PrimTypes, IDSupply," >> ${CABAL}
+        echo "                   FDData, MCPSolver, SolverControl," >> ${CABAL}
 	echo "                   SafeExec, MonadList, Installation, MonadSearch" >> ${CABAL}
 	echo "  Other-modules:   ConstStore, ID, Search, Solver," >> ${CABAL}
 	echo "                   Strategies, Types" >> ${CABAL}
