@@ -11,18 +11,18 @@
 \usepackage{hyperref}
 
 \usepackage{scrpage2} 
-
 \usepackage{tikz}
+\usetikzlibrary{arrows}
+\usepgfmodule{shapes}
+
+\usepackage{setspace}
+\usepackage[numbers, square]{natbib}   % Für \setlength{\bibsep}{3mm}; square macht eckige Klammern
 
 
-%\usepackage{fancyhdr}		% für Kopf- und Fußzeile
+\usepackage{chessboard}                  % for drawing chessboards
+\storechessboardstyle{4x4}{maxfield=d4}
 
-%\usepackage{setspace}         % für onehalfspacing
-
-%\onehalfspacing	              % Zeilenabstand 1.5
-
-\sloppy                       % großzügiger Zeilenumbruch 
-                              % -> keine rechts rausragenden Zeilen mehr
+\onehalfspacing	              % Zeilenabstand 1.5
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -82,5 +82,15 @@
 \include{./Hauptteil/Kapitel2}
 \include{./Hauptteil/Kapitel3}
 \include{Zusammenfassung}
+
+% Zweites Literaturverzeichnis, mit BibTeX
+
+\renewcommand\bibname{Literaturverzeichnis}
+\nocite{*} % auch die nicht verwendeten bibtex-Einträge einblenden
+\cleardoublepage
+\bibliography{literatur}
+\bibliographystyle{natdin}
+\interlinepenalty=100
+
 
 \end{document}

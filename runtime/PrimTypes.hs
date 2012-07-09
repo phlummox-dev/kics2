@@ -124,7 +124,7 @@ instance FromDecisionTo BinInt where
      x3 <- lookupValue (leftID i)
      return (Neg x3)
   fromDecision _ ((ChooseN 1 0),_) = return Zero
-  fromDecision i ((ChooseN 1 1),_) = 
+  fromDecision i ((ChooseN 2 1),_) = 
     do
      x3 <- lookupValue (leftID i)
      return (Pos x3)

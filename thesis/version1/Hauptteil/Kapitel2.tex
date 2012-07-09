@@ -1,8 +1,110 @@
 \subsection{Anschluss der FD-Constraint-Solver des MCP-Frameworks}
 \label{section_fdsolver}
 
-\subsubsection{Übersetzung in MCP-Modellierungssprache}
+Mit der bislang beschriebenen Erweiterung der KiCS2-Curry-Implementierung werden in Curry modellierte Finite Domain Probleme auf semantisch äquivalente Modelle in Haskell abgebildet. Diese Haskell-Modelle sollen nun durch Integration geeigneter Constraint-Solver in KiCS2 gelöst werden. 
+\\
+Constraint-Solver sind üblicherweise über einer festen Constraint-Sprache definiert. Diese Modellierungssprache gibt vor, welche Constraints der Solver interpretieren und lösen kann. Um nun einen Finite Domain Solver an KiCS2 anzuschließen müssen die Haskell-Modelle vom Typ \lstinline|[FDConstraint]| daher in die Modellierungssprache des Solvers übersetzt werden. Dann kann der Solver auf das übersetzte Modell angesetzt werden und nach Lösungen suchen. Abschließend müssen die vom FD-Solver gefundenen Lösungen in irgendeiner Form wieder in den Auswertungssuchbaum von KiCS2 eingebunden werden, damit sie auf die Kommandozeile ausgegeben werden können.
+\\
+Dieses Kapitel beschreibt die Integration eines FD-Solvers in KiCS2 beispielhaft anhand des Anschlusses der FD-Solver des Monadic Constraint Programming Frameworks. Nach einer ausführlichen Vorstellung der verwendeten Schnittstellen des MCP-Frameworks wird in weiteren Unterkapiteln auf die Übersetzung in die MCP-Modellierungssprache, das Aufrufen der FD-Solver auf einem MCP-Modell sowie auf die Ausgabe der Lösungen durch KiCS2 eingegangen.
+
+\subsubsection{Finite-Domain-Schnittstelle des MCP-Frameworks}
+
+Das Monadic Constraint Programming Framework ist ein in Haskell geschriebenes Constraint Programming Framework. Es stellt generische Interfaces zur Modellierung von Constraint-Problemen sowie zur Implementation eigener Constraint-Solver und Suchstrategien zur Verfügung. Ein Teil des Frameworks ist speziell auf Finite Domain Constraints zugeschnitten. Er umfasst eine in Haskell eingebettete Constraint-Modellierungssprache und zwei FD-Solver:
+\begin{itemize}
+\item den direkt in Haskell realisierten Overton Solver - benannt nach David Overton, dessen Implementierung eines FD-Solvers in Haskell von den Entwicklern des MCP-Frameworks größtenteils übernommen wurde (\cite{Overton})
+\item sowie eine Anbindung der C++ Solver-Bibliothek Gecode
+\end{itemize}
+\par
+\textbf{Modellierungssprache:}
+\\
+Die FD-Modellierungssprache beinhaltet neben Operatoren für arithmetische Ausdrücke bzw. relationale Vergleiche und den Standard-Constraints zur Festlegung eines Wertebereichs (\lstinline|(@:)|) bzw. zur Beschränkung auf paarweise Ungleichheit (\lstinline|allDiff|) auch spezielle Constraint-Funktionen höherer Ordnung. Mit diesen kann man beispielsweise erzwingen, dass ein Prädikat für mindestens eine (\lstinline|forany|) bzw. für alle (\lstinline|forall|) Constraint-Variablen einer Liste erfüllt sein soll:
+\begin{lstlisting}[language=Haskell,caption=MCP-Modellierungssprache für FD-Constraints]
+(@+), (@-), (@*), 
+(@/), (@%)         :: Expr t c b -> Expr t c b -> Expr t c b
+(@=), (@/=), (@<),
+(@<=), (@>), (@>=) :: Expr t c b -> Expr t c b -> BoolExpr t c b
+(@:)               :: Expr t c b -> (Expr t c b, Expr t c b) 
+                   -> BoolExpr t c b
+xsum               :: ColExpr t c b -> Expr t c b
+allDiff            :: ColExpr t c b -> BoolExpr t c b
+forany, forall     :: ColExpr t c b -> (Expr t c b 
+                   -> BoolExpr t c b) -> BoolExpr t c b
+...
+\end{lstlisting}
+Genau wie bei der Implementierung der CLPFD-Bibliothek in KiCS2 werden durch Aufruf der Constraint-Funktionen der MCP-Modellierungssprache Konstruktorterme für die einzelnen Constraints erzeugt. Dazu definiert das Framework eine Datenstruktur für Integerausdrücke, eine für \emph{collections} und eine für die eigentlichen Constraints. Der folgende Programmausschnitt zeigt nur einen Teil dieser Datentypdefinitionen. Vollständig angegeben werden sie im Anhang. 
+\begin{lstlisting}[language=Haskell,caption=Datentypen zur Repräsentation von MCP-Constraints]
+data Expr t c b =   -- Integerausdrücke
+    Term t
+  | Const Integer
+  | Plus (Expr t c b) (Expr t c b)
+  | Minus (Expr t c b) (Expr t c b)
+  | Mult (Expr t c b) (Expr t c b)
+  | ColSize (ColExpr t c b)
+...
+
+data ColExpr t c b =   -- collections
+    ColTerm c
+  | ColList [Expr t c b]
+...
+
+data BoolExpr t c b =   -- constraints
+    BoolTerm b
+  | BoolConst Bool
+  | BoolAnd (BoolExpr t c b) (BoolExpr t c b)
+  | BoolOr (BoolExpr t c b) (BoolExpr t c b)
+  | BoolNot (BoolExpr t c b)
+  | Rel (Expr t c b) ExprRel (Expr t c b)
+  | BoolAll (Expr t c b -> BoolExpr t c b) (ColExpr t c b)
+  | BoolAny (Expr t c b -> BoolExpr t c b) (ColExpr t c b)
+  | AllDiff Bool (ColExpr t c b)
+  | Dom (Expr t c b) (ColExpr t c b)
+...
+\end{lstlisting}
+Die obigen Constraint-Funktionen werden nun einfach durch Aufruf des entsprechenden Konstruktors implementiert. Dabei werden die Argumente dieser Funktionen gemäß bestimmten Regeln vereinfacht. So werden beispielsweise konstante Teilausdrücke berechnet und Terme umsortiert (z.B. Anwendung des Distributionsgesetzes).
+\begin{lstlisting}[language=Haskell,caption=Implementierung der MCP-Constraints]
+a @+ b     = simplify $ a `Plus` b
+a @= b     = boolSimplify $ Rel a EREqual b
+forall c f = boolSimplify $ BoolAll f c
+\end{lstlisting}
+Jeder der obigen drei Datentypen wird mit drei Typvariablen parametrisiert. Diese Typvariablen bestimmen den Termtyp für Integerausdrücke, collections bzw. boolesche Ausdrücke, die hier den FD-Constraints entsprechen. Ein solcher Termtyp legt die Darstellung von Variablen des entsprechenden Ausdruckstyps fest. Durch die Parametrisierung können die Datenstrukturen zusammen mit unterschiedlichen Term-Implementierungen verwendet werden.
+\\
+Die folgende Term-Implementierung stellt das Framework bereit:
+\begin{lstlisting}[language=Haskell,caption=Termtypen der MCP-Constraints]
+data ModelIntTerm  = ModelIntVar  Int | ModelIntPar  Int
+data ModelColTerm  = ModelColVar  Int | ModelColPar  Int
+data ModelBoolTerm = ModelBoolVar Int | ModelBoolPar Int
+\end{lstlisting}
+Hierbei ist ein Term entweder eine Variable oder ein Parameter des entsprechenden Typs, wobei jeweils ein \lstinline|Int|-Wert als Identifier dient. Um die Verwendung von Integerausdrücken, collections bzw. Constraints, die über diesen Termtypen definiert sind, zu erleichtern, führt das Framework die folgenden Typsynonyme ein:
+\begin{lstlisting}[language=Haskell]
+type ModelInt  = 
+  Expr     ModelIntTerm ModelColTerm ModelBoolTerm
+type ModelCol  = 
+  ColExpr  ModelIntTerm ModelColTerm ModelBoolTerm
+type ModelBool = 
+  BoolExpr ModelIntTerm ModelColTerm ModelBoolTerm
+type Model     = ModelBool
+\end{lstlisting} 
+Ein Wert vom Typ \lstinline|Model| ist also ein MCP-FD-Constraint über booleschen Variablen vom Typ \lstinline|ModelBoolTerm|.
+\par
+\textbf{MCP-Baummodelle:}
+\\
+Mit den bislang vorgestellten MCP-Modellierungssprache kann man Finite Domain Constraints in Haskell darstellen. Die eigentliche Lösung derartiger Constraints erfolgt aber nicht direkt auf den oben eingeführten Datenstrukturen für FD-Constraints, sondern auf baumartigen Modellen.
+\\
+In diesen Bäumen gibt es innere Knoten zum Hinzufügen von Constraints (\lstinline|Add|), Einführen neuer Constraint-Variablen (\lstinline|NewVar|) sowie Verzweigungen zur Repräsentation von Disjunktionen im Modell (\lstinline|Try|). Die Baumblätter enthalten entweder eine Lösung (\lstinline|Return|) oder symbolisieren einen Fehlschlag (\lstinline|Fail|).
+\begin{lstlisting}[language=Haskell]
+data Tree solver a = Return a
+                   | NewVar (Term solver -> Tree solver a)
+                   | Add (Constraint solver) (Tree solver a)
+                   | Try (Tree solver a) (Tree solver a)
+                   | Fail 
+\end{lstlisting}
+Die Solver des MCP-Framework lösen ein solches Baummodell, indem sie den Baum Knoten für Knoten gemäß einer zuvor festgelegten Suchstrategie auswerten. Bei der Auswertung eines bestimmten Knotens führt der Solver feste Aktionen durch: So erzeugt er beispielsweise eine neue Constraint-Variable bei der Auswertung eines \lstinline|NewVar|-Knotens oder trägt bei der Interpretation eines \lstinline|Add|-Knotens das entsprechende Constraint in seinen internen Constraint-Speichern ein.
+\par
+
+\subsubsection{Übersetzung der Constraints in die MCP-Modellierungssprache}
 
 \subsubsection{Konstruktion und Lösung von MCP-Baummodellen}
+
+\subsubsection{Ausgabe der vom Solver bestimmten Lösungen durch KiCS2}
 
 \clearpage

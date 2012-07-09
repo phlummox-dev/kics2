@@ -431,6 +431,7 @@ searchBFS act goal = do
       follow (NoDecision , j) = reset >> (cont (choicesCons defCover j zs) +++ (next cont xs ys))
       follow c                = error $ "Search.bfsFree: Bad choice " ++ show c
 
+    bfsGuard _ (ExtConstr extCs) e = set >> solveAll extCs solvers e >>= bfs cont xs ys set reset -- not working in some cases
     bfsGuard _ cs e = set >> solve cs e >>= \mbSltn -> case mbSltn of
       Nothing            -> reset >> next cont xs ys
       Just (newReset, a) -> bfs cont xs ys set (newReset >> reset) a
@@ -615,6 +616,9 @@ searchMSearch' cont = match smpChoice smpChoices smpChoices smpFail smpGuard smp
     sumF = if isCovered cd then ssum (decCover cd) i else msum
 
 
+  smpGuard cd cs@(ExtConstr extCs) e
+   | isCovered cd = constrainMSearch (decCover cd) cs (searchMSearch' cont e)
+   | otherwise = solveAll extCs solvers e >>= searchMSearch' cont
   smpGuard cd cs e 
    | isCovered cd = constrainMSearch (decCover cd) cs (searchMSearch' cont e)
    | otherwise = solve cs e >>= maybe mzero (searchMSearch' cont . snd)

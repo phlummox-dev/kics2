@@ -7,13 +7,14 @@ import Types
 import FDData
 import qualified Curry_Prelude as CP
 
-import Data.Expr.Data hiding (Const,Plus,Minus,Mult)
+--import Data.Expr.Data hiding (Const,Plus,Minus,Mult)
 import Data.Expr.Sugar
 import Control.CP.ComposableTransformers (solve)
-import Control.CP.SearchTree (addC, Tree (..))
+import Control.CP.SearchTree (addC, Tree (..),MonadTree(..))
 import Control.CP.EnumTerm
 import Control.CP.FD.Model
-import Control.CP.FD.FD (FDInstance, FDSolver)
+import Control.CP.FD.FD (FDInstance, FDSolver, getColItems)
+import Control.CP.FD.Interface (colList) -- added for new label
 import Control.CP.FD.Solvers
 import Control.CP.FD.Gecode.Common (GecodeWrappedSolver)
 import Control.CP.FD.Gecode.Runtime (RuntimeGecodeSolver)
@@ -137,7 +138,7 @@ translateConstr (FDLabeling strategy vs i) = do state <- get
                                                 let newInfo  = Info (Just vs) (Just mcpVs) (Just i) (Just strategy) 
                                                     newState = state { labelInfo = newInfo }
                                                 put newState 
-                                                return (BoolConst True)
+                                                return (toBoolExpr True)
 
 -- Translates integer terms to appropriate MCP terms
 -- using Haskell's state monad
@@ -154,7 +155,7 @@ newVar :: Term Int -> State TLState ModelInt
 newVar (Var i) = do state <- get
                     let varMap   = intVarMap state
                         varRef   = nextIntVarRef state
-                        nvar     = Term (ModelIntVar varRef)
+                        nvar     = asExpr (ModelIntVar varRef :: ModelIntTerm ModelFunctions)
                         newState = state { nextIntVarRef = varRef + 1
                                          , intVarMap = Map.insert (getKey i) nvar varMap
                                          }
@@ -164,7 +165,7 @@ newVar (Var i) = do state <- get
 -- Translates lists of expressions to MCP collection
 translateList :: [Term Int] -> State TLState ModelCol
 translateList vs = do mcpExprList <- mapM translateTerm vs
-                      return (ColList mcpExprList)
+                      return (list mcpExprList)
 
 -- Translates relational operators to appropriate MCP operators
 translateRelOp Equal = (@=)
@@ -205,19 +206,27 @@ solveWithMCP Overton (SM mcpCs) info = trace ("MCP-Solver-Constraints:\n" ++ sho
 
 --solveWithGecode :: FDSolver s => Tree (FDInstance s) ModelCol -> LabelingStrategy -> [[CP.C_Int]]
 solveWithGecode modelTree strategy = 
-  let sol = snd $ solve dfs it ((modelTree :: Tree (FDInstance (GecodeWrappedSolver RuntimeGecodeSolver)) ModelCol) >>= label strategy)
+  let sol = snd $ solve dfs it ((modelTree :: Tree (FDInstance (GecodeWrappedSolver RuntimeGecodeSolver)) ModelCol) >>= labelWith strategy)
   in map (map toCurry) sol
     
 --solveWithOverton :: FDSolver s => Tree (FDInstance s) ModelCol -> LabelingStrategy -> [[CP.C_Int]]
 solveWithOverton modelTree strategy = 
-  let sol = snd $ solve dfs it ((modelTree :: Tree (FDInstance OvertonFD) ModelCol) >>= label strategy)
+  let sol = snd $ solve dfs it ((modelTree :: Tree (FDInstance OvertonFD) ModelCol) >>= labelWith strategy)
   in map (map toCurry) sol
 
+
+labelWith strategy col = label $ do
+  lst <- getColItems col maxBound
+  return $ do
+    lsti <- colList col $ length lst
+    labelling (matchStrategy strategy) lsti
+    assignments lsti
+{-
 label strategy (ColList exprs) = trace (show exprs) $ 
                                  do labelling (matchStrategy strategy) exprs
                                     assignments exprs
 label _        _               = error "MCPSolver.label: Invalid labeling variables" 
-
+-}
 matchStrategy :: EnumTerm s t => LabelingStrategy -> [t] -> s [t]
 matchStrategy FirstFail = firstFail
 matchStrategy MiddleOut = middleOut

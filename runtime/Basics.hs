@@ -127,16 +127,18 @@ mapFst f (a, b) = (f a, b)
       Choices_C_Success cd (narrowID i) (map (\x -> (x & s) cs) xs)
 -}
 (&) :: C_Success -> C_Success -> ConstStore -> C_Success
-(&) C_Success              y _  = y
-(&) x@(Fail_C_Success _ _) _ _  = x
-(&) x                      y cs = maySwitch y x cs
+(&) C_Success                                  y _  = y
+(&) x@(Fail_C_Success _ _)                     _ _  = x
+(&) (Guard_C_Success cd c@(StructConstr _) e)  y cs = Guard_C_Success cd c ((e & y) $! addCs c cs)
+(&) (Guard_C_Success cd c@(ValConstr _ _ _) e) y cs = Guard_C_Success cd c ((e & y) $! addCs c cs)
+(&) x                                          y cs = maySwitch y x cs
 
 -- lift Guards with structural and value constraints
 maySwitch :: C_Success -> C_Success -> ConstStore -> C_Success
 maySwitch C_Success              x                  _  = x
 maySwitch y@(Fail_C_Success _ _) _                  _  = y
-maySwitch y (Guard_C_Success cd c@(StructConstr _) e)  cs = Guard_C_Success cd c ((e & y) $! addCs c cs)
-maySwitch y (Guard_C_Success cd c@(ValConstr _ _ _) e) cs = Guard_C_Success cd c ((e & y) $! addCs c cs)
+--maySwitch y (Guard_C_Success cd c@(StructConstr _) e)  cs = Guard_C_Success cd c ((e & y) $! addCs c cs)
+--maySwitch y (Guard_C_Success cd c@(ValConstr _ _ _) e) cs = Guard_C_Success cd c ((e & y) $! addCs c cs)
 maySwitch (Guard_C_Success cd c@(StructConstr _) e) x  cs = Guard_C_Success cd c ((x & e) $! addCs c cs)
 maySwitch (Guard_C_Success cd c@(ValConstr _ _ _) e) x cs = Guard_C_Success cd c ((x & e) $! addCs c cs)
 maySwitch y (Choice_C_Success cd i a b)                cs = Choice_C_Success cd i ((a & y) cs) ((b & y) cs)

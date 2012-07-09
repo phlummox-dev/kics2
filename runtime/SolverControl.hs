@@ -1,6 +1,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DatatypeContexts #-}
+{-# OPTIONS_GHC -fno-warn-deprecated-flags #-}
 
 module SolverControl where
 
@@ -23,6 +24,7 @@ filterCs (ec:ecs) = let (cs,ecs') = filterCs ecs
 -- list of supported constraint solvers
 solvers :: (Store m, NonDet a) => [Solver m a]
 solvers = [Solver runGecode, Solver runOverton]
+--solvers = [Solver runOverton,Solver runGecode]
 
 -- try solving all constraints of the heterogenous list of external constraints by running the supported solvers
 -- one after another
