@@ -3,7 +3,7 @@
 -- in Haskell
 -- ---------------------------------------------------------------------------
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE MultiParamTypeClasses, Rank2Types, FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses, Rank2Types, FunctionalDependencies, FlexibleContexts #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Types
@@ -377,29 +377,37 @@ lookupValue i = do decId <- lookupDecisionID i
                    fromDecision i decId
 
 -- needs MultiParamTypeClasses and FunctionalDependencies
-class (Unifiable ctype, FromDecisionTo ctype) => Constrainable ctype ttype | ttype -> ctype where
+class Constrainable ctype ttype | ttype -> ctype where
   -- |Convert a curry type into a constrainable term representation
   toCsExpr :: ctype -> ttype
-  -- |Check whether the curry representation of a constraint variable was bound
-  -- to another value (possibly by using lookupValue)
-  -- and update the corresponding variable if necessary
-  getVarBinding :: Store m => ttype -> m ttype
   -- |Bind a curry value to a constraint variable
   -- (possibly by constructing guard expressions with binding constraints
   -- using Unifiable.bind)
   bindLabelVar :: NonDet a => ttype -> ctype -> a -> a
 
+
 -- Simple generic constraint-term type
--- needs DeriveDataTypeable
-data Term a = Const a
-            | Var ID
+data FDTerm a = Const a
+              | FDVar ID
  deriving (Eq,Show)
 
--- Representation of constraint solver solutions consisting of
--- - list of solutions (one solution = list of values)
--- - list of constraint variables (i.e. the labeling variables)
--- - and a fresh ID for constructing choices over different variable bindings
-data SolverSolution a b = Sol [[a]] [b] ID
+-- |Check whether the curry representation of a fd constraint variable was bound
+-- to another value by using lookupValue
+-- and update the corresponding fd variable if necessary
+updateFDVar :: (Constrainable c (FDTerm t), FromDecisionTo c, Store m) => (FDTerm t) -> m (FDTerm t)
+updateFDVar c@(Const _) = return c
+updateFDVar (FDVar i)   = do a <- lookupValue i
+                             return (toCsExpr a)                                  
+
+data FDList a = FDList ID [a]
+ deriving (Eq,Show)
+
+-- Information for binding constraint solver solutions to their
+-- corresponding curry variables
+-- - a list of solutions (one solution = list of values)
+-- - a list of constraint variables (i.e. the labeling variables)
+-- - a fresh ID
+data SolutionInfo a b = SolInfo [[a]] (FDList b) ID
 
 -- Solvers of the Monadic Constraint Programming Framework
 data MCPSolver = Gecode | Overton
@@ -408,12 +416,12 @@ data MCPSolver = Gecode | Overton
 -- to their corresponding curry variables by constructing guard expressions
 -- with appropriate binding constraints
 -- if there are no solutions, return Fail
-bindSolution :: (Constrainable s t, NonDet a) => SolverSolution s t -> a -> a
-bindSolution (Sol [] _ _) _ = failCons 0 defFailInfo
-bindSolution (Sol [sol] lVars lID) e = bindLabelVars lVars sol e
-bindSolution (Sol (sol:sols) lVars lID) e = choiceCons defCover lID solution solutions
+bindSolutions :: (Constrainable s t, NonDet a) => SolutionInfo s t -> a -> a
+bindSolutions (SolInfo [] _ _) _ = failCons 0 defFailInfo
+bindSolutions (SolInfo [sol] (FDList _ lVars) _) e = bindLabelVars lVars sol e
+bindSolutions (SolInfo (sol:sols) (FDList i lVars) choiceID) e = choiceCons defCover choiceID solution solutions
   where solution  = bindLabelVars lVars sol e
-        solutions = bindSolution (Sol sols lVars (leftID lID)) e
+        solutions = bindSolutions (SolInfo sols (FDList i lVars) (leftID choiceID)) e
 
 -- Bind each value of a solution to its corresponding constraint variable in the
 -- list of the labeling variables by calling Constrainable.bindLabelVar

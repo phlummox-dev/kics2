@@ -590,27 +590,19 @@ instance ConvertCurryHaskell ct ht =>
 -- Constrainable instances:
 -- ---------------------------------------------------------------------------
 
-instance Constrainable C_Int (Term Int) where
-  toCsExpr (Choices_C_Int _ i@(FreeID _ _) _) = Var i
+instance Constrainable C_Int (FDTerm Int) where
+  toCsExpr (Choices_C_Int _ i@(FreeID _ _) _) = FDVar i
   toCsExpr v                                  = Const (fromCurry v)
 
-  getVarBinding (Var i)     = do a <- lookupValue i
-                                 return (toCsExpr a)                                  
-  getVarBinding x@(Const _) = return x
+  bindLabelVar (FDVar i) v e   = guardCons defCover (ValConstr i v (bind i v)) e
+  bindLabelVar (Const _) _ e   = e
 
-  bindLabelVar (Var i) v e   = guardCons defCover (ValConstr i v (bind i v)) e
-  bindLabelVar (Const _) _ e = e
-
-instance Constrainable C_Bool (Term Bool) where
-  toCsExpr (Choices_C_Bool _ i@(FreeID _ _) _) = Var i
+instance Constrainable C_Bool (FDTerm Bool) where
+  toCsExpr (Choices_C_Bool _ i@(FreeID _ _) _) = FDVar i
   toCsExpr v                                   = Const (fromCurry v)
 
-  getVarBinding (Var i)     = do a <- lookupValue i
-                                 return (toCsExpr a)                                  
-  getVarBinding x@(Const _) = return x
-
-  bindLabelVar (Var i) v e   = guardCons defCover (ValConstr i v (bind i v)) e
-  bindLabelVar (Const _) _ e = e
+  bindLabelVar (FDVar i) v e   = guardCons defCover (ValConstr i v (bind i v)) e
+  bindLabelVar (Const _) _ e   = e
 
 -- ---------------------------------------------------------------------------
 -- Auxiliary operations for showing lists

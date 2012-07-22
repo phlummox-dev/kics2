@@ -34,9 +34,9 @@ infix  4 =#, /=#, <#, <=#, >#, >=#
 -- @param l - lower boundary for all variables in vs
 -- @param u - upper boundary for all variables in vs
 domain :: [Int] -> Int -> Int -> Success
-domain vs l u = ((prim_domain $!! (ensureSpine vs)) $!! l) $!! u
+domain vs l u = (((prim_domain vs) $!! l) $!! u) listVar where listVar free
 
-prim_domain :: [Int] -> Int -> Int -> Success
+prim_domain :: [Int] -> Int -> Int -> [Int] -> Success
 prim_domain external
 
 -- Addition of FD variables.
@@ -106,33 +106,30 @@ prim_FD_geq external
 
 -- "All different" constraint on FD variables.
 allDifferent :: [Int] -> Success
-allDifferent vs = prim_allDifferent $!! (ensureSpine vs)
+allDifferent vs = (prim_allDifferent vs) listVar where listVar free
 
-prim_allDifferent :: [Int] -> Success
+prim_allDifferent :: [Int] -> [Int] -> Success
 prim_allDifferent external
 
 -- "Sum" constraint on FD variables.
 -- @return sum of given variables
 sum :: [Int] -> Int
-sum vs = (prim_sum $!! (ensureSpine vs)) result where result free
+sum vs = prim_sum vs result listVar where result,listVar free
 
-prim_sum :: [Int] -> Int -> Int
+prim_sum :: [Int] -> Int -> [Int] -> Int
 prim_sum external
 
 -- label FD variables in order
 -- @param var - helper variable for construction of solutions
 labeling :: [Int] -> Success
-labeling vs = (prim_labeling $!! (ensureSpine vs)) var where var free
-
-prim_labeling :: [Int] -> [Int] -> Success
-prim_labeling external
+labeling vs = (prim_labelingWith InOrder) vs listVar labelVar where listVar,labelVar free
 
 -- label FD variables with strategy
 -- @param var - helper variable for construction of solutions
 labelingWith :: LabelingStrategy -> [Int] -> Success
-labelingWith strategy vs = ((prim_labelingWith $## strategy) $!! (ensureSpine vs)) var where var free
+labelingWith strategy vs = (prim_labelingWith $## strategy) vs listVar labelVar where listVar,labelVar free
 
-prim_labelingWith :: LabelingStrategy -> [Int] -> [Int] -> Success
+prim_labelingWith :: LabelingStrategy -> [Int] -> [Int] -> [Int] -> Success
 prim_labelingWith external
 
 -- supported labeling strategies
