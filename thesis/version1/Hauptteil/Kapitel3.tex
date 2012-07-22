@@ -1,8 +1,147 @@
 \subsection{Entwicklung generischer Schnittstellen zur Unterstützung weiterer Constraints und FD-Solver}
 \label{section_generic_interface}
+In den beiden vorigen Kapiteln wurde beschrieben, wie man die KiCS2-Curry-Implementierung um eine Bibliothek für Finite Domain Constraints erweitern kann, indem man die Solver des Haskell-basierten Monadic Constraint Programming Frameworks in KiCS2 integriert. Die bisherige Realisierung hat jedoch einige Nachteile: Beispielsweise gibt es keine Schnittstelle, die einem das Hinzufügen weiterer Constraint-Bibliotheken erleichtert. Stattdessen müsste für jeden neu eingeführten Constraint-Typ der in den \lstinline|Guard|-Ausdrücken verwendete Typ \lstinline|Constraints| erweitert werden, wenn man so vorgeht wie bei der FD-Constraint-Erweiterung. Des Weiteren gibt es bislang auch kein allgemeines Interface zur Anbindung weiterer FD-Solver an KiCS2.
+\par
+Dieses Kapitel beschreibt die Definition generischer Schnittstellen, die die Integration weiterer Constraint-Typen und FD-Solver in KiCS2 erleichtern. Es ist in drei Abschnitte unterteilt: Der erste Abschnitt führt eine Schnittstelle für FD-Terme in KiCS2 ein, die sich unter anderem um die Übersetzung der Haskell-Repräsentation eines Curry-Typs in einen FD-Term kümmert. Im zweiten Teilabschnitt wird ein generisches Interface zur Anbindung weiterer FD-Solver an KiCS2 vorgestellt. Der letzte Abschnitt dieses Kapitels befasst sich schließlich mit der Erweiterung von KiCS2 um eine allgemeine Constraint-Schnittstelle, die es ermöglicht, beliebige Constraint-Typen mit Hilfe von \lstinline|Guard|-Ausdrücken durch die Implementierung durchzureichen und lösen zu lassen.
+
+\subsubsection{FD-Term Interface}
+Bei der Vorstellung der Erweiterung von KiCS2 um eine Bibliothek zur Modellierung von Finite Domain Constraints wurde in Bezug auf die Integerargumente dieser Constraints stets mit festen Typen programmiert. So wurde beispielsweise eine Funktion \lstinline|toFDTerm| implementiert, die die Haskellrepräsentation eines Curry-Integerwerts in einen Integer-FD-Term übersetzt (vergleiche Abschnitt 4.1.2, Seite \textcolor{red}{$<$hier endgültige Seitenzahl$>$}). Des Weiteren wurde mit \lstinline|updateFDVar| eine Funktion zur Aktualisierung von Integer-FD-Variablen in Bezug auf Bindungen definiert, die durch das Curry-Gleichheitsconstraint \lstinline|(=:=)| eingeführt wurden (vergleiche Abschnitt 4.1.4, Seite \textcolor{red}{$<$hier endgültige Seitenzahl$>$}). Schließlich hat man noch die Funktion \lstinline|bindLabelVar| implementiert, mit deren Hilfe ein durch den Solver gefundener Integerwert an die zu einer Labeling-Variable zugehörige freie Variable gebunden wird (vergleiche Abschnitt 4.2.3, Seite \textcolor{red}{$<$hier endgültige Seitenzahl$>$}). Alle diese Funktionen arbeiten mit den Typen \lstinline|C_Int| bzw. \lstinline|FDTerm Int|. Durch Einführung einer Typklasse \lstinline|Constrainable| soll von der Festlegung auf diese Typen abstrahiert werden. 
+\\
+Die Typklasse ist somit ein KiCS2-internes Interface, das in erster Linie zur Transformation von durch Constraints beschränkbare Curry-Typen (bzw. genauer deren Repräsentation als Haskell-Typ) in KiCS2-interne Term-Typen dient.
+\begin{lstlisting}[language=Haskell,caption=Interface für durch Constraints beschränkbare Typen]
+class Constrainable ctype ttype where
+  toCsExpr :: ctype -> ttype
+\end{lstlisting}
+Für diese Transformation stellt die Typklasse die Funktion \lstinline|toCsExpr| zur Implementierung bereit.
+\\
+Es handelt sich bei \lstinline|Constrainable| um eine Typklasse mit mehr als einem Typparameter (Spracherweiterung \emph{MultiParamTypeClasses}). Daher ist es auch möglich mehr als eine interne Term-Repräsentation für einen Curry-Typ anzugeben.
+\\
+Zur Umwandlung von Curry-Integerwerten vom Typ \lstinline|C_Int| in FD-Terme vom Typ \lstinline|FDTerm Int| kann man nun beispielsweise die folgende Instanz definieren:
+\begin{lstlisting}[language=Haskell,caption=Beispielinstanz zur Erzeugung von Integer-FD-Termen]
+instance Constrainable C_Int (FDTerm Int) where
+  toCsExpr (Choices_C_Int i@(FreeID _) _) = FDVar i
+  toCsExpr x                              = Const (fromCurry x)
+\end{lstlisting}
+Man implementiert die Funktion \lstinline|toCsExpr| dazu einfach nach dem Vorbild von \lstinline|toFDTerm|. Damit kann man die speziellere Funktion (\lstinline|toFDTerm|) durch eine allgemeinere (\lstinline|toCsExpr|) ersetzen.
+\par
+Mit Hilfe von \lstinline|Constrainable| kann man auch bei den beiden anderen oben erwähnten Funktionen von konkreten Typen abstrahieren. Dazu passt man beispielsweise die Implementierung von \lstinline|updateFDVar| wie folgt an:
+\begin{lstlisting}[language=Haskell,caption=Funktion zur Aktualisierung von FD-Variablen (angepasst)]
+updateFDVar :: (Constrainable c (FDTerm t), FromDecisionTo c,
+                Store m) => FDTerm t -> m (FDTerm t)
+updateFDVar c@(Const _) = return c
+updateFDVar (FDVar i)   = do x <- lookupValue i
+                             return (toCsExpr x)
+\end{lstlisting}
+Für diese Realisierung kommen die Haskell-Spracherweiterungen \emph{flexible contexts} und \emph{functional dependencies} zum Einsatz. Die erstgenannte Erweiterung ermöglicht die Einschränkung des \lstinline|Constrainable|-Typklassen-Constraints auf Term-Typen vom Typ \lstinline|FDTerm t|. Die zweite ist erforderlich, um die Typklasse \lstinline|Constrainable| folgendermaßen anpassen zu können: 
+\begin{lstlisting}[language=Haskell]
+class Constrainable ctype ttype | ttype -> ctype where
+...
+\end{lstlisting}
+Auf diese Weise wird eine funktionale Abhängigkeit zwischen dem internen Term-Typ und dem ursprünglichen Curry-Typ eingeführt. Diese Abhängigkeit wird für die obige Implementierung der Funktion \lstinline|updateFDVar| benötigt, damit die richtige \lstinline|Constrainable|-Instanz für den Aufruf von \lstinline|toCsExpr| ausgewählt werden kann. Ohne diese funktionale Abhängigkeit könnte man die obige allgemeinere Definition für \lstinline|updateFDVar| nicht in dieser Form angeben.
+\\
+Auch für die Funktionen zur Bindung von Constraint-Lösungswerten, also \lstinline|bindSolutions|, \lstinline|bindLabelVars| und \lstinline|bindLabelVar|, die in Kapitel 4.2.3 vorgestellt wurden, lassen sich mit Hilfe von \lstinline|Constrainable| allgemeinere Typsignaturen angeben. Ihre Implementierung bleibt dabei unverändert. 
+\begin{lstlisting}[language=Haskell,caption=Angepasste Typsignaturen für Funktionen zur Bindung von Constraint-Lösungen]
+bindLabelVar :: (Constrainable c (FDTerm t), Unifiable c,
+                 NonDet a) => FDTerm t -> c -> a -> a
+
+bindSolutions :: (Constrainable s (FDTerm t), Unifiable s,
+                  NonDet a) => 
+                   SolutionInfo s (FDTerm t) -> a -> a
+
+bindLabelVars :: (Constrainable s (FDTerm t), Unifiable s,
+                  NonDet a) => [FDTerm t] -> [s] -> a -> a
+\end{lstlisting}
+Die Typklasse \lstinline|Constrainable| bietet also ein generisches Interface, mit dessen Hilfe man jeden durch Constraints beschränkbaren Typ auf eine oder mehrere unterschiedliche Constraint-Term-Repräsentationen abbilden kann. Außerdem ermöglicht sie die Abstraktion von konkreten Term-Typen bei weiteren Funktionen, die für die Entwicklung der KiCS2-CLPFD-Bibliothek definiert wurden.
+
+\subsubsection{FD-Solver-Interface}
+Im Rahmen dieser Arbeit wurden die Finite Domain Solver des Monadic Constraint Programming Frameworks in KiCS2 integriert. Es wäre jedoch wünschenswert, dass man in Zukunft ohne großen Aufwand weitere FD-Solver in KiCS2 einbinden kann. 
+\\
+Dazu wird in diesem Abschnitt ein generisches FD-Solver-Interface vorgestellt, das Funktionen zur Implementierung bereitstellt, durch die man externe FD-Solver an KiCS2 anschließen kann. Zunächst wird schrittweise das Interface präsentiert, um dann abschließend zu zeigen, wie man die MCP-Solver über diese Schnittstelle an KiCS2 anbindet. 
+\\
+Die Schnittstelle wird durch die folgende Typklasse realisiert:
+\begin{lstlisting}[language=Haskell,caption=Interface zur Integration von FD-Solvern]
+class ExternalFDSolver solver constraint where
+...
+\end{lstlisting}
+Die Typklasse \lstinline|ExternalFDSolver| wird mit zwei Typvariablen parametrisiert: \lstinline|solver| für den verwendeten FD-Solver und \lstinline|constraint| für die FD-Constraints, die durch die (bei der Instanziierung) angegebene Implementierung gelöst werden.
+\\
+Für die Realisierung verwendet man die \emph{associated types}-Spracherweiterung (oder auch \emph{type families}- bzw. \emph{data families}-Spracherweiterung), mit der man die folgenden Hilfstypen einführt.
+\begin{lstlisting}[language=Haskell,caption=Interface zur Integration von FD-Solvern - associated types]
+class ExternalFDSolver solver constraint where
+  data SolverModel solver constraint :: *
+  data LabelInfo solver constraint :: *
+  data Solutions solver constraint :: *
+  ...
+\end{lstlisting}
+Mit dem Typ \lstinline|SolverModel solver constraint| wird die FD-Modellierungssprache eines Solvers festgelegt, also eine Repräsentation derjenigen Constraints, die der Solver interpretieren und lösen kann. Der Typ \lstinline|LabelInfo solver constraint| dient dazu, alle Informationen zu speichern, die für das Labeling durch den konkreten FD-Solver erforderlich sind, also zum Beispiel die Variablen, über denen das Labeling durchgeführt werden soll, oder die Labeling-Strategie. Und durch \lstinline|Solutions solver constraint| wird festgelegt, in welcher Form die Lösungen eines bestimmten FD-Solvers zurückgegeben werden.
+\par
+Diese Hilfstypen kommen in den vom \lstinline|ExternalFDSolver|-Interface zur Verfügung gestellten Funktionen zur Anwendung:
+\begin{lstlisting}[language=Haskell,caption=Interface zur Integration von FD-Solvern - Funktionen]
+class ExternalFDSolver s c where
+  ...
+  translate :: s -> [c] -> (SolverModel s c, LabelInfo s c)
+
+  solveWith :: s -> SolverModel s c -> LabelInfo s c 
+            -> Solutions s c
+
+  makeCsSolutions :: NonDet a => s -> Solutions s c -> a -> a
+  ...
+\end{lstlisting}
+Vier Funktionen müssen bei der Instanziierung von \lstinline|ExternalFDSolver| implementiert werden (die vierte Funktion ist zusammen mit einer Default-Implementierung weiter unten angegeben):
+\begin{itemize}
+\item \lstinline|translate|: Dient dazu die allgemeine Repräsentation von FD-Constraints in ein semantisch äquivalentes Model mit den Constraints der Modellierungssprache des jeweiligen Solvers (\lstinline|SolverModel s c|) zu übersetzen. Zusätzlich werden bei der Übersetzung alle für das Labeling relevanten Informationen gesammelt und als Wert vom Typ \lstinline|LabelInfo s c| zurückgegeben.
+\item \lstinline|solveWith|: Mit dieser Funktion wird der konkrete Solver \lstinline|s| aufgerufen. Dazu werden das übersetzte Modell sowie die gesammelten Labeling-Informationen übergeben. Die Funktion liefert schließlich die gefundenen Lösungen in der zuvor spezifizierten Form zurück (\lstinline|Solutions s c|).
+\item \lstinline|makeCsSolutions|: Durch diese Funktion werden die vom Solver gefundenen Lösungen (\lstinline|Solutions s c|) in einen nicht-deterministischen Suchbaum (entspricht einem nicht-deterministischen Ausdruck) integriert, der dann durch die KiCS2-Suchstragien weiter ausgewertet wird.
+\item \lstinline|runSolver|: Ruft einen konkreten FD-Solver direkt mit der allgemeinen KiCS2-internen FD-Constraint-Repräsentation auf und liefert einen nicht-deterministischen Ausdruck zur weiteren Auswertung durch die KiCS2-Suchstrategien zurück. Für diese Funktion gibt die \lstinline|ExternalFDSolver|-Typklasse eine Default-Implementierung an, die die anderen von der Typklasse bereitgestellten Funktionen kombiniert, um dieses Modell zu übersetzen, das übersetzte Modell lösen zu lassen und schließlich die gefundenen Lösungen in einen nicht-deterministischen Ausdruck zu überführen.
+\end{itemize}
+\begin{lstlisting}[language=Haskell,caption=Interface zur Integration von FD-Solvern - Funktionen]
+class ExternalFDSolver s c where
+  ...
+  runSolver :: NonDet a => s -> [c] -> a -> a
+  runSolver solver fdCs e = 
+    do let (solverCs,info) = translate solver fdCs
+           solutions       = solveWith solver solverCs info
+       return $ makeCsSolutions solver solutions e
+\end{lstlisting}
+\lstinline|runSolver| ist diejenige Funktion, die bei der Auswertung eines \lstinline|Guard|-Ausdrucks mit FD-Constraints von den KiCS2-Suchstrategien aufgerufen wird, um die Constraints von einem (MCP-)Solver lösen zu lassen und einen nicht-deterministischen Ausdruck mit den Lösungen zur weiteren Auswertung zu konstruieren. Diese Funktion ersetzt also den Aufruf der Funktion \lstinline|runMCPSolver| während der Auswertung durch Suchstrategien wie der Tiefensuche (vergleiche Kapitel 4.2.3). 
+\\
+Die Default-Implementierung von \lstinline|runSolver| soll zeigen, wie man die Funktionen der FD-Solver-Schnittstelle zur Lösung von FD-Constraints kombinieren kann. Falls nötig kann sie jedoch bei der Instanziierung der Typklasse auch durch eine eigene Realisierung überschrieben werden.
+\par
+Abschließend soll nun die \lstinline|ExternalFDSolver|-Instanz für die FD-Solver des Monadic Constraint Programming Frameworks und die KiCS2-interne Repräsentation von FD-Constraints durch den Typ \lstinline|FDConstraint| betrachtet werden:
+\begin{lstlisting}[language=Haskell,caption=Integration der MCP-Solver über die FD-Solver-Schnittstelle]
+instance ExternalFDSolver MCPSolver FDConstraint where
+  newtype SolverModel MCPSolver FDConstraint = 
+    ModelWrapper [Model]
+  newtype LabelInfo MCPSolver FDConstraint   = 
+    LabelWrapper MCPLabelInfo
+  newtype Solutions MCPSolver FDConstraint   = 
+    SolWrapper (SolutionInfo C_Int (FDTerm Int))
+
+  translate Overton fdCs = translateOverton fdCs
+  translate Gecode  fdCs = translateGecode fdCs
+
+  solveWith = solveWithMCP 
+
+  makeCsSolutions _ (SolWrapper solutions) e = 
+    bindSolutions solutions e
+\end{lstlisting}
+Die drei \emph{associated types} implementiert man mit Hilfe von Wrapper-Typen, in die man die passenden Typen, also \lstinline|[Model]| als Typ für die MCP-FD-Modellierungssprache, \lstinline|MCPLabelInfo| für die MCP-Labeling-Informationen und \lstinline|SolutionInfo C_Int (FDTerm Int)| zur Darstellung von Lösungen, einpackt. Diese Typcontainer sind erforderlich, wenn man die \emph{associated types} durch Datentypen implementiert, die bereits an anderer Stelle definiert wurden. 
+\par
+Anders als in Kapitel 4.2.1 beschrieben gibt es für die beiden MCP-Solver unterschiedliche Übersetzungsfunktionen. Dies hängt damit zusammen, dass die beiden Solver auf unterschiedlichen Darstellungen von MCP \emph{collections}, die konstante Werte enthalten, arbeiten. Die in Kapitel 4.2.1 beschriebene Übersetzungsfunktion \lstinline|translateToMCP| entspricht allerdings im wesentlichen dem Übersetzungsvorgang für den Overton-Solver.
+Im Anhang (\textcolor{red}{$<$hier Verweis auf Anhang$>$}) wird der Code für die beiden Übersetzungsfunktionen angegeben. Dort wird auch noch einmal auf diese Problematik eingegangen.
+\\
+Die Interface-Funktion \lstinline|solveWith| wird mit Hilfe der in Kapitel 4.2.2 vorgestellten Funktion \lstinline|solveWithMCP| implementiert. Deren Typsignatur und Implementierung ist nur in Hinblick auf die oben angegebenen Wrapper-Typen (also z.B. das Ein- und Auspacken der ursprünglich verwendeten Werte) anzupassen (siehe Anhang).
+\\
+Um die durch den Solver gefundenen Lösungen in den KiCS2-Suchbaum einzubauen, erzeugt man mit Hilfe von \lstinline|bindSolutions| \lstinline|Guard|-Ausdrücke mit passenden Bindungsconstraints, wie in Kapitel 4.2.3 beschrieben. Das heißt, \lstinline|makeCsSolutions| wird durch Aufruf von \lstinline|bindSolutions| implementiert.
 
 \subsubsection{Generische Constraint-Schnittstelle}
+Im letzten Unterkapitel wurde ein generisches Interface zur Anbindung von Finite Domain Solvern an die KiCS2-Curry-Implementierung vorgestellt und beispielhaft für die Solver des Monadic Constraint Programming Frameworks implementiert.
+\\
+Dieser Abschnitt befasst sich mit der Entwicklung einer generischen Schnittstelle für Constraints. Das bedeutet, beim Durchreichen von Constraints mit Hilfe von \lstinline|Guard|-Ausdrücken und Lösen dieser Constraints während der Auswertung soll mit Hilfe dieser Schnittstelle von konkreten Constraint-Arten wie FD-Constraints abstrahiert werden.
+\par
+Dazu macht man sich Ideen zunutze, die für die Entwicklung einer erweiterbaren dynamisch-getypten Hierarchie von Exceptions in Haskell verwendet wurde (siehe \cite{Marlow:2006:EDH:1159842.1159854}): Diese Arbeit stellt eine Möglichkeit vor, eine Objekt-orientierte API in Haskell zu realisieren. Sie beschreibt die Einführung eines erweiterbaren hierarchischen Exception-Typs in Haskell mit Hilfe von \emph{Haskell existentials} und der \emph{Data.Typeable-Bibliothek}. Des Weiteren erklärt sie, wie man Exception Handler durch Verwendung der \emph{scoped type variables Spracherweitung} realisieren kann.
+\par
+Einige dieser Ideen werden aufgegriffen, um einen erweiterbaren Constraint-Typ in KiCS2 zu implementieren. Für diese Erweiterung wird ein einfaches Interface zur Verfügung gestellt.
 
-\subsubsection{FD-Solver Interface}
 
 \clearpage

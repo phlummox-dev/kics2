@@ -13,7 +13,7 @@ Wie Tom Schrijvers, Peter Stuckey und Phil Wadler gezeigt haben, ist es mit Hilf
 \\
 Effizientere und besser optimierte Solver-Bibliotheken wurden allerdings in imperativen Sprachen wie C++ oder Java realisiert z.B. Gecode \cite{Gecode} oder TAILOR \cite{Gent:2007:TSC:1770681.1770699}. Daher ist das Ziel dieser Arbeit nicht die direkte Realisierung eines Curry-Constraint-Solvers, sondern vielmehr die Entwicklung einer generischen Schnittstelle, mit deren Hilfe man extern implementierte Solver in Curry integrieren kann.
 \\
-Wie bereits erwähnt wird für die Entwicklung die KiCS2-Curry-Implementierung verwendet, die funktional-logische Curry-Programme in rein funktionale Haskell-Programme übersetzt. Das bedeutet, KiCS2 bildet alle Datentypen und -Funktionen eines Curry-Programms auf entsprechende Haskell-Typen und -Funktionen ab. Weiterhin bietet KiCS2 dem Programmierer die Möglichkeit, Curry-Funktionen extern, also durch Angabe einer Haskell-Implementierung, zu definieren. Weite Teile dieser Arbeit wurden auf diese Weise in Haskell implementiert.
+Wie bereits erwähnt wird für die Entwicklung die KiCS2-Curry-Implementierung verwendet, die funktional-logische Curry-Programme in rein funktionale Haskell-Programme übersetzt. Das bedeutet, KiCS2 bildet alle Datentypen und Funktionen eines Curry-Programms auf entsprechende Haskell-Typen und -Funktionen ab. Weiterhin bietet KiCS2 dem Programmierer die Möglichkeit, Curry-Funktionen extern, also durch Angabe einer Haskell-Implementierung, zu definieren. Weite Teile dieser Arbeit wurden auf diese Weise in Haskell implementiert.
 \\
 Zur Realisierung der Modellierungskomponente wird KiCS2 zunächst um eine Bibliothek für Finite Domain Constraints erweitert. Diese Constraints sollen dann später durch Anbindung der FD-Solver des Monadic Constraint Programming Frameworks an KiCS2 gelöst werden. Die Frage ist nun, wie man ein in Curry mit Hilfe der Finite Domain Bibliothek formuliertes Constraint-Problem in Haskell repräsentiert und diese Haskell-Repräsentation an den Solver übergibt.
 \\
@@ -72,13 +72,13 @@ Wie man sieht, sind die Constraints über einem \lstinline|Int|-Wertebereich defi
 \item Mit \lstinline|domain vs min max| beschränkt man alle Finite Domain Variablen in der List \lstinline|vs| auf den Wertebereich gegeben durch ein minimal möglichen Wert \lstinline|min| und einen maximal möglichen Wert \lstinline|max|.
 \item Das Constraint \lstinline|allDifferent vs| erzwingt, dass die Werte der Constraint-Variablen in der Liste \lstinline|vs| paarweise verschieden sind.
 \item \lstinline|sum vs| liefert die Summe der Werte aller Constraint-Variablen in der Liste \lstinline|vs|.
-\item Mit \lstinline|genVars n| kann man eine Liste von \lstinline|n| neuen Constraint-Variablen erzeugen.
+\item Mit \lstinline|genVars n| kann man eine Liste von \lstinline|n| freien Variablen erzeugen. Falls man einer Constraint-Funktion eine solche Liste als Argument übergibt, so werden die freien Variablen KiCS2-intern auf eine entsprechende Liste von Constraint-Variablen abgebildet. Diese Abbildung von freien Variablen auf Constraint-Variablen wird im nächsten Abschnitt dieses Kapitels beschrieben.
 \item Durch \lstinline|labeling vs| kann man angeben, dass das Labeling, also das Ausprobieren von Variablenbelegungen gemäß gültigem Wertebereich, über allen Constraint-Variablen in der Liste \lstinline|vs| durchgeführt werden soll. Während bei der einfachen \lstinline|labeling|-Funktion das Labeling der Variablen in der gegebenen Reihenfolge durchgeführt wird, kann man der Funktion \lstinline|labelingWith| zusätzlich eine Labeling-Strategie übergeben. Die CLPFD-Bibliothek unterstützt bislang die folgenden vier Strategien:
 \begin{itemize}
 \item \lstinline|InOrder|: Labeling in der ursprünglichen Reihenfolge
 \item \lstinline|FirstFail|: Beim Labeling wird die Constraint-Variable mit dem kleinsten (dem am weitesten eingeschränkten) Wertebereich bevorzugt.
-\item \lstinline|MiddleOut|: Beginnt die Belegung der Constraint-Variablen beim Labeling mit Werten aus "der Mitte" des Wertebereichs.
-\item \lstinline|EndsOut|: Beginnt die Belegung der Constraint-Variablen beim Labeling mit den "äußersten" Werten (also abwechselnd mit den größten und kleinsten Werten) des Wertebereichs.
+\item \lstinline|MiddleOut|: Belegt zunächst die "'mittleren"' Constraint-Variablen in der Liste aller Labeling-Variablen.
+\item \lstinline|EndsOut|: Belegt zunächst die "'äußersten"' Constraint-Variablen in der Liste aller Labeling-Variablen.
 \end{itemize}
 \end{itemize}
 Bis auf \lstinline|genVars| und \lstinline|labeling| werden alle Funktionen der CLPFD-Bibliothek extern implementiert. Das bedeutet, die eigentliche Definition dieser Funktionen erfolgt nicht in Curry sondern in Haskell. Dazu werden die entsprechenden Funktionen im Curry-Code mit dem Schlüsselwort \lstinline|external| gekennzeichnet. Die Implementierung der so deklarierten Funktionen in Haskell erfolgt dann in einer Datei \emph{External\_\textless Curry-Modulname\textgreater.hs} im gleichen Verzeichnis. Die vom Programmierer implementierten Haskell-Definition aus diesem Modul werden vom KiCS2-Compiler letztendlich an den bei der Übersetzung generierten Haskell-Code angehängt.
@@ -106,7 +106,7 @@ ensureSpine l = ensureList (ensureNotFree l)
  where ensureList []     = []
        ensureList (x:xs) = x : ensureSpine xs
 \end{lstlisting}
-Die übrigen Funktionen der Bibliothek werden nach dem gleichen Prinzip implementiert. Das heißt, die Argumente der Constraint-Funktionen werden normalisiert, bevor sie an die jeweilige extern implementierte Funktion übergeben werden. Bei Listenargumente wird zusätzlich die Überführbarkeit in die \emph{spine}-Form überprüft.
+Die übrigen Funktionen der Bibliothek werden nach dem gleichen Prinzip implementiert. Das heißt, die Argumente der Constraint-Funktionen werden normalisiert, bevor sie an die jeweilige extern implementierte Funktion übergeben werden. Bei Listenargumenten wird zusätzlich die Überführbarkeit in die \emph{spine}-Form überprüft.
 \par
 Ein Anwendungsbeispiel für Finite Domain Constraints ist das N-Damen-Problem. Dabei ist es das Ziel, N-Damen auf einem NxN-Schachbrett so zu platzieren, dass keine Dame eine andere Dame schlagen kann. Hierbei gelten die vom Schach bekannten Züge für eine Dame. Es darf also keine Damen mit einer anderen Damen in derselben Spalte, Reihe oder Diagonale des Schachbretts stehen.
 \\
@@ -145,6 +145,7 @@ Die Tatsache, dass jede Dame in einer anderen Spalte des Schachbretts positionie
 Bei der Modellierung des 4-Damen-Problems werden neben dem \lstinline|domain|- und \lstinline|labeling|-Constraint aus der CLPFD-Bibliothek auch noch einige Hilfsconstraints verwendet: Die Funktion \lstinline|no_attack| erzeugt für zwei übergebene Damen alle Constraints, die nötig sind, um sicherzustellen, dass diese sich nicht gegenseitig schlagen können (\lstinline|q1 /=# q2|  $\Rightarrow$ Damen stehen nicht in der Gleichen Reihe, \lstinline|q1 /=# q2 +# p & q1 /=# q2 -# p| $\Rightarrow$ Damen stehen nicht auf der gleichen aufsteigenden bzw. abfallenden Diagonalen).
 \\
 \lstinline|safe| überprüft durch Aufruf von \lstinline|no_attack|, dass eine übergebene Damen-Position \lstinline|q| sicher ist, also von keiner der anderen Damen angegriffen werden kann und \lstinline|all_safe| wendet dieses \lstinline|safe|-Constraint schließlich auf alle vier Damen an.
+
 \subsubsection{Darstellung der Constraints in Haskell}
 Nachdem KiCS2 nun um eine Bibliothek für Finite Domain Constraints erweitert wurde, beschreibt der folgende Abschnitt die Implementierung der externen Funktionen, mit deren Hilfe diese Bibliothek realisiert wird.
 \\
@@ -167,7 +168,7 @@ data FDConstraint
   | FDSum [FDTerm Int] (FDTerm Int)
   | FDAllDifferent [FDTerm Int]
   | FDDomain [FDTerm Int] (FDTerm Int) (FDTerm Int)
-  | FDLabeling LabelingStrategy [FDTerm Int]
+  | FDLabeling LabelingStrategy [FDTerm Int] ID
 
 data ArithOp = Plus | Minus | Mult
 data RelOp   = Equal | Diff | Less
@@ -182,6 +183,8 @@ FDArith Plus (FDVar <id_x>) (Const 7) (FDVar <id_y>)
 FDArith Mult (FDVar <id_y>) (Const 2) (FDVar <id_z>)
 \end{lstlisting}
 Für das Summen-Constraint - in Haskell dargestellt durch den \lstinline|FDSum|-Konstruktor - gilt dies genauso.
+\\
+Das "'Labeling-Constraint"' erhält eine unbenutzte \lstinline|ID| als zusätzliches Argument, die für die Ausgabe der durch den Solver gefundenen Lösungen benötigt wird (vergleiche hierzu Kapitel 4.2.3). Es handelt sich hierbei nicht um ein Constraint im eigentlich Sinne, sondern es dient vielmehr dazu die für das Labeling benötigten Informationen bis zum Aufruf der Constraint-Solver durch die Implementierung durchzureichen.
 \par
 Bevor man nun mit Hilfe des \lstinline|FDConstraint|-Datentyps die externen Funktionen der CLPFD-Bibliothek implementieren kann, sind noch zwei Dinge notwendig: Zum einen muss der Constraint-Typ von KiCS2, der in den \lstinline|Guard|-Ausdrücken verwendet wird, derart erweitert werden, dass auch Constraints vom Typ \lstinline|FDConstraint| unterstützt werden.
 \\
@@ -210,8 +213,8 @@ Mit den beiden ersten Konstruktoren kann man konstante Integerwerte einführen un
 Bei der Implementierung der Übersetzungsfunktion \lstinline|toFDTerm| wird nun allerdings nicht auf alle diese Fälle gematcht. Da die Argumente der Constraint-Funktionen normalisiert werden, bevor sie an die zugehörige externe Constraint-Funktion übergeben werden (siehe Erklärung des \lstinline|($!!)|-Operators weiter oben), wird davon ausgegangen, dass bei Aufruf von \lstinline|toFDTerm|, dass Argument bereits in Normalform ist. Somit wird das Pattern Matching bei der Implementierung von \lstinline|toFDTerm| nur für die Konstruktoren einer Integer-Konstanten bzw. einer -Variable durchgeführt:
 \begin{lstlisting}[language=Haskell,caption=Umwandlung von Curry-FD-Termen in Haskell-FD-Terme]
 toFDTerm :: C_Int -> FDTerm Int
-toFDTerm (Choices_C_Int (FreeID i) _) = FDVar i
-toFDTerm x                            = Const (fromCurry x)
+toFDTerm (Choices_C_Int i@(FreeID _) _) = FDVar i
+toFDTerm x                              = Const (fromCurry x)
 \end{lstlisting}
 Eine freie Integer-Variable - in Haskell repräsentiert durch den Konstruktor \lstinline|Choices_C_Int| mit einer \lstinline|FreeID| als ID-Argument - wird in eine neue FD-Variable mit der gleichen ID \lstinline|i| transformiert. In allen übrigen Fällen muss es sich bei dem Argument gemäß der obigen Annahme um eine Integerkonstante handeln und somit wird ein konstanter FD-Term mit dem entsprechenden Integer-Wert eingeführt. Dazu wird die überladene Hilfsfunktion \lstinline|fromCurry| verwendet, die die Haskell-Darstellung eines Curry-Typs in den zugehörigen Haskell-Typ konvertiert. Beispielsweise ist \lstinline|fromCurry| auf dem Typ \lstinline|C_Bool| folgendermaßen definiert:
 \begin{lstlisting}[language=Haskell,caption=Beispiel: \lstinline|fromCurry| für \lstinline|C_Bool|]
@@ -362,7 +365,7 @@ Guard [FDArith Plus (FDVar 2) (Const 1) (FDVar 3)]
   Guard [FDRel Diff (FDVar 1) (FDVar 3)] C_Success &
 Guard [FDArith Minus (FDVar 2) (Const 1) (FDVar 4)]
   Guard [FDRel Diff (FDVar 1) (FDVar 4)] C_Success &
-Guard [FDLabeling InOrder [FDVar 1, FDVar 2]] C_Success
+Guard [FDLabeling InOrder [FDVar 1, FDVar 2] 5] C_Success
 \end{lstlisting}
 Wie man sieht, wird für jede der sieben im Modell verwendeten Constraint-Funktionen aus der CLPFD-Bibliothek (\lstinline|domain|, dreimal \lstinline|(/=#)|, \lstinline|(+)|, \lstinline|(-)| und \lstinline|labeling|) ein \lstinline|Guard|-Ausdruck mit dem entsprechenden \lstinline|FDConstraint|-Konstruktorterm erzeugt.
 \\
@@ -756,7 +759,7 @@ Für die Aktualisierung der FD-Variablen definiert man daher die folgende Funktio
 \begin{lstlisting}[language=Haskell,caption=Funktion zur Aktualisierung von FD-Variablen]
 updateFDVar :: Store m => FDTerm Int -> m (FDTerm Int)
 updateFDVar c@(Const _) = return c
-updateFDVar (Var i)     = do x <- lookupValue i
+updateFDVar (FDVar i)   = do x <- lookupValue i
                              return (toFDTerm x)
 \end{lstlisting}
 Die Funktion aktualisiert die Bindung einer FD-Variablen, indem sie mit \lstinline|lookupValue| den aktuellen \lstinline|C_Int|-Wert berechnet, an den die Variablen-\lstinline|ID| \lstinline|i| gebunden wurde. Dieser Wert wird dann wieder in einen FD-Term transformiert. Für den Fall, dass die FD-Variable nicht durch ein Curry-Gleichheitsconstraint gebunden wurde, so wird die ursprüngliche FD-Variable wiederhergestellt. Konstante FD-Terme werden durch die Funktion nicht verändert.
