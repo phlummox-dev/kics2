@@ -10,7 +10,7 @@
 \contentsline {lstlisting}{\numberline {10}Beipiel: 4-Damen-Problem}{35}{lstlisting.10}
 \contentsline {lstlisting}{\numberline {11}Repr\"asentation von FD-Termen (Haskell)}{37}{lstlisting.11}
 \contentsline {lstlisting}{\numberline {12}Repr\"asentation von FD-Constraints (Haskell)}{37}{lstlisting.12}
-\contentsline {lstlisting}{\numberline {13}Erweiterung des Datentyps Constraints}{38}{lstlisting.13}
+\contentsline {lstlisting}{\numberline {13}Erweiterung des Datentyps \lstinline |Constraints|}{38}{lstlisting.13}
 \contentsline {lstlisting}{\numberline {14}Repr\"asentation vom Curry-Typ \lstinline |Int| in Haskell}{39}{lstlisting.14}
 \contentsline {lstlisting}{\numberline {15}Umwandlung von Curry-FD-Termen in Haskell-FD-Terme}{39}{lstlisting.15}
 \contentsline {lstlisting}{\numberline {16}Beispiel: \lstinline |fromCurry| f\"ur \lstinline |C_Bool|}{40}{lstlisting.16}
@@ -73,3 +73,18 @@
 \contentsline {lstlisting}{\numberline {73}Interface zur Integration von FD-Solvern - Funktionen}{85}{lstlisting.73}
 \contentsline {lstlisting}{\numberline {74}Interface zur Integration von FD-Solvern - Funktionen}{86}{lstlisting.74}
 \contentsline {lstlisting}{\numberline {75}Integration der MCP-Solver \"uber die FD-Solver-Schnittstelle}{87}{lstlisting.75}
+\contentsline {lstlisting}{\numberline {76}Wrapper f\"ur Constraints}{88}{lstlisting.76}
+\contentsline {lstlisting}{\numberline {77}Interface f\"ur erweiterbaren Constraint-Typ}{89}{lstlisting.77}
+\contentsline {lstlisting}{\numberline {78}\lstinline |cast|-Funktion und Interface f\"ur erweiterbaren Constraint-Typ (Default-Implementierung)}{90}{lstlisting.78}
+\contentsline {lstlisting}{\numberline {79}Anpassung des Datentyps \lstinline |Constraints|}{90}{lstlisting.79}
+\contentsline {lstlisting}{\numberline {80}Implementierung des \lstinline |WrappableConstraint|-Interfaces f\"ur FD-Constraints}{91}{lstlisting.80}
+\contentsline {lstlisting}{\numberline {81}Externe FD-Constraint-Funktionen (angepasst)}{91}{lstlisting.81}
+\contentsline {lstlisting}{\numberline {82}Einsammeln von \lstinline |WrappedConstraint|s}{92}{lstlisting.82}
+\contentsline {lstlisting}{\numberline {83}Anpassung des FD-Solver-Interfaces}{93}{lstlisting.83}
+\contentsline {lstlisting}{\numberline {84}Solver f\"ur \lstinline |WrappedConstraint|s}{93}{lstlisting.84}
+\contentsline {lstlisting}{\numberline {85}Bislang unterst\"utzte Constraint-Solver in KiCS2}{94}{lstlisting.85}
+\contentsline {lstlisting}{\numberline {86}Filtern der heterogenen Constraint-Liste}{94}{lstlisting.86}
+\contentsline {lstlisting}{\numberline {87}L\"osung aller "'eingepackten"' Constraints}{95}{lstlisting.87}
+\contentsline {lstlisting}{\numberline {88}L\"osung aller "'eingepackten"' Constraints w\"ahrend der KiCS2-Tiefensuche}{96}{lstlisting.88}
+\contentsline {lstlisting}{\numberline {89}Alternativer Typ f\"ur \lstinline |Guard|-Ausdr\"ucke}{97}{lstlisting.89}
+\contentsline {lstlisting}{\numberline {90}Alternativer Typ f\"ur \lstinline |Guard|-Ausdr\"ucke}{97}{lstlisting.90}

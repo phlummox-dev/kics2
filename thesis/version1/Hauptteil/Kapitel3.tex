@@ -139,9 +139,232 @@ Im letzten Unterkapitel wurde ein generisches Interface zur Anbindung von Finite
 \\
 Dieser Abschnitt befasst sich mit der Entwicklung einer generischen Schnittstelle für Constraints. Das bedeutet, beim Durchreichen von Constraints mit Hilfe von \lstinline|Guard|-Ausdrücken und Lösen dieser Constraints während der Auswertung soll mit Hilfe dieser Schnittstelle von konkreten Constraint-Arten wie FD-Constraints abstrahiert werden.
 \par
-Dazu macht man sich Ideen zunutze, die für die Entwicklung einer erweiterbaren dynamisch-getypten Hierarchie von Exceptions in Haskell verwendet wurde (siehe \cite{Marlow:2006:EDH:1159842.1159854}): Diese Arbeit stellt eine Möglichkeit vor, eine Objekt-orientierte API in Haskell zu realisieren. Sie beschreibt die Einführung eines erweiterbaren hierarchischen Exception-Typs in Haskell mit Hilfe von \emph{Haskell existentials} und der \emph{Data.Typeable-Bibliothek}. Des Weiteren erklärt sie, wie man Exception Handler durch Verwendung der \emph{scoped type variables Spracherweitung} realisieren kann.
+Dazu macht man sich Ideen zunutze, die für die Entwicklung einer erweiterbaren dynamisch-getypten Hierarchie von Exceptions in Haskell verwendet wurde (siehe \cite{Marlow:2006:EDH:1159842.1159854}): Diese Arbeit stellt eine Möglichkeit vor, eine Objekt-orientierte API in Haskell zu realisieren. Sie beschreibt die Einführung eines erweiterbaren Exception-Typs in Haskell mit Hilfe von \emph{Haskell existentials} und der \emph{Data.Typeable-Bibliothek}. Des Weiteren erklärt sie, wie man Exception Handler durch Verwendung der \emph{scoped type variables Spracherweitung} realisieren kann.
 \par
-Einige dieser Ideen werden aufgegriffen, um einen erweiterbaren Constraint-Typ in KiCS2 zu implementieren. Für diese Erweiterung wird ein einfaches Interface zur Verfügung gestellt.
+Einige dieser Ideen werden aufgegriffen, um einen erweiterbaren Constraint-Typ in KiCS2 zu implementieren. Dieser Constraint-Typ soll als Wrapper für die tatsächlichen Constraints dienen. Das bedeutet, man definiert einen allgemeinen Constraint-Typ, in den konkrete Constraints wie die in dieser Arbeit vorgestellten FD-Constraints eingepackt werden. Und mit Hilfe dieses Constraint-Wrappers werden die Constraints dann durch die Implementierung durchgereicht.
+\\
+Dieser Constraint-Wrapper wird folgendermaßen definiert:
+\begin{lstlisting}[language=Haskell,caption=Wrapper für Constraints]
+data WrappedConstraint = 
+  forall c . WrappableConstraint c => CWrapper c
+\end{lstlisting}
+Wie man sieht, wird für die Definition das Haskell-Schlüsselwort \lstinline|forall| verwendet. Es handelt sich hierbei um einen sogenannten \emph{existential quantified type}. Der einzige Konstruktor von \lstinline|WrappedConstraint| hat den Typ \lstinline[breaklines=true]{CWrapper :: forall c . WrappableConstraint c => c -> WrappedConstraint}. Das bedeutet man kann beliebige Typen an diesen Konstruktor übergeben. Solange diese die Typklasse \lstinline|WrappableConstraint| implementieren, resultiert am Ende unabhängig vom ursprünglichen Typ stets ein Wert vom Typ \lstinline|WrappedConstraint|. Wenn man einen Wert vom Typ \lstinline|WrappedConstraint| vorliegen hat, weiß man also nicht, welcher Typ darin "'eingepackt"' wurde, aber man weiß, dass es sich um einen Typen handelt, der die Eigenschaften der Typklasse \lstinline|WrappableConstraint| besitzt.
+\\
+Diese Typklasse dient als Interface für den Constraint-Wrapper. So stellt sie unter anderem Funktionen zum Ein- bzw. Auspacken eines konkreten Constraints in bzw. aus dem Wrapper zur Verfügung:
+\begin{lstlisting}[language=Haskell,caption=Interface für erweiterbaren Constraint-Typ]
+class (Typeable c, Show c) => WrappableConstraint c where
+  wrapCs :: c -> WrappedConstraint
 
+  unwrapCs :: WrappedConstraint -> Maybe c
 
+  updateVars :: Store m => c -> m c
+\end{lstlisting}
+Insgesamt werden drei Funktionen zur Implementierung bereitgestellt:
+\begin{itemize}
+\item \lstinline|wrapCs|: Packt ein Constraint in den Constraint-Wrapper ein.
+\item \lstinline|unwrapCs|: Mit dieser Funktion wird ein Constraint - falls möglich - wieder aus dem Wrapper ausgepackt. Enthält der Wrapper nicht ein Constraint des erwarteten Typs, so soll diese Funktion \lstinline|Nothing| zurückgeben.
+\item \lstinline|updateVars|: Aktualisiert - falls vorhanden - die Constraint-Variablen in dem gegebenen Constraint hinsichtlich Bindungen, die durch das KiCS2-Gleichheitsconstraint \lstinline|(=:=)| eingeführt wurden. Hierfür ist es erforderlich, die Bindungen im monadischen Decision Store von KiCS2 nachzuschlagen (vergleiche Kapitel 4.1.4).
+\end{itemize}
+Typen, die diese Typklasse implementieren, müssen außerdem eine \lstinline|Show|- und \lstinline|Typeable|-Instanz besitzen. Ersteres hängt damit zusammen, dass es möglich sein soll, die "'eingepacken"' Constraints auf der Kommandozeile auszugeben (z.B. zum Debuggen). Die \lstinline|Typeable|-Instanz ist hingegen für die Realisierung der Default-Implementierung von \lstinline|unwrapCs| erforderlich. Für alle drei Funktionen werden nämlich Default-Implementierungen bereitgestellt.
+\begin{lstlisting}[language=Haskell,caption=\lstinline|cast|-Funktion und Interface für erweiterbaren Constraint-Typ (Default-Implementierung)]
+cast :: (Typeable a, Typeable b) => a -> Maybe b
+
+class (Typeable c, Show c) => WrappableConstraint c where
+  wrapCs :: c -> WrappedConstraint
+  wrapCs = CWrapper
+
+  unwrapCs :: WrappedConstraint -> Maybe c
+  unwrapcs (CWrapper c) = cast c
+
+  updateVars :: Store m => c -> m c
+  updateVars = return
+\end{lstlisting}
+Zum "'Einpacken"' eines Constraints wird in der Default-Implementierung einfach der Konstruktor \lstinline|CWrapper| aufgerufen. "'Ausgepackt"' wird ein Constraint mit Hilfe der Funktion \lstinline|cast| aus \emph{Data.Typeable}. Lässt sich der gegebene Wert in den angegebenen Zieltyp casten, so liefert \lstinline|cast| den Zielwert eingepackt in einem \lstinline|Just| zurück. Andernfalls wird \lstinline|Nothing| zurückgegeben. Damit man \lstinline|cast| anwenden kann, ist es notwendig, dass Typen, die \lstinline|WrappableConstraint| implementieren, auch eine \lstinline|Typeable|-Instanz zur Verfügung stellen.
+\\
+Nach dem gleichen Prinzip wird \lstinline|cast| in \cite{Marlow:2006:EDH:1159842.1159854} verwendet, um eine bestimmte Exception aus einem allgemeinen Exception-Wert abzufangen.
+\\
+Die \lstinline|updateVars|-Funktion wird in der Default-Implementierung einfach durch \lstinline|return| realisiert. Das heißt, per Default werden die Variablenbindungen nicht aktualisiert. Diese Realisierung sollte man bei der Instanziierung von \lstinline|WrappableConstraint| also gegebenenfalls überschreiben.
+\par
+Um den Constraint-Wrapper in \lstinline|Guard|-Ausdrücken zum Durchreichen von Constraints durch die Implementierung einsetzen zu können, muss nun noch der \lstinline|Constraints|-Typ entsprechend angepasst werden. Man ersetzt nun den speziell für FD-Constraints eingeführten Konstruktor \lstinline|FDConstr| (vergleiche Code-Listing 13 \textcolor{red}{$<$hier endgültige Listingnr eintragen$>$}) durch einen Konstruktor für \lstinline|WrappedConstraint|s:
+\begin{lstlisting}[language=Haskell,caption=Anpassung des Datentyps \lstinline|Constraints|]
+data Constraints
+  = ...
+  | WrappedConstr [WrappedConstraint]
+\end{lstlisting}
+Diese Erweiterung ermöglicht es, viele verschiedene Constraint-Typen, die die Typklasse \lstinline|WrappableConstraint| implementieren, mit Hilfe von \lstinline|Guard|-Ausdrücken in einer heterogenen Liste vom Typ \lstinline|[WrappedConstraint]| durch die Implementierung durchzureichen. Der Vorteil dieser Realisierung gegenüber der ursprünglichen ist, dass man bei der Einführung weiterer Constraint-Typen in KiCS2 den \lstinline|Constraints|-Typ nun nicht mehr erweitern oder anpassen muss. Statt für jede weitere Constraint-Art einen neuen \lstinline|Constraints|-Konstruktor zu definieren, kann man diese über das \lstinline|WrappableConstraint|-Interface in KiCS2 integrieren.
+\par
+Beispielhaft soll nun die Implementierung dieses Interfaces für die im Rahmen dieser Arbeit eingeführten Finite Domain Constraints vorgestellt werden:
+\begin{lstlisting}[language=Haskell,caption=Implementierung des \lstinline|WrappableConstraint|-Interfaces für FD-Constraints]
+data FDConstraint = ...
+ deriving (Show,Typeable)
+
+instance WrappableConstraint FDConstraint where
+  updateVars = updateFDConstr updateFDVar
+\end{lstlisting}
+Zur automatischen Erzeugung der erforderlichen \lstinline|Typeable|-Instanz für \lstinline|FDConstraint| verwendet man die Haskell-Spracherweiterung \emph{derive data typeable}.
+\\
+Bei der Instanziierung von \lstinline|WrappableConstraint| wird nur \lstinline|updateVars| neu implementiert und zwar mit Hilfe der bereits vorgestellten Funktionen \lstinline|updateFDConstr| (vergleiche Code-Listing 43\textcolor{red}{$<$hier endgültige Listingnr eintragen$>$}) und \lstinline|updateFDVar| (vergleiche Code-Listing 69\textcolor{red}{$<$hier endgültige Listingnr eintragen$>$}). Bei den beiden übrigen Funktionen der Schnittstelle greift man auf die Default-Implementierung zurück.
+\\
+Auch die Konstruktion der \lstinline|Guard|-Ausdrücke durch die extern implementierten Funktionen der CLPFD-Bibliothek müssen entsprechend angepasst werden. Als Anschauungsbeispiel werden hier die angepassten Versionen der externen Funktionen für das Gleichheitsconstraint \lstinline|(=#)| und das Wertebereichsconstraint \lstinline|domain| angegeben.
+\begin{lstlisting}[language=Haskell,caption=Externe FD-Constraint-Funktionen (angepasst)]
+external_d_C_prim_FD_equal :: C_Int -> C_Int -> ConstStore 
+                           -> C_Success
+external_d_C_prim_FD_equal x y _ = 
+  let c = wrapCs $ newRelConstr Equal x y
+  in Guard_C_Success (WrappedConstr [c]) C_Success
+
+newRelConstr :: RelOp -> C_Int -> C_Int -> FDConstraint
+newRelConstr relOp x y = FDRel relOp (toFDTerm x) (toFDTerm y)
+
+external_d_C_prim_domain :: OP_List C_Int -> C_Int -> C_Int 
+                         -> ConstStore -> C_Success
+external_d_C_prim_domain vs l u _ = 
+  let c = wrapCs $ 
+            FDDomain (toFDList vs) (toFDTerm l) (toFDTerm u)
+  in Guard_C_Success (WrappedConstr [c]) C_Success
+\end{lstlisting}
+Die Erzeugung der \lstinline|FDConstraint|-Konstruktorterme bleibt dabei unverändert (vergleiche Code-Listings 21 und 22 \textcolor{red}{$<$hier endgültige Listingnr eintragen$>$}), aber diese Terme werden jetzt durch Aufruf von \lstinline|wrapCs| in einen Constraint-Wrapper eingepackt und damit wird dann ein neuer \lstinline|Guard|-Ausdruck konstruiert.
+\par
+Schließlich muss auch die Funktion zum Einsammeln der Constraint angepasst werden: In Kapitel 4.1.3 wurde zum Einsammeln der FD-Constraints die Funktion \lstinline|searchFDCs| definiert (vergleiche Code-Listing 29 \textcolor{red}{$<$hier endgültige Listingnr eintragen$>$}). Diese wird durch die folgende Funktion ersetzt, die alle "'eingepackten"' Constraints in einem gegebenen Ausdruck sucht und in einem einzigen \lstinline|Guard|-Ausdruck sammelt.
+\begin{lstlisting}[language=Haskell,caption=Einsammeln von \lstinline|WrappedConstraint|s]
+searchWrappedCs :: NormalForm a => a -> [WrappedConstraint] -> a
+searchWrappedCs x wcs = 
+  match swChoice swNarrowed choicesCons failCons swGuard swVal x
+ where 
+  swChoice i x1 x2    = choiceCons i (searchWrappedCs x1 wcs) 
+                                     (searchWrappedCs x2 wcs)
+  swNarrowed i xs     = choicesCons i (map
+                          (\x' -> searchWrappedCs x' wcs) xs)
+  swGuard (WrappedConstr wc) e = searchFDCs e (wcs ++ wc)
+  swGuard c e         = guardCons c (searchWrappedCs e wcs)
+  swVal v | null wcs  = v
+          | otherwise = guardCons (WrappedConstr wcs) v
+\end{lstlisting}
+Mit dieser Funktion ist man in der Lage - wie auch schon in Kapitel 4.1.3 für FD-Constraints beschrieben - alle in einem Pfad des KiCS2-Suchbaums vorkommenden \lstinline|WrappedConstraint|s einzusammeln. Dies ist erforderlich, damit man beim Aufruf eines spezifischen Constraint-Solvers alle nötigen Constraint-Informationen an diesen weitergeben kann.
+\par
+Die Frage ist nun, wie man alle Constraints eines speziellen Typs aus der heterogenen Constraint-Liste herausfiltert und den richtigen Solver für diese Constraints auswählt. Anders formuliert: Wie sorgt man dafür, dass alle "'eingepackten"' Constraints (durch Aufruf des passenden Solvers) gelöst werden?
+Die Idee zur Lösung dieses Problems liefert erneut \cite{Marlow:2006:EDH:1159842.1159854}: In der Arbeit von Simon Marlow wird eine Möglichkeit vorgestellt, mit der man verschiedene Exception-Klassen in einem Ausdruck durch Angabe einer Liste von Exception-Handlern abfangen kann. Übertragen auf diese Arbeit bedeutet das, dass man versucht, die Liste der \lstinline|WrappedConstraint|s zu lösen, indem man eine Liste von Constraint-Solvern angibt, die man nacheinander ausprobiert. Man durchsucht also die heterogene Liste aller Constraints nach einem Constraint-Typ für einen bestimmten Constraint-Solver: Findet man diesen Constraint-Typ, so lässt man die Constraints von dem entsprechenden Solver lösen und macht dann nach dem gleichen Prinzip mit der heterogenen Restliste und der Restliste der definierten Solver weiter. Anderfalls probiert man gleich einen anderen Solver aus. Nach diesem Muster fährt man fort, bis entweder alle Constraints in der heterogenen Liste gelöst wurden oder bis keine Constraint-Solver mehr ausprobiert werden können.
+\par
+Bevor diese Lösung vorgestellt wird, passt man zunächst das Interface für KiCS2-externe FD-Solver, das im vorigen Abschnitt vorgestellt wurde, noch ein wenig an:
+\begin{lstlisting}[language=Haskell,caption=Anpassung des FD-Solver-Interfaces]
+class WrappableConstraint c => ExternalFDSolver s c where
+  ...
+  runSolver :: (NonDet a, Store m) => s -> [c] -> a -> m a
+  runSolver solver fdCs e = 
+    do let updatedCs       = mapM updateVars fdCs
+           (solverCs,info) = translate solver updatedCs
+           solutions       = solveWith solver solverCs info
+       return $ makeCsSolutions solver solutions e
+\end{lstlisting}
+Und zwar ergänzt man die Default-Implementierung von \lstinline|runSolver| um den Aufruf von \lstinline|updateVars|. Auf diese Weise werden die Variablenbindungen in den einzelnen FD-Constraints aktualisiert, bevor diese in Constraints der MCP-FD-Modellierungssprache übersetzt werden. Damit man diese Funktion aufrufen kann, ist es zudem erforderlich, das Typklassenconstraint \lstinline|WrappableConstraint c| zur Typklassendefinition hinzuzufügen.
+\par
+Nach diesem kurzen Einschub wird im Folgenden die Realisierung der oben vorgestellten Idee zur Lösung aller Constraints in einer heterogenen Liste vom Typ \lstinline|[WrappedConstraint]| beschrieben.
+\\
+Um später eine Liste von Constraint-Solvern definieren zu können, mit denen man nacheinander versucht, alle Constraints in der heterogenen Liste zu lösen, führt man den folgenden Datentyp ein:
+\begin{lstlisting}[language=Haskell,caption=Solver für \lstinline|WrappedConstraint|s]
+data (Store m, NonDet a) => Solver m a = 
+  forall c . (WrappableConstraint c) => Solver ([c] -> a -> m a)
+\end{lstlisting}
+Wie schon bei \lstinline|WrappedConstraint| ermöglicht es der Einsatz der Haskellspracherweiterung \emph{existential quantified type} in der Definition von \lstinline|Solver m a|, Solver für verschiedene Constraint-Typen in diesen einzelnen Typ zu packen. Der einzige Konstruktor dieses Typs, \lstinline|Solver|, erwartet eine Funktion als Argument, die ihrerseits eine Liste von "'einpackbaren"' Constraints sowie einen nicht-deterministischen Ausdruck entgegennimmt und einen neuen nicht-deterministischen Ausdruck eingekapselt in der \lstinline|Store|-Monade zurückgibt.
+\\
+Wie man sieht, entspricht der Typ dieses Funktionsarguments dem Typ von \lstinline|runSolver| aus der \lstinline|ExternalFDSolver|-Typklasse, wenn man diese Funktion mit einem konkreten FD-Solver partiell appliziert. Somit kann man eine Liste der bislang von KiCS2 unterstützten Constraint-Solver wie folgt angeben:
+\begin{lstlisting}[language=Haskell,caption=Bislang unterstützte Constraint-Solver in KiCS2]
+runGecode :: (Store m, NonDet a) => [FDConstraint] -> a -> m a
+runGecode = \(cs :: [FDConstraint]) e -> runSolver Gecode cs e
+
+runOverton :: (Store m, NonDet a) => [FDConstraint] -> a -> m a
+runOverton = \(cs :: [FDConstraint]) e -> runSolver Overton cs e
+
+solvers :: (Store m, NonDet a) => [Solver m a]
+solvers = [Solver runGecode, Solver runOverton]
+\end{lstlisting}
+Bei der Implementierung der \lstinline|Solver|-Funktionen wird die Liste der Constraints, die der Gecode- bzw. Overton-Solver als Argument erwartet, durch eine Typannotation in den konkreten Constraint-Typ \lstinline|FDConstraint| gecastet. Wie gleich gezeigt wird, ist diese Typannotation (mittels Spracherweiterung \emph{scoped type variables}) notwendig, um die passenden Constraints für den jeweiligen Solver aus der heterogenen Liste herauszufiltern.
+\par
+Das Herausfiltern aller Constraints eines bestimmten Typs erfolgt mit der Funktion \lstinline|filterCs|:
+\begin{lstlisting}[language=Haskell,caption=Filtern der heterogenen Constraint-Liste]
+filterCs :: WrappableConstraint c => [WrappedConstraint] 
+         -> ([c],[WrappedConstraint])
+filterCs []       = ([],[])
+filterCs (wc:wcs) = let (cs,wcs') = filterCs wcs
+                    in case unwrapCs wc of 
+                         Just c  -> (c:cs,wcs')
+                         Nothing -> (cs,wc:wcs')
+\end{lstlisting}
+Diese gibt ein Tupel bestehend aus der Liste der Constraints des gesuchten Typs sowie der Liste aller übrigen \lstinline|WrappedConstraint|s zurück. Um die Constraints eines bestimmten Typs herauszufiltern, ruft sie die Funktion \lstinline|unwrapCs| aus dem \lstinline|WrappableConstraint|-Interface auf: Je nachdem, ob sich ein Constraint des gesuchten Typs aus dem \lstinline|WrappedConstraint| \lstinline|wc| "'auspacken"' lässt, wird dieses Constraint der einen oder anderen Ergebnisliste hinzugefügt. Nach diesem Muster werden alle \lstinline|WrappedConstraint|s der heterogenen Liste gefiltert.
+\\
+Da \lstinline|filterCs| die Funktion \lstinline|unwrapCs| aufruf, die ihrerseits mit Hilfe von \lstinline|cast| aus \emph{Data.Typeable} implementiert wurde, ist es notwendig, den Typ für die herauszufilternden Constraints anzugeben. Aus diesem Grund sind die Typannotationen oben bei der Definition der \lstinline|Solver|-Funktionen erforderlich.
+\par
+Mit dieser Filterfunktion und der Liste der unterstützten Constraint-Solver kann man nun eine Funktion angeben, die versucht sämliche "'eingepackten"' Constraints in der heterogenen Liste zu lösen, indem sie diese nacheinander nach Constraints für die einzelnen Solver durchsucht.
+\begin{lstlisting}[language=Haskell,caption=Lösung aller "'eingepackten"' Constraints]
+solveAll :: (Store m, NonDet a) => [WrappedConstraint] 
+         -> [Solver m a] -> a -> m a
+solveAll wcs []                       _ = error $
+  "SolverControl.solveAll: Not solvable with supported solvers."
+solveAll wcs ((Solver solve):solvers) e = 
+  case filterCs wcs of 
+    ([],[])   -> return failCons
+    ([],wcs') -> solveAll wcs' solvers e
+    (cs,[])   -> solve cs e
+    (cs,wcs') -> do e' <- solve cs e
+                    solveAll wcs' solvers e'
+\end{lstlisting}
+Diese Funktion erhält drei Argumente: die heterogene Liste der zu lösenden Constraints, die Liste der von KiCS2 unterstützten Constraint-Solver und den durch die Constraints beschränkten nicht-deterministischen Ausdruck, der im Erfolgsfall - also der Lösung aller Constraints - weiter ausgewertet werden soll.
+\\
+Sind nach dem Ausprobieren aller unterstützten Constraint-Solver trotzdem noch ungelöste Constraints übrig, so wird eine entsprechende Fehlermeldung zurückgegeben.
+\\
+Solange die Liste der Solver nicht leer ist, versucht \lstinline|solveAll| durch Aufruf von \lstinline|filterCs| die für den Solver passenden Constraints aus der heterogenen Liste herauszusuchen. Diese Suche kann zu vier verschiedenen Ergebnissen führen:
+\begin{enumerate}
+\item Beide Ergebnislisten von \lstinline|filterCs| sind leer: Dieser Fall sollte eigentlich niemals auftreten, da dies bedeutet, dass die heterogene Liste schon vor dem Aufruf von \lstinline|solveAll| leer war. Was wiederum bedeutet, dass ein \lstinline|Guard|-Ausdruck mit einer leeren heterogenen Liste ausgewertet worden ist. Ein solcher \lstinline|Guard|-Ausdruck sollte normalerweise niemals erzeugt werden. Tritt dieser Fall dennoch auf, so wird ein \lstinline|Fail|-Knoten zurückgegeben.
+\item Die Liste des gesuchten Constraint-Typs ist leer, die heterogene Liste nicht: In diesem Fall wird durch einen rekursiven Aufruf von \lstinline|solveAll| versucht, die übrigen Constraints mit dem nächsten Constraint-Solver aus der Liste zu lösen.
+\item Es wurden Constraints des gesuchten Typs gefunden und die Liste der verbliebenen \lstinline|WrappedConstraint|s ist leer: In diesem Fall wird der entsprechende Constraint-Solver auf die gefundenen Constraints angewendet. Ein rekursiver Aufruf von \lstinline|solveAll| ist nicht mehr erforderlich, da keine weiteren Constraints zum Lösen in der heterogenen Liste vorhanden sind.
+\item Es wurden Constraints des gesuchten Typs gefunden und die Liste der verbliebenen \lstinline|WrappedConstraint|s ist noch nicht leer: Wie im vorigen Fall wird der entsprechende Solver zur Lösung der herausgefilterten Constraints aufgerufen. Allerdings erfolgt dieses Mal ein rekursiver Aufruf von \lstinline|solveAll| mit den übrigen \lstinline|WrappedConstraint|s, den restlichen Solvern sowie dem nicht-deterministischen Ausdruck, der durch das Lösen der zuvor gefundenen Constraints erzeugt wurde.
+\end{enumerate}
+Die Funktion \lstinline|solveAll| wird während der KiCS2-Auswertung aufgerufen und zwar in dem Fall, dass ein \lstinline|Guard|-Ausdruck mit \lstinline|WrappedConstraint|s ausgewertet werden soll. Beispielhaft wird hier dieser Aufruf für die Implementierung der Tiefensuche in KiCS2 gezeigt. Zusätzlich wird die Auswertung der übrigen \lstinline|Guard|-Ausdrücke mit angegeben:
+\begin{lstlisting}[language=Haskell,caption=Lösung aller "'eingepackten"' Constraints während der KiCS2-Tiefensuche]
+  ...
+  dfsGuard _ (WrappedConstr wcs) e = 
+    solveAll wcs solvers e >>= dfs cont 
+  dfsGuard _ cs e = 
+    solve cs e >>= \mbSltn -> case mbSltn of
+      Nothing          -> mnil
+      Just (reset, e') -> dfs cont e' |< reset
+  ...
+\end{lstlisting}
+Wie man sieht, wird \lstinline|solveAll| mit den \lstinline|WrappedConstraint|s \lstinline|wcs| und dem durch sie beschränkten (nicht-)deterministischen Ausdruck \lstinline|e| sowie der zuvor definierten Liste der unterstützten Constraint-Solver \lstinline|solvers| aufgerufen. Der resultierende nicht-deterministische Ausdruck wird mit Hilfe des Tiefensuchealgorithmus weiter ausgewertet.
+\par
+\textbf{Sonderfall: Curry-Bindungsconstraints:}
+\\
+Zum Abschluss dieses Kapitels soll nun noch kurz darauf eingegangen werden, warum man die Curry-Bindungsconstraints (definiert durch den Datentyp \lstinline|Constraints|) nicht auch in den Constraint-Wrapper gepackt hat.
+\\
+Auf den ersten Blick erscheint es durchaus sinnvoll, die Curry-Bindungsconstraints auch in den Constraint-Wrapper einzupacken, da dann wirklich alle Constraint-Typen gleich behandelt werden könnten. 
+\\
+Möglich wäre dies, wenn man den Datentyp für die Curry-Bindungsconstraints in seiner ursprünglichen Form belässt und \lstinline|Guard|-Ausdrücke den folgenden Typ (im folgenden beispielhaft angegeben für \lstinline|C_Bool|) hätten:
+\begin{lstlisting}[language=Haskell,caption=Alternativer Typ für \lstinline|Guard|-Ausdrücke]
+data C_Bool = ...
+            | Guard_C_Bool [WrappedConstraint] C_Bool
+\end{lstlisting}
+Das bedeutet anstelle des Typs \lstinline|Constraints| würde jeder \lstinline|Guard|-Ausdruck eine Liste von \lstinline|WrappedConstraint|s enthalten. Auf diese Weise könnte man das \lstinline|WrappableConstraint|-Interface auch für die Curry-Bindungsconstraints implementieren.
+\begin{lstlisting}[language=Haskell,caption=Alternativer Typ für \lstinline|Guard|-Ausdrücke]
+data Constraints
+  = forall a . ValConstr ID a [Constraint]
+  | StructConstr [Constraint]
+ deriving (Show,Typeable)
+
+instance WrappableConstraint Constraints
+\end{lstlisting}
+Und müsste dann nur noch bei der Erzeugung von entsprechenden \lstinline|Guard|-Ausdrücken die Curry-Bindungsconstraints in ein \lstinline|WrappedConstraint| "'einpacken"' sowie den KiCS2-internen Solver für diese Constraints über die Funktion \lstinline|solveAll| ansteuerbar machen.
+\\
+Diese Lösung hätte den Vorteil, dass man bei der Implementierung der KiCS2-Suchfunktionen die Constraints aller \lstinline|Guard|-Ausdrücke durch \lstinline|solveAll| lösen lassen könnte.
+\\
+Problematisch wird das Wrapping der Curry-Bindungsconstraints jedoch in den Fällen, in denen man diese Constraints mit anderen Constraint-Typen wie zum Beispiel den Finite Domain Constraints kombiniert. In der bislang vorgestellten Implementierung wurden die Curry-Bindungsconstraints in solchen Fällen im KiCS2-Auswertungsbaum "'nach oben"' sortiert. Auf diese Weise konnten sie vor den FD-Constraints gelöst werden und damit die Bindungen der FD-Variablen noch vor dem Aufruf eines Solvers entsprechend aktualisiert werden.
+\\
+Dieses Problem ließe sich jedoch lösen, indem man den Solver für die Curry-Bindungsconstraints beim Aufruf von \lstinline|solveAll| als erstes ausprobiert. Auf diese Weise stünden etwaige aktuelle Bindungen dennoch rechtzeitig vor Aufruf der FD-Solver zur Verfügung. 
+\\
+Die Curry-Bindungsconstraints bestimmen jedoch nicht nur die Bindungsentscheidungen für freie Variablen, sondern auch für \lstinline|NarrowedChoices|. Und über solchen \lstinline|NarrowedChoices| werden sämtliche FD-Constraints generiert, die eine freie Variable als Listenargument erhalten. Zur Erinnerung: Listenargumente von CLPFD-Constraint-Funktionen werden durch Aufruf von \lstinline|ensureSpine| in eine sogenannte \emph{spine}-Form überführt. Dabei werden die \lstinline|Choices| für etwaige freie Listenvariablen in \lstinline|NarrowedChoices| transformiert.
+\par
+Behandelt man die Curry-Bindungsconstraints nun wie alle anderen Constraints und packt diese in den Constraint-Wrapper, so werden diese beim Einsammeln der \lstinline|WrappedConstraint|s durch die Funktion \lstinline|searchWrappedCs| zusammen mit den übrigen Constraints "'nach unten"' im KiCS2-Auswertungsbaum sortiert. Dies hat allerdings auch zur Folge, dass die Bindungsconstraints für \lstinline|NarrowedChoices| "'nach unten"' verschoben werden und damit auch unterhalb des zugehörigen \lstinline|NarrowedChoices|-Knoten im Auswertungsbaum platziert werden. Die Konsequenz ist, dass Berechnung von Ausdrücken, die FD-Constraints mit freien Variablen als Listenargumente mit Unifikationsausdrücken über diesen freien Variablen kombinieren, nicht mehr terminieren. Da der \lstinline|Guard|-Ausdruck mit den Bindungsconstraints im KiCS2-Auswertungsbaum "'unterhalb"' der \lstinline|NarrowedChoice|-Knoten liegt, werden die Bindungsconstraints nicht mehr vor der Auswertung der \lstinline|NarrowedChoice|-Knoten gelöst, so dass statt der durch die Bindungsentscheidung vorgegebenen Pfade sämtliche Pfade der \lstinline|NarrowedChoices| ausgewertet werden. Und deshalb terminiert die Berechnung in solchen Fällen nicht mehr.
+\\
+Das folgende Beispiel (einschließlich der verschiedenen Auswertungsbäume) verdeutlicht diese Problematik noch einmal:
+\par
+Lösen ließe sich dieses Problem nur, indem man die Curry-Bindungsconstraints beim Einsammeln von den übrigen \lstinline|WrappedConstraint|s trennt. Dafür müsste man diese allerdings aufwendig mittels \lstinline|filterCs| herausfilter. Da damit das ursprüngliche Ziel, alle Constraint-Typen gleich zu behandeln, ad absurdum geführt würde, erscheint es sinnvoller, die Curry-Bindungsconstraints von vornherein anders zu behandeln als die übrigen Constraint-Typen und sie daher nicht in den Constraint-Wrapper zu packen.
 \clearpage

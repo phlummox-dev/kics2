@@ -191,7 +191,7 @@ Bevor man nun mit Hilfe des \lstinline|FDConstraint|-Datentyps die externen Funk
 Zum anderen benötigt man Funktionen, mit denen man die Haskell-Repräsentation eines Curry-Int (\lstinline|C_Int|) bzw. einer Curry-Int-Liste \lstinline|OP_List C_Int| in einen Integer-FD-Term bzw. eine Liste von Integer-FD-Termen umwandeln kann.
 \\
 Die Erweiterung des Constraint-Typs zur Unterstützung von \lstinline|FDConstraint|s lässt sich relativ einfach umsetzen. Man erweitert den in KiCS2-\lstinline|Guard|-Ausdrücken verwendeten \lstinline|Constraints|-Typ (siehe auch Grundlagen-Kapitel über KiCS2) um einen Konstruktor für Finite Domain Constraints:
-\begin{lstlisting}[language=Haskell,caption=Erweiterung des Datentyps Constraints]
+\begin{lstlisting}[language=Haskell,caption=Erweiterung des Datentyps \lstinline|Constraints|]
 data Constraints
   = ...
   | FDConstr [FDConstraint]
