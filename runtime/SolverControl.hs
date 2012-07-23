@@ -12,14 +12,14 @@ import Debug.Trace
 
 import ExternalSolver
 
-data (Store m, NonDet a) => Solver m a = forall c . (ExternalConstraint c) => Solver ([c] -> a -> m a)
+data (Store m, NonDet a) => Solver m a = forall c . (WrappableConstraint c) => Solver ([c] -> a -> m a)
 
 -- filter heterogenous external constraint list for constraints of a given type
-filterCs :: ExternalConstraint c => [ExtConstraint] -> ([c],[ExtConstraint])
+filterCs :: WrappableConstraint c => [WrappedConstraint] -> ([c],[WrappedConstraint])
 filterCs [] = ([],[])
-filterCs (ec:ecs) = let (cs,ecs') = filterCs ecs
-                    in case unwrapCs ec of Just c  -> (c:cs,ecs')
-                                           Nothing -> (cs,ec:ecs')
+filterCs (wc:wcs) = let (cs,wcs') = filterCs wcs
+                    in case unwrapCs wc of Just c  -> (c:cs,wcs')
+                                           Nothing -> (cs,wc:wcs')
 
 -- list of supported constraint solvers
 solvers :: (Store m, NonDet a) => [Solver m a]
@@ -28,13 +28,13 @@ solvers = [Solver runGecode, Solver runOverton]
 
 -- try solving all constraints of the heterogenous list of external constraints by running the supported solvers
 -- one after another
-solveAll :: (Store m, NonDet a) => [ExtConstraint] -> [Solver m a] -> a -> m a
-solveAll extCs []                       _ = error $ "SolverControl.solveAll: Not solvable with supported solvers: " ++ show extCs
-solveAll extCs ((Solver solve):solvers) e = case filterCs extCs of ([],[])  -> return $ failCons 0 defFailInfo
-                                                                   ([],ecs) -> solveAll ecs solvers e
-                                                                   (cs,[])  -> solve cs e
-                                                                   (cs,ecs) -> do e' <- solveAll ecs solvers e
-                                                                                  solve cs e'
+solveAll :: (Store m, NonDet a) => [WrappedConstraint] -> [Solver m a] -> a -> m a
+solveAll wcs []                       _ = error $ "SolverControl.solveAll: Not solvable with supported solvers: " ++ show wcs
+solveAll wcs ((Solver solve):solvers) e = case filterCs wcs of ([],[])   -> return $ failCons 0 defFailInfo
+                                                               ([],wcs') -> solveAll wcs' solvers e
+                                                               (cs,[])   -> solve cs e
+                                                               (cs,wcs') -> do e' <- solve cs e
+                                                                               solveAll wcs' solvers e'
 
 -- Run the Gecode Solver provided by the Monadic Constraint Programming Framework
 runGecode :: (Store m, NonDet a) => [FDConstraint] -> a -> m a

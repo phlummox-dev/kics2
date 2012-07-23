@@ -122,17 +122,17 @@ getNormalForm :: NormalForm a => NonDetExpr a -> IO a
 getNormalForm goal = do
   s <- initSupply
   let normalForm = const $!! goal s emptyCs $ emptyCs
-  return $ searchForExtCs normalForm []
+  return $ searchForWrappedCs normalForm []
 
 -- search normalized expression for Guards containing external constraints and collect these constraints in one Guard
-searchForExtCs :: NormalForm a => a -> [ExtConstraint] -> a
-searchForExtCs x extCs = match searchChoice searchNarrowed choicesCons failCons searchGuard searchVal x
-  where searchChoice cd i x1 x2          = choiceCons cd i (searchForExtCs x1 extCs) (searchForExtCs x2 extCs)
-        searchNarrowed cd i xs           = choicesCons cd i (map (\x' -> searchForExtCs x' extCs) xs)
-        searchGuard _ (ExtConstr ecs) e = searchForExtCs e (extCs ++ ecs)
-        searchGuard cd c e               = guardCons cd c (searchForExtCs e extCs)
-        searchVal v | null extCs        = v
-                    | otherwise         = guardCons defCover (ExtConstr extCs) v
+searchForWrappedCs :: NormalForm a => a -> [WrappedConstraint] -> a
+searchForWrappedCs x wcs = match searchChoice searchNarrowed choicesCons failCons searchGuard searchVal x
+  where searchChoice cd i x1 x2            = choiceCons cd i (searchForWrappedCs x1 wcs) (searchForWrappedCs x2 wcs)
+        searchNarrowed cd i xs             = choicesCons cd i (map (\x' -> searchForWrappedCs x' wcs) xs)
+        searchGuard _ (WrappedConstr wc) e = searchForWrappedCs e (wcs ++ wc)
+        searchGuard cd c e                 = guardCons cd c (searchForWrappedCs e wcs)
+        searchVal v | null wcs             = v
+                    | otherwise            = guardCons defCover (WrappedConstr wcs) v
 
 {-
 getNormalForm :: NormalForm a => NonDetExpr a -> IO a
@@ -356,7 +356,7 @@ searchDFS act goal = do
       follow c             = error $ "Search.dfsNarrowed: Bad choice " ++ show c
     dfsNarrowed _ i _ = error $ "Search.dfsNarrowed: Bad narrowed ID " ++ show i
 
-    dfsGuard _ (ExtConstr extCs) e = solveAll extCs solvers e >>= dfs cont 
+    dfsGuard _ (WrappedConstr wcs) e = solveAll wcs solvers e >>= dfs cont 
     dfsGuard _ cs e = solve cs e >>= \mbSltn -> case mbSltn of
       Nothing          -> mnil
       Just (reset, e') -> dfs cont e' |< reset
@@ -431,7 +431,7 @@ searchBFS act goal = do
       follow (NoDecision , j) = reset >> (cont (choicesCons defCover j zs) +++ (next cont xs ys))
       follow c                = error $ "Search.bfsFree: Bad choice " ++ show c
 
-    bfsGuard _ (ExtConstr extCs) e = set >> solveAll extCs solvers e >>= bfs cont xs ys set reset -- not working in some cases
+    bfsGuard _ (WrappedConstr wcs) e = set >> solveAll wcs solvers e >>= bfs cont xs ys set reset -- not working in some cases
     bfsGuard _ cs e = set >> solve cs e >>= \mbSltn -> case mbSltn of
       Nothing            -> reset >> next cont xs ys
       Just (newReset, a) -> bfs cont xs ys set (newReset >> reset) a
@@ -616,9 +616,9 @@ searchMSearch' cont = match smpChoice smpChoices smpChoices smpFail smpGuard smp
     sumF = if isCovered cd then ssum (decCover cd) i else msum
 
 
-  smpGuard cd cs@(ExtConstr extCs) e
+  smpGuard cd cs@(WrappedConstr wcs) e
    | isCovered cd = constrainMSearch (decCover cd) cs (searchMSearch' cont e)
-   | otherwise = solveAll extCs solvers e >>= searchMSearch' cont
+   | otherwise = solveAll wcs solvers e >>= searchMSearch' cont
   smpGuard cd cs e 
    | isCovered cd = constrainMSearch (decCover cd) cs (searchMSearch' cont e)
    | otherwise = solve cs e >>= maybe mzero (searchMSearch' cont . snd)

@@ -13,8 +13,8 @@ external_d_C_prim_domain vs l u (CP.Choices_OP_List _ i@(FreeID _ _) _) cs = ((\
 
 domain :: CP.OP_List CP.C_Int -> CP.C_Int -> CP.C_Int -> ID -> CP.C_Success
 domain vs l u i =
-  let c = [wrapCs $ FDDomain (toFDList i vs) (toCsExpr l) (toCsExpr u)]
-  in guardCons defCover (ExtConstr c) C_Success
+  let c = wrapCs $ FDDomain (toFDList i vs) (toCsExpr l) (toCsExpr u)
+  in guardCons defCover (WrappedConstr [c]) C_Success
 
 {-
 external_d_C_prim_domain :: CP.OP_List CP.C_Int -> CP.C_Int -> CP.C_Int -> CP.OP_List CP.C_Int -> ConstStore -> CP.C_Success
@@ -25,41 +25,42 @@ external_d_C_prim_domain vs l u (CP.Choices_OP_List _ i@(FreeID _ _) _) _ =
 
 external_d_C_prim_FD_plus :: CP.C_Int -> CP.C_Int -> CP.C_Int -> ConstStore -> CP.C_Int
 external_d_C_prim_FD_plus x y res cs | gnfCheck x && gnfCheck y = CP.d_OP_plus x y cs
-                                     | otherwise                = let c = [wrapCs $ newArithConstr Plus x y res]
-                                                                  in guardCons defCover (ExtConstr c) res
+                                     | otherwise                = let c = wrapCs $ newArithConstr Plus x y res
+                                                                  in guardCons defCover (WrappedConstr [c]) res
 
 external_d_C_prim_FD_minus :: CP.C_Int -> CP.C_Int -> CP.C_Int -> ConstStore -> CP.C_Int
 external_d_C_prim_FD_minus x y res cs | gnfCheck x && gnfCheck y = CP.d_OP_minus x y cs
-                                      | otherwise                = let c = [wrapCs $ newArithConstr Minus x y res]
-                                                                   in guardCons defCover (ExtConstr c) res
+                                      | otherwise                = let c = wrapCs $ newArithConstr Minus x y res
+                                                                   in guardCons defCover (WrappedConstr [c]) res
 
 external_d_C_prim_FD_times :: CP.C_Int -> CP.C_Int -> CP.C_Int -> ConstStore -> CP.C_Int
 external_d_C_prim_FD_times x y res cs | gnfCheck x && gnfCheck y = CP.d_OP_star x y cs
-                                      | otherwise                = let c = [wrapCs $ newArithConstr Mult x y res]
-                                                                   in guardCons defCover (ExtConstr c) res
+                                      | otherwise                = let c = wrapCs $ newArithConstr Mult x y res
+                                                                   in guardCons defCover (WrappedConstr [c]) res
 
 external_d_C_prim_FD_equal :: CP.C_Int -> CP.C_Int -> ConstStore -> CP.C_Success
 external_d_C_prim_FD_equal x y cs | gnfCheck x && gnfCheck y = if xEqualY then C_Success else CP.d_C_failed cs
-                                  | otherwise                = let c = [wrapCs $ newRelConstr Equal x y]
-                                                               in guardCons defCover (ExtConstr c) C_Success
+                                  | otherwise                = let c = wrapCs $ newRelConstr Equal x y
+                                                               in guardCons defCover (WrappedConstr [c]) C_Success
   where xEqualY = fromCurry $ CP.d_OP_eq_eq x y cs
 
 external_d_C_prim_FD_notequal :: CP.C_Int -> CP.C_Int -> ConstStore -> CP.C_Success
 external_d_C_prim_FD_notequal x y cs | gnfCheck x && gnfCheck y = if xNotEqualY then C_Success else CP.d_C_failed cs
-                                     | otherwise                = let c = [wrapCs $ newRelConstr Diff x y]
-                                                                  in guardCons defCover (ExtConstr c) C_Success
+                                     | otherwise                = let c = wrapCs $ newRelConstr Diff x y
+                                                                  in guardCons defCover (WrappedConstr [c]) C_Success
   where xNotEqualY = fromCurry $ CP.d_C_not (CP.d_OP_eq_eq x y cs) cs
 
 external_d_C_prim_FD_le :: CP.C_Int -> CP.C_Int -> ConstStore -> CP.C_Success
 external_d_C_prim_FD_le x y cs | gnfCheck x && gnfCheck y = if xLessY then C_Success else CP.d_C_failed cs
-                               | otherwise                = let c = [wrapCs $ newRelConstr Less x y]
-                                                            in guardCons defCover (ExtConstr c) C_Success
+                               | otherwise                = let c = wrapCs $ newRelConstr Less x y
+                                                            in guardCons defCover (WrappedConstr [c]) C_Success
   where xLessY = fromCurry $ CP.d_OP_lt_eq x (CP.d_OP_minus y (CP.C_Int 1#) cs) cs
 
 external_d_C_prim_FD_leq :: CP.C_Int -> CP.C_Int -> ConstStore -> CP.C_Success
 external_d_C_prim_FD_leq x y cs | gnfCheck x && gnfCheck y = if xLessEqualY then C_Success else CP.d_C_failed cs
-                                | otherwise                = let c = [wrapCs (newRelConstr Less x y), wrapCs (newRelConstr Equal x y)]
-                                                             in guardCons defCover (ExtConstr c) C_Success
+                                | otherwise                = let c1 = wrapCs $ newRelConstr Less x y
+                                                                 c2 = wrapCs $ newRelConstr Equal x y
+                                                             in guardCons defCover (WrappedConstr [c1,c2]) C_Success
   where xLessEqualY = fromCurry $ CP.d_OP_lt_eq x y cs
 
 external_d_C_prim_FD_ge :: CP.C_Int -> CP.C_Int -> ConstStore -> CP.C_Success
@@ -75,8 +76,8 @@ external_d_C_prim_allDifferent vs (CP.Choices_OP_List _ i@(FreeID _ _) _) cs = (
 allDifferent :: CP.OP_List CP.C_Int -> ID -> ConstStore -> CP.C_Success
 allDifferent vs i cs 
   | gnfCheck vs = if allDiff (fromCurry vs) then C_Success else CP.d_C_failed cs
-  | otherwise   = let c = [wrapCs $ FDAllDifferent (toFDList i vs)]
-                  in guardCons defCover (ExtConstr c) C_Success
+  | otherwise   = let c = wrapCs $ FDAllDifferent (toFDList i vs)
+                  in guardCons defCover (WrappedConstr [c]) C_Success
 
 {-
 external_d_C_prim_allDifferent :: CP.OP_List CP.C_Int -> CP.OP_List CP.C_Int -> ConstStore -> CP.C_Success
@@ -97,8 +98,8 @@ external_d_C_prim_sum vs res (CP.Choices_OP_List _ i@(FreeID _ _) _) cs = ((\vs1
 sumList :: CP.OP_List CP.C_Int -> CP.C_Int -> ID -> CP.C_Int
 sumList vs res i
   | gnfCheck vs = toCurry (Prelude.sum (fromCurry vs :: [Int]))
-  | otherwise   = let c = [wrapCs $ FDSum (toFDList i vs) (toCsExpr res)]
-                  in guardCons defCover (ExtConstr c) res
+  | otherwise   = let c = wrapCs $ FDSum (toFDList i vs) (toCsExpr res)
+                  in guardCons defCover (WrappedConstr [c]) res
 
 {-
 external_d_C_prim_sum :: CP.OP_List CP.C_Int -> CP.C_Int -> CP.OP_List CP.C_Int -> ConstStore -> CP.C_Int
@@ -114,8 +115,8 @@ external_d_C_prim_labelingWith strategy vs (CP.Choices_OP_List _ i@(FreeID _ _) 
 
 labeling :: C_LabelingStrategy -> CP.OP_List CP.C_Int -> ID -> ID -> CP.C_Success
 labeling strategy vs j i =
-  let c = [wrapCs $ FDLabeling (fromCurry strategy) (toFDList i vs) j]
-  in guardCons defCover (ExtConstr c) C_Success
+  let c = wrapCs $ FDLabeling (fromCurry strategy) (toFDList i vs) j
+  in guardCons defCover (WrappedConstr [c]) C_Success
 
 {-
 external_d_C_prim_labelingWith :: C_LabelingStrategy -> CP.OP_List CP.C_Int -> CP.OP_List CP.C_Int -> ConstStore -> CP.C_Success

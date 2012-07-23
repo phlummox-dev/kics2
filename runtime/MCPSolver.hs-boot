@@ -8,6 +8,6 @@ import FDData
 import ExternalSolver
 import ID
 
-instance ExternalSolver MCPSolver FDConstraint
+instance ExternalFDSolver MCPSolver FDConstraint
 
-instance ExternalConstraint FDConstraint
+instance WrappableConstraint FDConstraint

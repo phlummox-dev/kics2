@@ -10,9 +10,9 @@ import Types
 
 -- By implementing this type class, one can integrate constraint solvers in KiCS2:
 -- @type variable s - constraint solver
--- @type variable c - external constraints, which can be solved by the given solver
+-- @type variable c - wrappable constraints, which can be solved by the given solver
 
-class ExternalConstraint c => ExternalSolver s c where	-- needs MultiParamTypeClasses and TypeFamilies
+class WrappableConstraint c => ExternalFDSolver s c where	-- needs MultiParamTypeClasses and TypeFamilies
 
   -- instance specific types helping with translating and solving the external constraints:
   -- |Type for representing the given constraints as a model for a specific solver

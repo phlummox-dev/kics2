@@ -32,7 +32,7 @@ import ExternalSolver
 -- ---------------------------------------------------------------------------
 -- ExternalConstraint instance for FDConstraint
 -- ---------------------------------------------------------------------------
-instance ExternalConstraint FDConstraint where
+instance WrappableConstraint FDConstraint where
   updateVars = updateFDConstr updateFDVar
 
 -- ---------------------------------------------------------------------------
@@ -40,7 +40,7 @@ instance ExternalConstraint FDConstraint where
 -- ---------------------------------------------------------------------------
 
 
-instance ExternalSolver MCPSolver FDConstraint where
+instance ExternalFDSolver MCPSolver FDConstraint where
   newtype SolverModel MCPSolver FDConstraint = SM [Model]
 
   -- |Type for storing labeling information for the MCP solvers:

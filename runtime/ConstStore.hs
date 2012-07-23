@@ -63,7 +63,7 @@ addToGlobalCs              _ = return ()
 #else
 
 addCs (StructConstr  _) store = store
-addCs (ExtConstr     _) store = store -- added for support of external constraints
+addCs (WrappedConstr _) store = store -- added for support of wrappable constraints
 addCs (ValConstr i v _) store = id $! Map.insert (getKey i) (V v) store
 
 combineCs = Map.union
