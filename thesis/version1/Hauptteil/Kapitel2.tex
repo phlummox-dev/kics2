@@ -147,8 +147,8 @@ data TLState = TLState {
 Mit diesen Hilfsmitteln kann man die Labeling-Informationen während der Übersetzung sichern:
 \begin{lstlisting}[language=Haskell,caption=Übersetzung der \lstinline|FDConstraint|s 3]
 translateConstr (FDLabeling str vs j) = do $
-  state <- get
   mcpVs <- translateList vs
+  state <- get
   let newInfo  = Info (Just vs) (Just mcpVs) (Just j) (Just str) 
       newState = state { labelInfo = newInfo }
   put newState 

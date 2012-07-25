@@ -1,0 +1,24 @@
+\section{Evaluation}
+In diesem Kapitel soll die vorgestellte Erweiterung von KiCS2 um eine Finite Domain Constraint Bibliothek und die Integration extern implementierter FD-Solver mit Hilfe einiger Benchmarks evaluiert werden.
+\\
+Alle Benchmarks wurden auf einem PC mit Intel Core 2 Duo (3 GHz) Prozessor und 3 GB Arbeitsspeicher unter Ubuntu 12.04 ("'Precise Pangolin"') durchgeführt. Dabei wurde KiCS2 Version 0.2 mit dem Glasgow Haskell Compiler (GHC Version 7.4.1) ausgeführt. Gemessen wurde jeweils die Ausführungszeit mit Hilfe der \lstinline|time|-Option von KiCS2 und dann wurde der Mittelwert von drei Messdurchläufen berechnet. 
+\\
+Zunächst wurde getestet, inwieweit sich das "'nach oben"' Verschieben von \lstinline|Guard|-Ausdrücken mit Bindungsconstraints im KiCS2-Auswertungsbaum sowie das zusätzliche Ablaufen dieses Baumes zur Suche nach \lstinline|WrappedConstraint|s mittels \lstinline|searchWrappedCs| auf die Auswertung von Ausdrücken auswirkt, die keine Finite Domain Constraints enthalten. Dazu wurden die Benchmarks für die Unifikation, die KiCS2 zur Verfügung stellt (\emph{UnificationBench.curry}), einmal mit KiCS2 ohne die CLPFD-Erweiterung und einmal mit dieser Erweiterung ausgeführt. Zu den Benchmark-Programmen gehören \lstinline|last| (Berechnung des letzten Elements einer Liste), \lstinline|grep| (Matching eines regulären Ausdrucks), \lstinline|halfPeano| (Halbierung einer Peano-Zahl), \lstinline|varInExp| (Suche nach einer Variable in einem arithmetischen Ausdruck), \lstinline|simplify| (Vereinfachung eines arithmetischen Ausdrucks), \lstinline|palindrome| (Überprüft, ob eine Liste ein Palindrom ist) und \lstinline|horseMan| (Lösung einer Gleichung bezüglich der Köpfe und Beine von Pferden und Menschen):
+\begin{figure}[!h]
+\begin{center}
+\begin{tabular}{|@{~~}l@{~~}|*{2}{@{~~}r@{~~}|}}
+\hline
+Benchmark  & KiCS2 Vanilla & KiCS2 CLPFD  \\\hline
+\lstinline|last|       &      0.12   &   0.12    \\
+\lstinline|grep|       &      2.05   &   1.88    \\
+\lstinline|halfPeano|  &      0.43   &     \\
+\lstinline|varInExp|   &     23.39   &  22.00  \\
+\lstinline|simplify|   &      0.12   &   0.12   \\
+\lstinline|palindrome| &      0.39   &   0.29   \\
+\lstinline|horseMan|   &      1.63   &   1.39  \\
+\hline
+\end{tabular}
+\caption{Benchmarks: Unifikation in KiCS2 ohne und mit CLPFD-Erweiterung}
+\end{center}
+\end{figure}
+

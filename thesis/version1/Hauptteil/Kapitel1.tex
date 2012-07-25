@@ -108,9 +108,7 @@ ensureSpine l = ensureList (ensureNotFree l)
 \end{lstlisting}
 Die übrigen Funktionen der Bibliothek werden nach dem gleichen Prinzip implementiert. Das heißt, die Argumente der Constraint-Funktionen werden normalisiert, bevor sie an die jeweilige extern implementierte Funktion übergeben werden. Bei Listenargumenten wird zusätzlich die Überführbarkeit in die \emph{spine}-Form überprüft.
 \par
-Ein Anwendungsbeispiel für Finite Domain Constraints ist das N-Damen-Problem. Dabei ist es das Ziel, N-Damen auf einem NxN-Schachbrett so zu platzieren, dass keine Dame eine andere Dame schlagen kann. Hierbei gelten die vom Schach bekannten Züge für eine Dame. Es darf also keine Damen mit einer anderen Damen in derselben Spalte, Reihe oder Diagonale des Schachbretts stehen.
-\\
-Mit den FD-Constraints der CLPFD-Bibliothek lässt sich nun beispielsweise das 4-Damen-Problem folgendermaßen modellieren:
+Als Anwendungsbeispiel für die vorgestellte CLPFD-Bibliothek betrachten wir nun erneut das im Grundlagenkapitel über Curry vorgestellte N-Damen-Problem. Da bislang noch nicht darauf eingegangen wurde, ob und inwieweit die FD-Constraints der Bibliothek mit der Curry-Unifikation durch \lstinline|(=:=)| kombinierbar sind, wird im Folgenden die Modellierung einer konkreten Instanz des N-Damen-Problems gezeigt, nämlich das 4-Damen-Problem:
 \begin{lstlisting}[language=Haskell,caption=Beipiel: 4-Damen-Problem]
 fourQueens = let queens = [q1,q2,q3,q4]
              in domain queens 1 4 &
@@ -127,24 +125,7 @@ safe q (q1:qs) p = no_attack q q1 p & safe q qs (p+#1)
 
 no_attack q1 q2 p = q1 /=# q2 & q1 /=# q2 +# p & q1 /=# q2 -# p
 \end{lstlisting}
-
-% label for queens
-\def\mylabelformat{%
- {\makebox[0pt][c]{%
-  {q\arabic{filelabel}}}}}
-%  {$q_\arabic{filelabel}$}}}}
-
-\begin{figure}[!h]
-\begin{center}
-\chessboard[style=4x4,setwhite={Qa2,Qb4,Qc1,Qd3},labelbottomformat=\mylabelformat,showmover=false]
-\end{center}
-\caption{Lösung für das 4-Damen-Problem}
-\end{figure}
-
-Die Tatsache, dass jede Dame in einer anderen Spalte des Schachbretts positioniert werden soll, wird direkt durch die vier freien Variablen \lstinline|q1,q2,q3,q4| modelliert. Der Wertebereich dieser Variablen wird auf ${1,2,3,4}$ festgelegt. Eine solche Variable gibt dann zusammen mit ihrem Wert genau ein Feld auf dem Schachbrett an. Die Variable selbst bestimmt die Spalte, ihr Wert die Reihe (vergleiche Zeichnung), das heißt \lstinline|q1 = 2| bedeutet, platziere eine Dame in der 1. Spalte des Schachbretts und zwar auf dem Feld in der 2. Reihe.
-Bei der Modellierung des 4-Damen-Problems werden neben dem \lstinline|domain|- und \lstinline|labeling|-Constraint aus der CLPFD-Bibliothek auch noch einige Hilfsconstraints verwendet: Die Funktion \lstinline|no_attack| erzeugt für zwei übergebene Damen alle Constraints, die nötig sind, um sicherzustellen, dass diese sich nicht gegenseitig schlagen können (\lstinline|q1 /=# q2|  $\Rightarrow$ Damen stehen nicht in der Gleichen Reihe, \lstinline|q1 /=# q2 +# p & q1 /=# q2 -# p| $\Rightarrow$ Damen stehen nicht auf der gleichen aufsteigenden bzw. abfallenden Diagonalen).
-\\
-\lstinline|safe| überprüft durch Aufruf von \lstinline|no_attack|, dass eine übergebene Damen-Position \lstinline|q| sicher ist, also von keiner der anderen Damen angegriffen werden kann und \lstinline|all_safe| wendet dieses \lstinline|safe|-Constraint schließlich auf alle vier Damen an.
+Dabei verwendet man die gleichen Hilfsconstraints, die auch schon bei der Modellierung des N-Damen-Problems mit PAKCS zum Einsatz gekommen sind. Daher wird für eine genauere Erklärung dieses Beispiels auf die entsprechende Beschreibung im Grundlagenkapitel über Curry verwiesen.
 
 \subsubsection{Darstellung der Constraints in Haskell}
 Nachdem KiCS2 nun um eine Bibliothek für Finite Domain Constraints erweitert wurde, beschreibt der folgende Abschnitt die Implementierung der externen Funktionen, mit deren Hilfe diese Bibliothek realisiert wird.

@@ -15,7 +15,7 @@ Die Syntax von Curry-Programmen weist eine große Ähnlichkeit mit der der funktio
 \subsubsection{Datentypen}
 
 Neue Datentypen werden in Curry mit dem Schlüsselwort \textbf{data} definiert: 
-\begin{lstlisting}[language=Haskell,mathescape]
+\begin{lstlisting}[language=Haskell,mathescape,caption=Datentypdeklaration in Curry]
 data t = C$_{1}$ t$_{11}$ ... a$_{1n_{1}}$ | ... | C$_{k}$ t$_{k1}$ ... a$_{kn_{k}}$
 \end{lstlisting}
 
@@ -23,7 +23,7 @@ Mit der obigen Deklaration wird ein neuer Datentyp \lstinline|t| mit $k$ untersc
 \\
 Neben diesen einfachen Datentypdeklarationen bietet Curry auch die Möglichkeit, polymorphe Datenstrukturen zu definieren:
 
-\begin{lstlisting}[language=Haskell,mathescape]
+\begin{lstlisting}[language=Haskell,mathescape,caption=Deklaration polymorpher Datentypen in Curry]
 data t a$_{1}$ ... a$_{n}$ = C$_{1}$ t$_{11}$ ... a$_{1n_{1}}$
                  | ...
                  | C$_{k}$ t$_{k1}$ ... a$_{kn_{k}}$
@@ -33,7 +33,7 @@ Zur Definition von polymorphen Datenstrukturen verwendet man sogenannte Typkonst
 \\
 Im folgenden sollen einige Beispiele für Datentypdeklarationen betrachtet werden:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Beispiel: Datentypdeklarationen]
 data Color     = Red | Blue | Yellow
 data Maybe a   = Nothing | Just a
 data BinTree a = Empty | Branch (BinTree a) a (BinTree a)
@@ -45,7 +45,7 @@ Der polymorphe Datentyp \lstinline|Maybe a| bietet die Möglichkeit, Typen mit op
 \\
 Das letzte Beispiel führt einen polymorphen Datentyp zur Repräsentation von Binärbäumen mit beliebigen Knotenelementen ein. Dabei ist \lstinline|BinTree a| eine rekursive Datenstruktur, denn der Konstruktor \lstinline|Branch| zur Definition einer Verzweigung im Baum erhält unter anderem wieder zwei Argumente vom Typ \lstinline|BinTree a| zur Darstellung des linken bzw. rechten Kindbaums. Definiert man sich einen Binärbaum für \lstinline|Int|-Werte, so könnte ein einfaches Beispiel mit drei Elementen wie folgt aussehen:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Beispiel: Integerbaum]
 simpleIntTree :: BinTree Int
 simpleIntTree = 
   Branch (Branch Empty 2 Empty) 1 (Branch Empty 3 Empty)
@@ -53,7 +53,7 @@ simpleIntTree =
 
 Mit dem Schlüsselwort \textbf{type} können wie in Haskell Typsynonyme definiert werden. Damit hat man zum einen die Möglichkeit, komplexe Typbezeichnungen durch einfachere zu ersetzen und so den Code lesbarer zu gestalten. Zum anderen kann man aber auch einfachen Typen einen anderen Namen zuordnen, um auf diese Art die Verständlichkeit zu erhöhen. Die folgenden Beispiele verdeutlichen dies:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Beispiele für Typsynonyme in Curry]
 type IntTree = BinTree Int
 type String = [Char]
 
@@ -66,7 +66,7 @@ type PhoneBook = [(Name,PhoneNumber)]
 
 Eine Funktionsdefinition in Curry hat allgemein die folgende Form:
  
-\begin{lstlisting}[language=Haskell,mathescape]
+\begin{lstlisting}[language=Haskell,mathescape,caption=Funktionsdefinition in Curry]
 f p$_{1}$ ... p$_{n}$ = e
 \end{lstlisting}
 
@@ -76,7 +76,7 @@ Zusätzlich kann bei der Funktionsdefinition eine Typsignatur angegeben werden, u
 \\
 Als Beispiel für eine Funktionsdefinition wird im folgenden die Fakultätsfunktion betrachtet:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Beispiel: Fakultätsfunktion]
 fac :: Int -> Int
 fac n = if n == 0 then 1 else n * fac (n-1)
 \end{lstlisting}
@@ -85,7 +85,7 @@ Wie Haskell bietet Curry auch die Möglichkeit, Funktionen mittels Pattern Matchi
 \\
 Diese sehr deklarative Form der Programmierung entspricht häufig der mathematischen Spezifikation eines Problems wie beispielsweise die Implementierung der Fakultätsfunktion mittels Pattern Matching zeigt:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Definition der Fakultätsfunktion mit Pattern Matching]
 facPM :: Int -> Int
 facPM 0 = 1
 facPM n = n * facPM (n-1)
@@ -99,7 +99,7 @@ Das einfachste Beispiel für eine solche nicht-deterministische Funktion ist der 
 \\
 Die Funktion \lstinline|insert| fügt ein Element an einer beliebigen Stelle in einer Liste ein. So liefert der Aufruf \lstinline|insert 42 [1,2,3]| die folgende Lösungsmenge \lstinline[breaklines=true]|{[42,1,2,3], [1,42,2,3], [1,2,42,3], [1,2,3,42]}|. Mit Hilfe dieser Funktion lässt sich dann als weiteres Beispiel sehr leicht die Permutation von Listen implementieren.
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Beispiele für nicht-deterministische Funktionen]
 (?) :: a -> a -> a
 x ? _ = x
 _ ? y = y
@@ -121,7 +121,7 @@ Zur Definition der Constraints wurde der Datentyp \lstinline|Success| in Curry e
 \\
 Mit \lstinline|(&)| lassen sich mehrere Constraints zu einer Konjunktion von Constraints verknüpfen:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Curry-Gleichheitsconstraint]
 data Success = Success
 
 (=:=) :: a -> a -> Success
@@ -132,7 +132,7 @@ Das folgende kleine Beispiel mit einem gerichteten Graph soll nun verdeutlichen,
 \par
 
 \begin{minipage}{0.6\textwidth}
-\begin{lstlisting}[language=Haskell,frame=no]
+\begin{lstlisting}[language=Haskell,frame=no,caption=Beispiel: Pfade in einem gerichteten Graph]
 data Node = A | B | C | D | E
 
 edge :: Node -> Node
@@ -261,7 +261,7 @@ Der KiCS2-Compiler löst dieses Problem, indem nicht-deterministische Werte expli
 \\
 Funktional-logische Berechnungen können auch fehlschlagen. Im Unterschied zu rein funktionalen Programmen soll dann die Berechnung nicht abgebrochen werden, sondern ein Fehlschlag soll wie ein Ergebnisfall ohne sinnvolle Ergebnisse behandelt werden. Um diesen Fall auch in Haskell abbilden zu können, wird für jeden Datentyp zusätzlich der Konstruktor \lstinline|Fail| eingeführt: 
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Explizite Darstellung des Nicht-Determinismus in KiCS2]
 data Bool = True 
           | False
           | Choice Bool Bool
@@ -270,7 +270,7 @@ data Bool = True
 
 Der nicht-deterministischer Curry-Ausdruck \lstinline|aCurryBool = True ? False|, der die beiden Ergebnisse True und False liefert, lässt sich mit dieser Erweiterung in Haskell direkt durch \lstinline|aHaskellBool = Choice True False| darstellen. Wie weiter oben erwähnt können nicht-deterministische Werte in Curry in jedem Berechnungsschritt vorkommen und somit auch als Funktionsargumente auftreten. Daher muss bei Funktionsdefinitionen über Pattern Matching eine zusätzlich Regel für das Vorkommen von \lstinline|Choice|-Argumenten eingeführt werden. Wie man im Beispiel sieht, wird dabei der Nicht-Determinismus von der Argumentebene auf die Ergebnisebene propagiert und die Funktion auf die beiden Möglichkeiten in der \lstinline|Choice| angewandt. Die Möglichkeit des Fehlschlagens der Funktionsanwendung wird durch die letzte, immer passende Regel abgebildet, die ein \lstinline|Fail| liefert (etwaige \lstinline|Fail|-Werte auf Argumentebene werden mit dieser Regel ebenfalls propagiert):
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Propagieren des Nicht-Determinismus]
 not :: Bool -> Bool
 not False          = True
 not True           = False
@@ -284,7 +284,7 @@ Die bisherige Implementierung des Nicht-Determinismus in Haskell hat allerdings 
 \\
 Das bedeutet der Ausdruck liefert die Ergebnisse \lstinline|False|, \lstinline|True|, \lstinline|True| und \lstinline|False| und damit auch das nicht-gewollte Resultat \lstinline|True|.
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Beispiel: \lstinline|xorSelf|]
 xorSelf :: Bool -> Bool
 xorSelf x = xor x x
 
@@ -303,16 +303,16 @@ Bei einer strikten Auswertung der Argumente kommt das ungewünschte Ergebnis \lst
 \\
 Übertragen auf die KiCS2-Implementierung bedeutet dies, dass man eine Möglichkeit finden muss, das mehrfache Auftreten einer \lstinline|Choice| zu erkennen, um eine konsistente Wertauswahl bei jedem Vorkommen sicherzustellen. In dem obigen Beispiel wird die einzelne \lstinline|Choice| aus \lstinline|aHaskellBool| mehrfach kopiert, so dass die gleiche \lstinline|Choice| letztendlich dreimal im Ergebnisausdruck \lstinline|Choice (Choice False True) (Choice True False)| vorkommt. Um dies auch bei der Auswertung des nicht-deterministischen Ergebnisses zu erkennen, wird jede \lstinline|Choice| mit einem eindeutigen Identifier gekennzeichnet.
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Einführung eines Identifikators für \lstinline|Choice|s]
 type ID = Integer
 
 data Bool = ...
           | Choice ID Bool Bool
 \end{lstlisting}
 
-Die Regeln für nicht-deterministische Argumente in Funktionsdefinitionen werden derart angepasst, dass beim Propagieren der \emph{Choices} der Identifier beibehalten wird:
+Die Regeln für nicht-deterministische Argumente in Funktionsdefinitionen werden derart angepasst, dass beim Propagieren der \lstinline|Choice|s der Identifier beibehalten wird:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Propagieren des Identifikators]
 xor (Choice i x1 x2) x = Choice i (xor x1 x) (xor x2 x)
 \end{lstlisting}
 
@@ -324,7 +324,7 @@ Somit ist sichergestellt, dass bei konsistenter Auswahl eines Wertes in allen Vo
 \par
 Curry als funktional-logische Sprache bietet auch die Möglichkeit, freie Variablen in Ausdrücken und Programmen zu verwenden. Diese freien Variablen ersetzt KiCS2 durch nicht-deterministische Generatoren in Haskell. Ein solcher Generator erzeugt lazy alle möglichen Werte des jeweiligen Variablentyps. Bereitgestellt wird dieser Generator von der Typklasse \lstinline|Generable|, die im Folgenden zusammen mit einer (leicht vereinfachten) Beispielinstanz für \lstinline|Bool| aufgeführt wird (in der Typklasse \lstinline|NonDet| werden alle nicht-deterministischen Typen zusammengefasst, das heißt, alle Typen, die die Erweiterung um die \lstinline|Choice|- bzw. \lstinline|Fail|-Konstruktoren unterstützen):
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Realisierung von freien Variablen in KiCS2]
 class NonDet a => Generable a where
   generate :: IDSupply -> a
 
@@ -332,9 +332,9 @@ instance Generable Bool where
   generate s = Choice (thisID s) True False
 \end{lstlisting}
 
-Um zu gewährleisten, dass während der Berechnung neue, bislang nicht verwendete \lstinline|ID|'s zur Kennzeichnung von \emph{Choices} generiert werden können, erhalten die Generatoren und andere nicht-deterministische Funktionen der KiCS2-Implementierung einen sogenannten \lstinline|IDSupply| als zusätzliches Argument. Dieser stellt - konzeptuell betrachtet - einen unendlichen Vorrat von \lstinline|ID|'s während der Berechnung eines Ausdrucks zur Verfügung. Neben Funktionen zur Initialisierung des \lstinline|IDSupply| und zum Zugriff auf eine neue \lstinline|ID| gibt es auch noch die Operationen \lstinline|leftSupply| und \lstinline|rightSupply| zur Erzeugung disjunkter Teilmengen von frischen \lstinline|ID|'s, falls auf der rechten Regelseite mehr als eine nicht-deterministische Funktion aufgerufen wird, welche ihren eigenen individuellen \lstinline|IDSupply| benötigt.
+Um zu gewährleisten, dass während der Berechnung neue, bislang nicht verwendete \lstinline|ID|'s zur Kennzeichnung von \lstinline|Choice|s generiert werden können, erhalten die Generatoren und andere nicht-deterministische Funktionen der KiCS2-Implementierung einen sogenannten \lstinline|IDSupply| als zusätzliches Argument. Dieser stellt - konzeptuell betrachtet - einen unendlichen Vorrat von \lstinline|ID|'s während der Berechnung eines Ausdrucks zur Verfügung. Neben Funktionen zur Initialisierung des \lstinline|IDSupply| und zum Zugriff auf eine neue \lstinline|ID| gibt es auch noch die Operationen \lstinline|leftSupply| und \lstinline|rightSupply| zur Erzeugung disjunkter Teilmengen von frischen \lstinline|ID|'s, falls auf der rechten Regelseite mehr als eine nicht-deterministische Funktion aufgerufen wird, welche ihren eigenen individuellen \lstinline|IDSupply| benötigt.
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Einführung eines \lstinline|IDSupply| zur Erzeugung neue Identifikatoren]
 type IDSupply = Integer
 
 initSupply :: IO IDSupply
@@ -358,7 +358,7 @@ In logischen Sprachen werden Prädikate oder Constraints dazu eingesetzt, den Erg
 \\
 Bei der Übersetzung des Gleichheitsconstraints durch KiCS2 könnte man nun genauso vorgehen wie bei den bisherigen Funktionen und neue Regeln definieren, die auf \lstinline|Choice|- und \lstinline|Fail|-Argumente matchen. 
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Erster Ansatz zur Implementierung der Unifikation in KiCS2]
 []           =:= []           = Success
 (x:xs)       =:= (y:ys)       = x =:= y & xs =:= ys
 Choice i l r =:= y            = Choice i (l =:= y) (r =:= y)
@@ -368,7 +368,7 @@ x            =:= Choice j l r = Choice j (x =:= l) (x =:= r)
 
 Diese Implementierung ist zwar korrekt, sie kann aber bei Unifikationen mit freien Variablen als Argument zu unnötig großen Ergebnisräumen führen. Betrachtet man zum Beispiel den Curry-Ausdruck \lstinline|x =:= [True] where x free|, so wird die freie Variable \lstinline|x| in KiCS2 durch den folgenden nicht-deterministischen Generator für Listen über \lstinline|Bool| repräsentiert:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Beispiel: Nicht-Deterministischer Generator für boolesche Listen]
 boolListVar :: IDSupply -> [Bool]
 boolListVar s = generate s
 boolVar :: IDSupply -> Bool
@@ -383,9 +383,9 @@ Dieser Generator baut nun unnötigerweise einen Suchraum für die Belegung der fre
 \\
 Daher wird die Unifikation bei der Übersetzung durch den KiCS2-Compiler anders behandelt als die übrigen Funktionen: Anstatt bei einer Unifikation über einer freien Variable einen Suchraum durch Aufzählung aller möglichen Belegungen aufzubauen, wird diese freie Variable an einen Term bzw. eine andere freie Variable \textbf{gebunden}. Da Haskell als rein funktionale Sprache seiteneffektfrei ist, werden diese Bindungen mit Hilfe spezieller Bindungsconstraints ausgedrückt.
 \\
-Zunächst ist es allerdings nötig, die Repräsentation von freien Variablen und Standard-\emph{Choices} in KiCS2 unterscheiden zu können. Dazu werden die Definition des Identifiertyps und die der Generatoren wie folgt angepasst:
+Zunächst ist es allerdings nötig, die Repräsentation von freien Variablen und Standard-\lstinline|Choice|s in KiCS2 unterscheiden zu können. Dazu werden die Definition des Identifiertyps und die der Generatoren wie folgt angepasst:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Unterscheidung von freien Variablen und Standard-\lstinline|Choice|s]
 data ID = ChoiceID IDSupply | FreeID IDSupply
 
 instance Generable Bool where
@@ -394,7 +394,7 @@ instance Generable Bool where
 
 Falls der Wert einer freien Variable für die Anwendung einer Funktion benötigt wird, so wird die Darstellung der freien Variable in eine Standard-\lstinline|Choice| umgewandelt, das heißt, die Regel für \lstinline|Choice|-Argumente wird wie folgt angepasst:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Narrowing von freien Variablen bei Funktionsanwendung]
 narrow :: ID -> ID
 narrow (FreeID i) = ChoiceID i
 narrow i          = i
@@ -404,7 +404,7 @@ not (Choice i b1 b2) = Choice (narrow i) (not b1) (not b2)
 
 Die oben erwähnten Bindungsconstraints werden nun durch den folgenden Datentyp dargestellt:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Definition von Bindungsconstraints und -entscheidungen]
 data Constraint = ID :=: Decision
 
 data Decision = ChooseLeft | ChooseRight | ChooseN Int Int | 
@@ -416,7 +416,7 @@ Ein Bindungsconstraint ist also ein Paar bestehend aus einer Variablen-ID und de
 \\
 Damit man Curry-Ausdrücke nach der Übersetzung mit solchen Bindungsconstraints beschränken kann, wird der Repräsentation der Curry-Typen in Haskell ein weiterer Konstruktor hinzugefügt:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Einführung von \lstinline|Guard|-Ausdrücken]
 data Bool = ...
           | Guard Constraints Bool
 
@@ -425,11 +425,11 @@ data Constraints = StructConstr [Constraint]
 
 Ein \lstinline|Guard|-Ausdruck \lstinline|Guard cs e| repräsentiert einen durch Constraints beschränkten Wert und ist wie folgt zu interpretieren: Der Wert \lstinline|e| ist nur dann gültig, wenn die Constraints in \lstinline|cs| erfüllbar sind. Dabei liefert \underline{ein einzelnes \lstinline|Constraint|} immer nur die Bindungsentscheidung für \underline{einen} Konstruktor. Um auch strukturierte Datentypen mit Konstruktoren mit mehreren Argumenten zu unterstützen, erhalten \lstinline|Guard|-Ausdrücke jedoch immer eine Liste von Constraints (vergleiche Datentyp \lstinline|Constraints|). Diese Constraint-Liste enthält dann je ein Bindungsconstraint für den äußersten Konstruktor sowie für alle dessen Argumente.
 \par
-Mit den neu eingeführt Bindungsconstraints lässt sich nun die Implementierung des Unifikationsoperators \lstinline|(=:=)| anpassen. Während die Implementierung für Standard-\emph{Choices} erhalten bleibt, werden für freie Variable neue Regeln definiert. Als Ergebnis liefern diese neue Regeln einen \lstinline|Guard|-Ausdruck, der - falls die Constraints erfüllbar sind - \lstinline|Success| zurückliefert. 
+Mit den neu eingeführt Bindungsconstraints lässt sich nun die Implementierung des Unifikationsoperators \lstinline|(=:=)| anpassen. Während die Implementierung für Standard-\lstinline|Choice|s erhalten bleibt, werden für freie Variable neue Regeln definiert. Als Ergebnis liefern diese neue Regeln einen \lstinline|Guard|-Ausdruck, der - falls die Constraints erfüllbar sind - \lstinline|Success| zurückliefert. 
 \\
 Welche Bindungsconstraints die \lstinline|Guard| enthält, ist davon abhängig, ob die freie Variable an einen Konstruktorterm oder eine andere freie Variable gebunden wird. Im Falle eines Konstruktors wird die gleiche Bindungsentscheidung getroffen wie die, die im erfolgreichen Pfad des zur freien Variable zugehörigen Generators getroffen werden würde. Bindet man die freie Variable hingegen an eine andere freie Variable, so wird - wie auch in der unten aufgeführten Beispielimplementierung für boolesche Variablen - eine \lstinline|BindTo|-Bindungsentscheidung verwendet.
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Verbesserte Implementierung der Unifikation]
 Choice (FreeID i) _ _ =:= True                  
   = Guard (StructConstr [i :=: ChooseLeft]) Success
 Choice (FreeID i) _ _ =:= False                 
@@ -440,7 +440,7 @@ Choice (FreeID i) _ _ =:= Choice (FreeID j) _ _
 
 \subsubsection{Auswertung von (nicht-deterministischen) Ausdrücken}
  
-Abschließend soll nun noch die Auswertung der durch KiCS2 erzeugten Haskellausdrücke betrachtet werden. Bei der Berechnung der Normalform eines Ausdrucks in KiCS2 wird jeglicher Nicht-Determinismus dargestellt durch die \emph{Choices} hochpropagiert. Das heißt, ein normalisierter Ausdruck entspricht entweder einem deterministischen Wert, der direkt ausgegeben werden kann, oder es resultiert ein Suchbaum mit \emph{Choices} als innere Knoten und deterministischen Werten bzw. fehlgeschlagenen Berechnungen (\lstinline|Fail|) als Baumblätter.
+Abschließend soll nun noch die Auswertung der durch KiCS2 erzeugten Haskellausdrücke betrachtet werden. Bei der Berechnung der Normalform eines Ausdrucks in KiCS2 wird jeglicher Nicht-Determinismus dargestellt durch die \lstinline|Choice|s hochpropagiert. Das heißt, ein normalisierter Ausdruck entspricht entweder einem deterministischen Wert, der direkt ausgegeben werden kann, oder es resultiert ein Suchbaum mit \lstinline|Choice|s als innere Knoten und deterministischen Werten bzw. fehlgeschlagenen Berechnungen (\lstinline|Fail|) als Baumblätter.
 \\
 Um alle in einem solchen Suchbaum enthaltenen Ergebnisse zu bestimmen, stellt KiCS2 im Unterschied zu anderen Curry-Implementierungen eine Vielzahl unterschiedlicher Suchstrategien zur Verfügung. Unter anderem ist es möglich, den Suchbaum mittels Tiefen-, Breiten- oder paralleler Suche auszuwerten. Des Weiteren können alle Werte in einer Baum-ähnlichen Struktur gesammelt werden und mit Hilfe dieser Struktur eigene Auswertungsstrategien implementiert werden (= \textbf{eingekapselte Suche}).
 \par
@@ -448,7 +448,7 @@ Im Folgenden soll beispielhaft die Implementierung der Tiefensuche betrachtet we
 \\
 Der Einfachheit halber wurden die durch KiCS2 neu eingeführten Konstruktoren bislang unabhängig von ihrem jeweiligen Typ immer mit \lstinline|Choice|, \lstinline|Fail| bzw. \lstinline|Guard| bezeichnet. Die tatsächlichen Konstruktor-Bezeichnungen enthalten zusätzlich einen Hinweis auf ihren jeweiligen Curry-Typ. Somit sieht beispielsweise die Haskell-Repräsentation des Curry-Typs \lstinline|Bool| folgendermaßen aus:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Beispiel: Repräsentation eines Bools in KiCS2]
 data C_Bool = C_False
             | C_True
             | Choice_C_Bool ID C_Bool C_Bool
@@ -458,13 +458,13 @@ data C_Bool = C_False
 
 Um nun bei der Implementierung der Suchstrategien das Pattern Matching auf die unterschiedlichen Fälle möglichst einfach zu halten, führt man den folgenden generischen Datentyp ein:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Generische \lstinline|Try|-Struktur für das Pattern Matching]
 data Try a = Val a | Choice ID a a | Fail | Guard Constraints a
 \end{lstlisting}
 
 Zusätzlich definiert man eine Funktion \lstinline|try :: a -> Try a|. Hierbei handelt es sich um eine überladene Funktion, das heißt, sie wird von einer speziellen Typklasse zur Verfügung gestellt und für jede Haskelldarstellung eines Curry-Typs (wie C\_Bool), die in den generischen Try-Datentyp konvertierbar ist, gibt es eine entsprechende Typklasseninstanz.
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Transformation eines Bool in die generische \lstinline|Try|-Struktur]
 try (Choice_C_Bool i l r) = Choice i l r
 try Fail_C_Bool           = Fail
 try (Guard_C_Bool cs e)   = Guard cs e
@@ -473,22 +473,22 @@ try v                     = Val v
 
 Unter Verwendung dieser Hilfsfunktion lässt sich die Tiefensuche von KiCS2 dann definieren (siehe weiter unten): Die Fälle, in denen ein deterministischer Wert bzw. eine fehlgeschlagene Berechnung vorliegen, sind trivial. Im ersten Fall wird der Wert einfach ausgegeben, im Zweiten die Suche abgebrochen. 
 \\
-Um die Werte für Standard-\emph{Choices} und freie Variablen auszugeben, muss man wissen, welche (Bindungs-)Entscheidung für diese \emph{Choices} getroffen wurde. KiCS2 speichert bereits getroffene Entscheidungen unter der \lstinline|ID| einer \lstinline|Choice| (Variablen) in einem \textbf{globalen Decision Store} ab. Realisiert wurde der Store mit Hilfe von Haskells \lstinline|IO| Monade. Durch Implementierung der Typklasse \lstinline|class Monad m => Store m| können aber auch andere Realisierungen definiert werden.
+Um die Werte für Standard-\lstinline|Choice|s und freie Variablen auszugeben, muss man wissen, welche (Bindungs-)Entscheidung für diese \lstinline|Choice|s getroffen wurde. KiCS2 speichert bereits getroffene Entscheidungen unter der \lstinline|ID| einer \lstinline|Choice| (Variablen) in einem \textbf{globalen Decision Store} ab. Realisiert wurde der Store mit Hilfe von Haskells \lstinline|IO| Monade. Durch Implementierung der Typklasse \lstinline|class Monad m => Store m| können aber auch andere Realisierungen definiert werden.
 \\
 Über die beiden Funktionen \lstinline|lookupDecision| und \lstinline|setDecision| kann man auf gespeicherte Entscheidungen zugreifen bzw. neue Entscheidungen für eine \lstinline|Choice| unter deren \lstinline|ID| eintragen
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Funktionen zum Zugriff auf den globalen Decision Store]
 lookupDecision :: Store m => ID -> m Decision
 setDecision :: Store m => ID -> Decision -> m ()
 \end{lstlisting}
 
 Landet man bei der Auswertung des Suchbaums mit der Tiefensuche in einem Knoten mit einer Standart-\lstinline|Choice|, so wird überprüft, ob für sie schon eine Entscheidung im Decision Store abgelegt wurde. Falls ja, wird die Auswertung im entsprechenden Zweig der \lstinline|Choice| fortgesetzt. 
 \\
-Wurde hingegen noch keine Entscheidung getroffen, so werden nacheinander der linke und der rechte Zweig ausgewertet. Zuvor wird jeweils die getroffene Bindungsentscheidung in den Store eingetragen, um beim mehrfachen Vorkommen der gleichen \lstinline|Choice| in demselben Auswertungszweig zu gewährleisten, dass auch wirklich überall die gleiche Entscheidung verfolgt wird. Abschließend wird die Entscheidung im Store wieder auf \lstinline|NoDecision| zurückgesetzt, welches auch der initiale Wert für alle \emph{Choices} zu Beginn der Auswertung ist.
+Wurde hingegen noch keine Entscheidung getroffen, so werden nacheinander der linke und der rechte Zweig ausgewertet. Zuvor wird jeweils die getroffene Bindungsentscheidung in den Store eingetragen, um beim mehrfachen Vorkommen der gleichen \lstinline|Choice| in demselben Auswertungszweig zu gewährleisten, dass auch wirklich überall die gleiche Entscheidung verfolgt wird. Abschließend wird die Entscheidung im Store wieder auf \lstinline|NoDecision| zurückgesetzt, welches auch der initiale Wert für alle \lstinline|Choice|s zu Beginn der Auswertung ist.
 \\
 Um einen durch Constraints beschränkten Ausdruck, also einen \lstinline|Guard|-Ausdruck, auszuwerten, müssen die Constraints zunächst gelöst und damit ihre Erfüllbarkeit überprüft werden. Hierfür implementiert KiCS2 einen Constraint-Solver, der - wenn möglich - die Bindungsconstraints löst und gegebenenfalls getroffene Bindungsentscheidungen in den Decision Store einträgt. Aufgerufen wird er über die Funktion \lstinline|solve|. Konnten die Constraints gelöst werden, so wird die Auswertung fortgesetzt, wobei die getroffenen Entscheidungen am Ende zurückgesetzt werden.
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Auswertung eines nicht-deterministischen Ausdrucks mit der Tiefensuche]
 dfs :: Try a -> IO ()
 dfs (Val v) = print v
 dfs Fail    = return ()
@@ -537,7 +537,7 @@ Constraint-Modelle werden im MCP-Framework durch eine baumartige Datenstruktur r
 \\
 Die Baumstruktur enthält verschiedene Knoten mit speziellen Anweisungen für die Auswertung des Modells durch den Solver. So gibt es beispielsweise Knoten zur Erzeugung einer neuen Constraint-Variable (\lstinline|NewVar|) oder zum Hinzufügen eines Constraints zum Constraint-Speicher des Solvers (\lstinline|Add|). Um auch Disjunktionen wie zum Beispiel die Belegung einer Constraint-Variablen mit unterschiedlichen Werten darstellen zu können, gibt es den \lstinline|Try|-Konstruktor, mit dem man Verzweigungen im Baum einführen kann. Ein Pfad im Baum kann entweder zu einer Lösung führen - repräsentiert durch \lstinline|Return a| oder eben nicht, was mit einem \lstinline|Fail|-Blattknoten dargestellt wird.
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Repräsentation von Constraint-Modellen]
 data Tree solver a = Return a
                    | NewVar (Term solver -> Tree solver a)
                    | Add (Constraint solver) (Tree solver a)
@@ -547,7 +547,7 @@ data Tree solver a = Return a
 
 Der Typkonstruktor \lstinline|Tree solver| soll nun zu einer Instanz von Haskells \lstinline|Monad|-Typklasse gemacht werden:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Erweiterung monadischer Baummodelle]
 instance Monad (Tree solver) where 
   return = Return
   (>>=) = extendTree
@@ -579,7 +579,7 @@ exists = NewVar
 \\
 Constraint Solver im MCP-Framework sind im Grunde genommen nur Interpreter für die zuvor vorgestellten Baummodelle. Sie werden durch die folgenden Typklassen definiert:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Interface für Constraint-Solver im MCP-Framework]
 class Monad solver => Solver solver where
   type Constraint solver :: *
   type Label solver :: *
@@ -624,7 +624,7 @@ Bei einem \lstinline|Add|-Knoten versucht der Solver, das entsprechende Constrai
 Ein \lstinline|NewVar|-Knoten enthält eine Funktion \lstinline|f|, die angewandt auf eine Constraint-Variable, ein neues Baummodell liefert. Daher erzeugt der Solver bei Auswertung eines solchen Knotens zunächste eine neue Constraint-Variable und führt dann die Auswertung auf dem durch die Anwendung von \lstinline|f| generierten Baummodell fort
 \\
 Bei einer Verzweigung im Baum wird, wie schon erwähnt, der rechte Teilbaum zusammen mit dem aktuellen Solver-Zustand gespeichert und dann der linke Teilbaum weiter ausgewertet.
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Auswertung von Constraint-Modellen]
 solve :: Solver solver => Tree solver a -> [a]
 solve = run . eval
 
@@ -663,7 +663,7 @@ Zur internen Darstellung von Finite Domain Constraints führt das Framework die f
 \end{itemize}
 Alle drei Datentypen werden mit drei Typvariablen parametrisiert, mit denen der Typ für Integer- (\lstinline|t|), Listen- (\lstinline|c|) bzw. boolesche Terme (\lstinline|b|) angegeben wird. Auf diese Weise können diese Datenstrukturen für unterschiedliche Term-Implementierungen wiederverwendet werden. Die folgende Term-Realisierung stellt das Framework zur Verfügung:
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Repräsentation von FD-Variablen]
 data ModelIntTerm  = ModelIntVar  Int
 data ModelColTerm  = ModelColVar  Int
 data ModelBoolTerm = ModelBoolVar Int
@@ -671,7 +671,7 @@ data ModelBoolTerm = ModelBoolVar Int
 
 Somit ist ein Term eine Constraint-Variable des entsprechenden Typs, welche durch eine \lstinline|Int|-Referenz identifiziert wird. Mit den Term-Typen und den oben vorgestellen Ausdruckstypen werden dann die eigentlichen Typen zur Modellierung von Constraint-Problemen eingeführt: \lstinline|ModelInt| für arithmetische Integer-Ausdrücke, \lstinline|ModelCol| für Listen über Integer-Ausdrücken (auch als \emph{collections} bezeichnet) und \lstinline|Model| für Finite Domain Constraints.
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Typen für Integer- und Listenausdrücke sowie FD-Constraints im MCP-Framework]
 type ModelInt = Expr     ModelIntTerm ModelColTerm ModelBoolTerm
 type ModelCol = ColExpr  ModelIntTerm ModelColTerm ModelBoolTerm
 type Model    = BoolExpr ModelIntTerm ModelColTerm ModelBoolTerm
@@ -679,7 +679,7 @@ type Model    = BoolExpr ModelIntTerm ModelColTerm ModelBoolTerm
 
 Über vom Framework bereitgestellte Konstruktorfunktionen können dann FD-Constraint-Probleme modelliert werden (nur ein Auszug, vollständiges FD-Interface mit allen Konstruktorfunktionen im Anhang \textcolor{red}{$<$hier Verweis auf Abschnitt im Anhang$>$})):
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Konstruktorfunktionen für FD-Constraints und -Ausdrücke]
 (@+), (@-), (@*)  :: Expr t c b -> Expr t c b -> Expr t c b
 (@=), (@/=)       :: Expr t c b -> Expr t c b -> BoolExpr t c b
 xsum              :: ColExpr t c b -> Expr t c b
@@ -690,7 +690,7 @@ forall, forany    :: ColExpr t c b
 
 Neben arithmetischen und relationalen Operatoren auf Integer-Ausdrücken, gibt es unter anderem auch Funktionen zur Bestimmung der Summe aller Elemente einer Liste (\lstinline|xsum|), zur Einschränkung von Listen auf paarweise verschiedene Elemente (\lstinline|allDiff|) sowie spezielle Constraints höherer Ordnung (\lstinline|forall, forany|) zur Überprüfung der Gültigkeit eines Prädikats für alle bzw. für mindestens ein Listenelement. Bei der Konstruktion werden solche Ausdrücke durch Aufruf der \lstinline|simplify|-Funktionen gegebenenfalls noch vereinfacht. Hierbei handelt es sich um eine der oben erwähnten Solver-unabhängigen Modell-Transformationen. Beispiele für derartige Vereinfachungen sind die Berechnung von konstanten Teilausdrücken sowie die Normalisierung von Ausdrücken durch Vertauschung von Argumenten.
 
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell,caption=Beispiele für Implementierung der Constraint-Konstruktorfunktionen]
 a @+ b     = simplify $ a `Plus` b
 a @= b     = boolSimplify $ Rel a EREqual b
 forall c f = boolSimplify $ BoolAll f c
@@ -700,7 +700,7 @@ Um ein Constraint-Problem mit den vorgestellten FD-Constraints zu modellieren, m
 \\
 Das MCP-Framework stellt dazu in einem separaten Modul eine zweite Variante der obigen Constraint-Funktionen zur Verfügung, die direkt einen solchen \lstinline|Add|-Knoten erzeugt:
 
-\begin{lstlisting}[language=Haskell,escapechar=§]
+\begin{lstlisting}[language=Haskell,escapechar=§,caption=Constraint-Konstruktorfunktionen zur direkten Erzeugung eines MCP-Baummodell-Knotens]
 addM :: (Constraint solver §$\sim$§ Either Model q) => 
         Model -> Tree solver ()
 addM m = addC $ Left m
@@ -726,7 +726,7 @@ Die Constraint-Funktionen, die direkt einen \lstinline|Add|-Knoten zurückliefern
 Im Folgenden soll noch kurz auf die Einbettung von Finite Domain Constraint Solvern in das MCP-Framework eingegangen werden. Da eine ausführliche Vorstellung den Rahmen dieser Arbeit sprengen würde, wird nur ein knapper Überblick über die FD-Solver-Schnittstelle des Frameworks gegeben. Weitere Informationen hierüber findet man in \cite{242221}. 
 \\
 Neben der allgemeinen Typklasse für Solver gibt es im MCP-Framework auch eine Typklasse speziell für FD-Solver (vollständige Angabe im Anhang):
-\begin{lstlisting}[language=Haskell,caption=MCP-\lstinline|FDSolver| Typklasse (Ausschnitt)]
+\begin{lstlisting}[language=Haskell,caption=MCP-\lstinline|FDSolver| Interface (Ausschnitt)]
 class (Solver s, Term s (FDIntTerm s), Term s (FDBoolTerm s)) => 
   FDSolver s where
     type FDIntTerm s    :: *
@@ -740,7 +740,7 @@ class (Solver s, Term s (FDIntTerm s), Term s (FDBoolTerm s)) =>
 Diese Typklasse macht wie auch schon die MCP-Solver-Typklasse Gebrauch von der Spracherweiterung der \emph{TypeFamilies}. So muss man bei der Instanziierung dieser Typklasse für einen bestimmten FDSolver die Typen für Integerterme und boolesche Terme angeben, die dieser FD-Solver verwendet. Des Weiteren müssen Typen für Integer-, Integerarray- und boolesche Ausdrücke definiert werden. Die Typklasse stellt außerdem eine Reihe von Funktionen zur Implementierung bereit, darunter unter anderem Konstruktorfunktionen für die zuvor definierten Ausdruckstypen und Funktionen zum Hinzufügen von Gleichheitsconstraints.
 \\
 Weiterhin definiert das Framework einen generischen Solver \lstinline|FDInstance s|. Dieser Solver dient als Wrapper für konkrete FD-Solver, kapselt also konkrete FD-Solver ein.
-\begin{lstlisting}[language=Haskell,caption=MCP-FDSolver Typklasse (Ausschnitt)]
+\begin{lstlisting}[language=Haskell,caption=Wrapper für MCP-FDSolver]
 newtype FDSolver s => 
   FDInstance s a = FDInstance { unFDInstance :: s a }
 \end{lstlisting}

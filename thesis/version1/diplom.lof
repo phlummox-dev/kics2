@@ -1,7 +1,10 @@
 \select@language {ngerman}
-\contentsline {figure}{\numberline {1}{\ignorespaces L\"osung f\"ur das 4-Damen-Problem}}{8}{figure.1}
-\contentsline {figure}{\numberline {2}{\ignorespaces Vorgang zum L\"osen von Finite Domain Constraints in KiCS2}}{31}{figure.2}
-\contentsline {figure}{\numberline {3}{\ignorespaces L\"osung f\"ur das 4-Damen-Problem}}{36}{figure.3}
-\contentsline {figure}{\numberline {4}{\ignorespaces Suchbaum \textbf {vor} Aufruf von \lstinline |searchFDCs|}}{51}{figure.4}
-\contentsline {figure}{\numberline {5}{\ignorespaces Suchbaum \textbf {nach} Aufruf von \lstinline |searchFDCs|}}{51}{figure.5}
-\contentsline {figure}{\numberline {6}{\ignorespaces Ablauf der Bindung und Rekonstruktion eines Wertes}}{61}{figure.6}
+\contentsline {figure}{\numberline {1}{\ignorespaces L\"osung f\"ur das 4-Damen-Problem}}{9}{figure.1}
+\contentsline {figure}{\numberline {2}{\ignorespaces Vorgang zum L\"osen von Finite Domain Constraints in KiCS2}}{34}{figure.2}
+\contentsline {figure}{\numberline {3}{\ignorespaces Suchbaum \textbf {vor} Aufruf von \lstinline |searchFDCs|}}{54}{figure.3}
+\contentsline {figure}{\numberline {4}{\ignorespaces Suchbaum \textbf {nach} Aufruf von \lstinline |searchFDCs|}}{54}{figure.4}
+\contentsline {figure}{\numberline {5}{\ignorespaces Ablauf der Bindung und Rekonstruktion eines Wertes}}{64}{figure.5}
+\contentsline {figure}{\numberline {6}{\ignorespaces Benchmarks: Unifikation in KiCS2 ohne und mit CLPFD-Erweiterung}}{102}{figure.6}
+\contentsline {figure}{\numberline {7}{\ignorespaces Ausschnitt des Suchbaums \textbf {vor} Aufruf von \lstinline |searchWrappedCs|}}{105}{figure.7}
+\contentsline {figure}{\numberline {8}{\ignorespaces Ausschnitt des Suchbaums \textbf {nach} Aufruf von \lstinline |searchWrappedCs| (Curry-Bindungsconstraints in Wrapper)}}{105}{figure.8}
+\contentsline {figure}{\numberline {9}{\ignorespaces Ausschnitt des Suchbaums \textbf {nach} Aufruf von \lstinline |searchWrappedCs| (separate Behandlung von Curry-Bindungsconstraints)}}{106}{figure.9}
