@@ -8,7 +8,6 @@ module SolverControl where
 import Types
 import FDData
 import {-# SOURCE #-} MCPSolver
-import Debug.Trace
 
 import ExternalSolver
 
@@ -38,8 +37,8 @@ solveAll wcs ((Solver solve):solvers) e = case filterCs wcs of ([],[])   -> retu
 
 -- Run the Gecode Solver provided by the Monadic Constraint Programming Framework
 runGecode :: (Store m, NonDet a) => [FDConstraint] -> a -> m a
-runGecode = trace "Running Gecode Solver" $ \(cs :: [FDConstraint]) e -> runSolver Gecode cs e
+runGecode = \(cs :: [FDConstraint]) e -> runSolver Gecode cs e
 
 -- Run the Overton Solver provided by the Monadic Constraint Programming Framework
 runOverton :: (Store m, NonDet a) => [FDConstraint] -> a -> m a
-runOverton = trace "Running Overton Solver" $ \(cs :: [FDConstraint]) e -> runSolver Overton cs e
+runOverton = \(cs :: [FDConstraint]) e -> runSolver Overton cs e
