@@ -1,2 +1,15 @@
 \section{Zusammenfassung und Ausblick}
 \label{chapter_zusammenfassung}
+Im Rahmen dieser Diplomarbeit wurde die KiCS2-Curry-Implementierung um die Möglichkeit zur Programmierung mit Finite Domain Constraints erweitert.
+\\
+Dazu wurde eine einfache Bibliothek zur Modellierung von Finite Domain Constraint Problemen in Curry implementiert.
+\\
+Zur Lösung eines solchen Modells wurden die beiden FD-Solver des Monadic Constraint Programming Frameworks - der direkt in Haskell implementierte Overton-Solver sowie der auf C++-basierende Gecode-Solver, in KiCS2 integriert. Dazu wurden die FD-Constraints in semantisch äquivalente MCP-FD-Constraints übersetzt und die resultierenden MCP-Modelle durch Aufruf eines MCP-Solvers gelöst.
+\\
+In einem zweiten Entwicklungsschritt wurde dann von den speziellen FD-Constraints und -Solvern abstrahiert. So wurde eine generische Schnittstelle für Constraints entwickelt, deren Implementierung es ermöglicht, KiCS2 um weitere Constraint-Typen zu erweitern. Des Weiteren wurde ein allgemeines Interface zur Integration von FD-Solvern in KiCS2 eingeführt. Diese Schnittstellen wurden für die FD-Constraints und die FD-Solver des MCP-Frameworks beispielhaft implementiert.
+\\
+Mit Hilfe von Benchmarks wurde gezeigt, dass die Verwendung der CLPFD-Bibliothek zur Modellierung von FD-Constraint-Problemen erheblich effizienter ist als ein entsprechendes Problem mit Hilfe des generate\&test-Verfahrens zu modellieren. Außerdem erreicht man mit dieser Bibliothek trotz des zusätzlichen Übersetzungsschritts annähernd vergleichbare Performance wie bei einer direkten Modellierung mit dem MCP-Framework.
+\par
+Für die Zukunft wäre es sicherlich interessant, weitere Constraint-Typen und (FD-)Solver in KiCS2 zu integrieren und auf diese Weise die hier vorgestellten Schnittstellen weiter zu testen und zu verbessern. 
+\\
+Außerdem könnte man beim Aufruf der MCP-Solver abhängig von der jeweils verwendetet KiCS2-Auswertungsstrategie eine dazu passende MCP-Suchstrategie und einen geeigneten MCP-Such-Transformer verwenden, anstatt grundsätzlich die Tiefensuche und den Identitäts-Such-Transformer zu benutzen. Des Weiteren könnte man überlegen, wie man FD-Constraints mit der eingekapselten Suche von KiCS2 kombinieren könnte, so dass man eigene Suchstrategien über FD-Constraint-Modellen definieren kann. Eine Lösung speziell für die MCP-Solver könnte es sein, diese Suchstrategien mit Hilfe der MCP-Interfaces zur Entwicklung eigener Suchstrategien und -Transformer zu realisieren.

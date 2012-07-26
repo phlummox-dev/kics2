@@ -1,4 +1,4 @@
-\documentclass[parskip=half*,a4paper, german, twoside, 11pt]{scrartcl}
+\documentclass[parskip=half*,a4paper, german, twoside, 10pt, DIV=11,BCOR=1cm]{scrartcl}
 
 \usepackage[latin1]{inputenc}
 \usepackage[pdftex]{graphicx} % Einbindung von Grafiken (pdf, png, jpg)
@@ -29,18 +29,15 @@
 %
 % Größenanpassungen
 %
-\setlength{\unitlength}{1cm}
-\setlength{\oddsidemargin}{0.3cm}
-\setlength{\evensidemargin}{0.3cm}
-\setlength{\textwidth}{15.5cm}
-\setlength{\topmargin}{-1.2cm}
-\setlength{\textheight}{23cm}
-\columnsep 0.5cm
+%\setlength{\unitlength}{1cm}
+%\setlength{\oddsidemargin}{1.8cm}
+%\setlength{\evensidemargin}{1cm}
+%\setlength{\textwidth}{15.5cm}
+%\setlength{\topmargin}{-1.2cm}
+%\setlength{\textheight}{23cm}
+%\columnsep 0.5cm
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\definecolor{dkgreen}{rgb}{0,0.6,0}
-\definecolor{mauve}{rgb}{0.58,0,0.82}
 
 \lstset{
     basicstyle={\ttfamily}
@@ -83,6 +80,7 @@
 
 \begin{appendix}
 \include{./Anhang/WrappingProblemBsp}
+\include{./Anhang/GenerateTest}
 \end{appendix}
 % Zweites Literaturverzeichnis, mit BibTeX
 
