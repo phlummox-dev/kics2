@@ -1,0 +1,40 @@
+\section{Generate \& Test-Realisierung des N-Damen-Problems}
+
+\begin{lstlisting}[language=Haskell,mathescape,caption=Generate \& Test Realisierung des N-Damen-Problems]
+-- Definition der Ungleichheit mit Hilfe von (=:=)
+diff :: a -> a -> Success
+diff x y = (x == y) =:= False
+
+-- Definition eines "kleiner-gleich"-Constraints mit (=:=)
+lessEqual :: a -> a -> Success
+lessEqual x y = (x <= y) =:= True
+
+-- Befindet sich die Dame auf dem Schachbrett?
+posOnBoard :: Int -> Int -> Success
+posOnBoard q n = lessEqual 1 q & lessEqual q n
+
+-- Generiert alle möglichen Platzierungen für n Damen 
+-- auf einem nxn-Schachbrett
+generate :: Int -> [Int] -> Success
+generate n l = 
+  l =:= genVars n & foldl (\s q -> posOnBoard q n & s) success l
+
+-- Testet, ob keine Dame eine andere schlagen kann
+test :: [Int] -> Success
+test [] = success
+test (q:qs) = safe q qs 1 & test qs
+
+-- Testet, ob die Dame q von keiner anderen Dame schlagbar ist
+safe :: Int -> [Int] -> Int -> Success
+safe _ [] _ = success
+safe q (q1:qs) p = no_attack q q1 p & safe q qs (p+1)
+
+-- Testet, ob q1 und q2 sich nicht gegenseitig schlagen können
+no_attack q1 q2 p = diff q1 q2 & diff q1 (q2+p) & diff q1 (q2-p)
+
+-- Erzeugt n freie Variablen
+genVars n = if n == 0 then [] else var : genVars (n-1) 
+ where var free
+
+-- Beispielaufruf: generate 4 l $\&$ test l where l free
+\end{lstlisting}
