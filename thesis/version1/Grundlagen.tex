@@ -655,7 +655,7 @@ Für diese verschiedenen Finite Domain Solver stellt das MCP-Framework eine gemei
 \par
 \textbf{MCP-FD-Modellierungssprache:}
 \\
-Zur internen Darstellung von Finite Domain Constraints führt das Framework die folgenden Datentypen ein (Die vollständige Deklaration dieser Datentypen findet man im Anhang \textcolor{red}{$<$hier Verweis auf Abschnitt im Anhang$>$}):
+Zur internen Darstellung von Finite Domain Constraints führt das Framework die folgenden Datentypen ein (Die vollständige Deklaration dieser Datentypen findet man im Anhang \ref{anhangB}):
 \begin{itemize}
 \item \lstinline|Expr t c b|: Zur Repräsentation von arithmetischen Ausdrücken wie Addition, Subtraktion etc. über Integer-Termen
 \item \lstinline|ColExpr t c b|: Zur Darstellung von Listen (\emph{collections}) von Integer-Ausdrücken
@@ -677,7 +677,7 @@ type ModelCol = ColExpr  ModelIntTerm ModelColTerm ModelBoolTerm
 type Model    = BoolExpr ModelIntTerm ModelColTerm ModelBoolTerm
 \end{lstlisting}
 
-Über vom Framework bereitgestellte Konstruktorfunktionen können dann FD-Constraint-Probleme modelliert werden (nur ein Auszug, vollständiges FD-Interface mit allen Konstruktorfunktionen im Anhang \textcolor{red}{$<$hier Verweis auf Abschnitt im Anhang$>$})):
+Über vom Framework bereitgestellte Konstruktorfunktionen können dann FD-Constraint-Probleme modelliert werden (nur ein Auszug, vollständiges FD-Interface mit allen Konstruktorfunktionen im Anhang \ref{anhangB}):
 
 \begin{lstlisting}[language=Haskell,caption=Konstruktorfunktionen für FD-Constraints und -Ausdrücke]
 (@+), (@-), (@*)  :: Expr t c b -> Expr t c b -> Expr t c b
@@ -725,7 +725,7 @@ Die Constraint-Funktionen, die direkt einen \lstinline|Add|-Knoten zurückliefern
 \\
 Im Folgenden soll noch kurz auf die Einbettung von Finite Domain Constraint Solvern in das MCP-Framework eingegangen werden. Da eine ausführliche Vorstellung den Rahmen dieser Arbeit sprengen würde, wird nur ein knapper Überblick über die FD-Solver-Schnittstelle des Frameworks gegeben. Weitere Informationen hierüber findet man in \cite{242221}. 
 \\
-Neben der allgemeinen Typklasse für Solver gibt es im MCP-Framework auch eine Typklasse speziell für FD-Solver (vollständige Angabe im Anhang):
+Neben der allgemeinen Typklasse für Solver gibt es im MCP-Framework auch eine Typklasse speziell für FD-Solver (vollständige Angabe im Anhang \ref{anhangB}):
 \begin{lstlisting}[language=Haskell,caption=MCP-\lstinline|FDSolver| Interface (Ausschnitt)]
 class (Solver s, Term s (FDIntTerm s), Term s (FDBoolTerm s)) => 
   FDSolver s where

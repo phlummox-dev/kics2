@@ -253,7 +253,7 @@ Das MCP-Framework unterstützt vier Labeling-Strategie-Funktionen:
 \end{itemize}
 Mit der Funktion \lstinline|assignments| werden schließlich Blattknoten für gefundene Lösungen im Baummodell erzeugt. Das bedeutet, für jede Constraint-Variable aus der Liste der Labeling-Variablen wird ein \lstinline|Return|-Knoten generiert, falls sich für diese Variable in diesem Auswertungszweig genau eine mögliche Belegung ergeben hat. Andernfalls wird ein \lstinline|Fail|-Knoten für die Variable erzeugt.
 \\
-Die Implementierung der \lstinline|labelling|-Funktion, der \lstinline|assignments|-Funktion, der Labeling-Strategie-Funktionen sowie die vollständige \lstinline|EnumTerm|-Typklasse findet man im Anhang.
+Die Implementierung der \lstinline|labelling|-Funktion, der \lstinline|assignments|-Funktion, der Labeling-Strategie-Funktionen sowie die vollständige \lstinline|EnumTerm|-Typklasse findet man im Anhang \ref{anhangB}.
 \\
 Schließlich wird das MCP-Baummodell für das Labeling um einen Knoten erweitert:
 \begin{lstlisting}[language=Haskell,caption=MCP-Baummodell: \lstinline|Label|-Knoten]
@@ -273,7 +273,7 @@ labelWith strategy col = Label $ do
     labelling (matchStrategy strategy) lsti
     assignments lsti
 \end{lstlisting}
-Mit Hilfe der vordefinierten MCP-Funktionen \lstinline|getColItems| und \lstinline|colList| (die Implementierung findet man im Anhang) wird die übergebene MCP \emph{collection} in eine Liste von Constraint-Variablen vom Typ \lstinline|ModelInt| transformiert. Für diese Constraint-Variablen werden dann durch Aufruf von \lstinline|labelling| und \lstinline|assignments| die (Teil-)Baummodelle für das Labeling bzw. die \lstinline|Return|-Blattknoten für mögliche Lösungen generiert. Zuvor ordnet die Funktion \lstinline|matchStrategy :: EnumTerm s t => LabelingStrategy -> [t] -> s [t]| der gegebenen Labeling-Strategie noch die passende Labeling-Strategie-Funktion des Frameworks zu.
+Mit Hilfe der vordefinierten MCP-Funktionen \lstinline|getColItems| und \lstinline|colList| (die Implementierung findet man im Anhang \ref{anhangB}) wird die übergebene MCP \emph{collection} in eine Liste von Constraint-Variablen vom Typ \lstinline|ModelInt| transformiert. Für diese Constraint-Variablen werden dann durch Aufruf von \lstinline|labelling| und \lstinline|assignments| die (Teil-)Baummodelle für das Labeling bzw. die \lstinline|Return|-Blattknoten für mögliche Lösungen generiert. Zuvor ordnet die Funktion \lstinline|matchStrategy :: EnumTerm s t => LabelingStrategy -> [t] -> s [t]| der gegebenen Labeling-Strategie noch die passende Labeling-Strategie-Funktion des Frameworks zu.
 \par
 \textbf{Aufruf der MCP-Solver:}
 \\
@@ -333,7 +333,7 @@ Als Rückgabewert liefert die Funktion \lstinline|solve| ein Tupel bestehend aus 
 \\
 Mit den übersetzten Lösungen, den gesicherten Labeling-Variablen und der ebenfalls zwischengespeicherten unbenutzten \lstinline|ID| wird dann ein neues \lstinline|MCPLabelInfo|-Objekt konstruiert und zurückgegeben.
 \\
-Die Funktion \lstinline|solveWithGecode| wird nach dem gleichen Prinzip implementiert. Dabei ist der einzige wirkliche Unterschied das Casting des Baummodells: In diesem Fall muss nämlich der Typ \lstinline|Tree (FDInstance (GecodeWrappedSolver RuntimeGecodeSolver)) ModelCol| für die Typannotation verwendet werden, damit die entsprechende \lstinline|solve|-Implementierung aufgerufen wird. Die vollständige Realisierung des Gecode-Solvers findet man im Anhang.
+Die Funktion \lstinline|solveWithGecode| wird nach dem gleichen Prinzip implementiert. Dabei ist der einzige wirkliche Unterschied das Casting des Baummodells: In diesem Fall muss nämlich der Typ \lstinline|Tree (FDInstance (GecodeWrappedSolver RuntimeGecodeSolver)) ModelCol| für die Typannotation verwendet werden, damit die entsprechende \lstinline|solve|-Implementierung aufgerufen wird. Die vollständige Realisierung des Gecode-Solvers findet man im Anhang \ref{anhangC}.
 
 \subsubsection{Ausgabe der vom Solver bestimmten Lösungen durch KiCS2}
 In den beiden vorherigen Abschnitten wurde beschrieben, wie man die KiCS2-interne Darstellung eines FD-Constraint-Modells in ein semantisch äquivalentes MCP-Modell übersetzt und dieses dann mit einem der beiden FD-Solver des Frameworks löst. Nun muss nur noch eine Möglichkeit gefunden werden, diese Lösungen mit Hilfe von KiCS2 auszugeben. Dazu müssen die Lösungen in irgendeiner Form wieder in den Suchbaum eingebunden werden, den die verschiedenen Suchstrategien von KiCS2 auswerten.

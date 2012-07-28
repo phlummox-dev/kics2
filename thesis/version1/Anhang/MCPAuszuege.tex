@@ -1,0 +1,373 @@
+\section{Auszüge aus dem Monadic Constraint Programming Framework}
+\label{anhangB}
+
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=Repräsentation von Integerausdrücken]
+data Expr t c b =
+    Term t
+  | ExprHole Int
+  | Const Integer
+  | Plus (Expr t c b) (Expr t c b)
+  | Minus (Expr t c b) (Expr t c b)
+  | Mult (Expr t c b) (Expr t c b)
+  | Div (Expr t c b) (Expr t c b)
+  | Mod (Expr t c b) (Expr t c b)
+  | Abs (Expr t c b)
+  | At (ColExpr t c b) (Expr t c b)
+  | Fold (Expr t c b -> Expr t c b -> Expr t c b) (Expr t c b) (ColExpr t c b)
+  | Cond (BoolExpr t c b) (Expr t c b) (Expr t c b)
+  | ColSize (ColExpr t c b)
+  | Channel (BoolExpr t c b)
+\end{lstlisting}
+
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=MCP \emph{collections}]
+data ColExpr t c b = 
+    ColTerm c
+  | ColList [Expr t c b]
+  | ColRange (Expr t c b) (Expr t c b)
+  | ColMap (Expr t c b -> Expr t c b) (ColExpr t c b)
+-- ColSlice f n c -> c[f(0)..f(n-1)]
+  | ColSlice (Expr t c b -> Expr t c b) (Expr t c b) (ColExpr t c b)
+  | ColCat (ColExpr t c b) (ColExpr t c b)
+\end{lstlisting}
+
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=MCP-FD-Constraints]
+data BoolExpr t c b =
+    BoolTerm b
+  | BoolConst Bool
+  | BoolAnd (BoolExpr t c b) (BoolExpr t c b)
+  | BoolOr (BoolExpr t c b) (BoolExpr t c b)
+  | BoolNot (BoolExpr t c b)
+  | BoolCond (BoolExpr t c b) (BoolExpr t c b) (BoolExpr t c b)
+  | Rel (Expr t c b) ExprRel (Expr t c b)
+  | BoolAll (Expr t c b -> BoolExpr t c b) (ColExpr t c b)
+  | BoolAny (Expr t c b -> BoolExpr t c b) (ColExpr t c b)
+  | ColEqual (ColExpr t c b) (ColExpr t c b)
+  | BoolEqual (BoolExpr t c b) (BoolExpr t c b)
+  | AllDiff Bool (ColExpr t c b)
+  | Sorted Bool (ColExpr t c b)
+  | Dom (Expr t c b) (ColExpr t c b)
+\end{lstlisting}
+
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=MCP-FD-Constraint-Konstruktorfunktionen]
+-- convertible to expressions:
+class ToExpr tt cc bb t where
+  toExpr :: t -> Expr tt cc bb
+
+-- convertible to collection-expressions:
+class ToColExpr tt cc bb c where
+  toColExpr :: c -> ColExpr tt cc bb
+
+-- convertible to boolean expressions:
+class ToBoolExpr tt cc bb b where
+  toBoolExpr :: b -> BoolExpr tt cc bb
+
+(@+), (@-), (@*), (@/), (@%) :: (Eq t, Eq c, Eq b, ToExpr t c b p, ToExpr t c b q) 
+                             => p -> q -> Expr t c b
+a @+ b = simplify $ (toExpr a) `Plus` (toExpr b)
+a @- b = simplify $ (toExpr a) `Minus` (toExpr b)
+a @* b = simplify $ (toExpr a) `Mult` (toExpr b)
+a @/ b = simplify $ (toExpr a) `Div` (toExpr b)
+a @% b = simplify $ (toExpr a) `Mod` (toExpr b)
+
+class (Eq tt, Eq cc, Eq bb) => ExprClass tt cc bb a where
+  (@=)  :: a -> a -> BoolExpr tt cc bb
+  (@/=) :: a -> a -> BoolExpr tt cc bb
+  a @/= b = boolSimplify $ BoolNot $ a @= b
+
+class (Eq tt, Eq cc, Eq bb) => ExprRange tt cc bb r where
+  (@:)  :: Expr tt cc bb -> r -> BoolExpr tt cc bb
+
+(!)   :: (Eq t, Eq c, Eq b) => ColExpr t c b -> Expr t c b -> Expr t c b
+(@!!) :: (Eq t, Eq c, Eq b) => ColExpr t c b -> Integer -> Expr t c b
+(@..) :: (Eq t, Eq c, Eq b) => Expr t c b -> Expr t c b -> ColExpr t c b
+(@++) :: (Eq t, Eq c, Eq b) => ColExpr t c b -> ColExpr t c b -> ColExpr t c b
+
+(@?) :: (Eq t, Eq c, Eq b) => BoolExpr t c b -> (Expr t c b, Expr t c b) 
+     -> Expr t c b
+c @? (t,f) = simplify $ Cond c t f
+
+(@??) :: (Eq t, Eq c, Eq b) => BoolExpr t c b -> (BoolExpr t c b, BoolExpr t c b) 
+      -> BoolExpr t c b
+c @?? (t,f) = boolSimplify $ BoolCond c t f
+
+c!p     = simplify $ At c p
+c @!! p = simplify $ At c (Const p)
+a @.. b = colSimplify $ ColRange (toExpr a) (toExpr b)
+a @++ b = colSimplify $ ColCat (toColExpr a) (toColExpr b)
+
+size :: (Eq t, Eq c, Eq b) => ColExpr t c b -> Expr t c b
+size a = simplify $ ColSize a
+
+xfold :: (Eq t, Eq c, Eq b) => (Expr t c b -> Expr t c b -> Expr t c b) 
+      -> Expr t c b -> ColExpr t c b -> Expr t c b
+xfold f i c = simplify $ Fold (\a b -> f a b) i c
+
+xsum :: (Num (Expr t c b), Eq t, Eq c, Eq b) => ColExpr t c b -> Expr t c b
+xsum c = xfold (+) (Const 0) c
+
+list :: (Eq t, Eq c, Eq b) => [Expr t c b] -> ColExpr t c b
+list x = colSimplify $ ColList x
+
+xhead :: (Eq t, Eq c, Eq b, ToColExpr t c b p) => p -> Expr t c b
+xhead c = simplify $ At (toColExpr c) (Const 0)
+
+xtail :: (Eq t, Eq c, Eq b, ToColExpr t c b p) => p -> ColExpr t c b
+xtail c = let cc = toColExpr c in colSimplify $ 
+  ColSlice (\x -> simplify (x `Plus` (Const 1))) 
+           (simplify $ (size cc) `Minus` (Const 1)) cc
+
+slice :: (Eq t, Eq c, Eq b) => ColExpr t c b -> ColExpr t c b -> ColExpr t c b
+slice c p = case (c,p) of
+  (_,ColRange l h) -> colSimplify $ 
+    ColSlice (\x -> simplify (l `Plus` x)) 
+             (simplify $ Const 1 `Plus` (simplify $ h `Minus` l)) c
+  (_,ColMap f (ColRange l h)) -> colSimplify $ 
+    ColSlice (\i -> simplify $ f $ simplify (l `Plus` i)) 
+             (simplify $ Const 1 `Plus` (simplify $ h `Minus` l)) c
+  (_,ColSlice f n c2) -> colSimplify $ 
+    ColSlice (\i -> simplify $ c2 `At` (f i)) n c
+  _ -> xmap (\i -> simplify $ c `At` i) p
+
+xmap :: (Eq t, Eq c, Eq b) => (Expr t c b -> Expr t c b) -> ColExpr t c b 
+     -> ColExpr t c b
+xmap f c = colSimplify $ ColMap f c
+
+loopall :: (Eq t, Eq c, Eq b) => (Expr t c b,Expr t c b) 
+        -> (Expr t c b -> BoolExpr t c b) -> BoolExpr t c b
+loopall (l,h) f = boolSimplify $ BoolAll f $ colSimplify $ ColRange l h
+
+loopany :: (Eq t, Eq c, Eq b) => (Expr t c b,Expr t c b) 
+        -> (Expr t c b -> BoolExpr t c b) -> BoolExpr t c b
+loopany (l,h) f = boolSimplify $ BoolAny f $ colSimplify $ ColRange l h
+
+forall :: (Eq t, Eq c, Eq b) => (ColExpr t c b) 
+       -> (Expr t c b -> BoolExpr t c b) -> BoolExpr t c b
+forall c f = boolSimplify $ BoolAll f c
+
+forany :: (Eq t, Eq c, Eq b) => (ColExpr t c b) 
+       -> (Expr t c b -> BoolExpr t c b) -> BoolExpr t c b
+forany c f = boolSimplify $ BoolAny f c
+
+channel :: (Eq t, Eq c, Eq b) => BoolExpr t c b -> Expr t c b
+channel = simplify . Channel 
+
+inv :: (Eq t, Eq c, Eq b, ToBoolExpr t c b p) => p -> BoolExpr t c b
+
+a @|| b = boolSimplify $ BoolOr (toBoolExpr a) (toBoolExpr b)
+a @&& b = boolSimplify $ BoolAnd (toBoolExpr a) (toBoolExpr b)
+inv a = boolSimplify $ BoolNot (toBoolExpr a)
+
+(@<), (@>), (@<=), (@>=) ::  (Eq t, Eq c, Eq b) => Expr t c b -> Expr t c b 
+                         -> BoolExpr t c b
+
+a @< b = boolSimplify $ Rel a ERLess b
+a @> b = boolSimplify $ Rel b ERLess a
+a @<= b = boolSimplify $ Rel a ERLess (simplify $ b `Plus` (Const 1))
+a @>= b = boolSimplify $ Rel b ERLess (simplify $ a `Plus` (Const 1))
+
+sorted c = boolSimplify $ Sorted False c
+sSorted c = boolSimplify $ Sorted True c
+allDiff c = boolSimplify $ AllDiff False c
+allDiffD c = boolSimplify $ AllDiff True c
+\end{lstlisting}
+
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=\lstinline|FDSolver|-Typklasse]
+class (Solver s, Term s (FDIntTerm s), Term s (FDBoolTerm s),
+ Eq (FDBoolSpecType s), Ord (FDBoolSpecType s), Enum (FDBoolSpecType s), 
+ Bounded (FDBoolSpecType s), Show (FDBoolSpecType s), Eq (FDIntSpecType s), 
+ Ord (FDIntSpecType s), Enum (FDIntSpecType s), Bounded (FDIntSpecType s), 
+ Show (FDIntSpecType s), Eq (FDColSpecType s), Ord (FDColSpecType s), 
+ Enum (FDColSpecType s), Bounded (FDColSpecType s), Show (FDColSpecType s), 
+ Show (FDIntSpec s), Show (FDColSpec s), Show (FDBoolSpec s)) => FDSolver s where
+
+  -- term types
+  type FDIntTerm s    :: * -- a Term of s, representing Integer variables
+  type FDBoolTerm s   :: * -- a Term of s, representing Bool variables   
+
+  -- spec types
+  type FDIntSpec s    :: * -- a type specifying an Integer expression; should at
+                           -- least support constant Integer's and FDIntTerm's
+  type FDBoolSpec s   :: * -- a type specifying a Bool expression; should at least 
+                           -- support constant Bool's and FDBoolTerm's
+  type FDColSpec s    :: * -- a type specifying a Integer array expression; should
+                           -- at least support lists of Int's and lists of 
+                           -- IntTerm's
+
+  -- spec type type
+  type FDIntSpecType s :: *  -- a type specifying the type of an FDIntSpec s, 
+                             -- in case there is more than one
+  type FDBoolSpecType s :: * -- a type specifying the type of an FDBoolSpec s,
+                             -- in case there is more than one
+  type FDColSpecType s :: *  -- a type specifying the type of an FDColSpec s, 
+                             -- in case there is more than one
+
+  -- constructors for specifiers
+  fdIntSpec_const     :: EGPar         -> (FDIntSpecType s, s (FDIntSpec s))
+  fdBoolSpec_const    :: EGBoolPar     -> (FDBoolSpecType s, s (FDBoolSpec s))
+  fdColSpec_const     :: EGColPar      -> (FDColSpecType s, s (FDColSpec s))
+  fdColSpec_list      :: [FDIntSpec s] -> (FDColSpecType s, s (FDColSpec s))
+  fdIntSpec_term      :: FDIntTerm s   -> (FDIntSpecType s, s (FDIntSpec s))
+  fdBoolSpec_term     :: FDBoolTerm s  -> (FDBoolSpecType s, s (FDBoolSpec s))
+  fdColSpec_size      :: EGPar         -> (FDColSpecType s, s (FDColSpec s))
+  fdIntVarSpec        :: FDIntSpec s   -> s (Maybe (FDIntTerm s))
+  fdBoolVarSpec       :: FDBoolSpec s  -> s (Maybe (FDBoolTerm s))
+
+  -- function to inform about allowed types for nodes
+  fdTypeReqBool :: s (EGEdge -> [(EGVarId,FDBoolSpecTypeSet s)])
+  fdTypeReqInt ::  s (EGEdge -> [(EGVarId,FDIntSpecTypeSet s)])
+  fdTypeReqCol ::  s (EGEdge -> [(EGVarId,FDColSpecTypeSet s)])
+  fdTypeReqBool = return (\(EGEdge { egeLinks = EGTypeData { boolData = l } }) 
+    -> map (\x -> (x,Set.fromList [minBound..maxBound])) l)
+  fdTypeReqInt = return (\(EGEdge { egeLinks = EGTypeData { intData = l } }) 
+    -> map (\x -> (x,Set.fromList [minBound..maxBound])) l)
+  fdTypeReqCol = return (\(EGEdge { egeLinks = EGTypeData { colData = l } }) 
+    -> map (\x -> (x,Set.fromList [minBound..maxBound])) l)
+
+  fdTypeVarInt :: s (Set (FDIntSpecType s))
+  fdTypeVarBool :: s (Set (FDBoolSpecType s))
+  fdTypeVarInt = return $ Set.singleton maxBound
+  fdTypeVarBool = return $ Set.singleton maxBound
+
+  -- rating functions for specification of terms
+  fdSpecify :: Mixin (SpecFn s)
+  fdSpecify = mixinId
+
+  -- inspect collections
+  fdColInspect :: FDColSpec s -> s [FDIntTerm s]
+
+  -- function to request processing an edge in a graph
+  fdProcess :: Mixin (EGConstraintSpec -> FDSpecInfo s -> FDInstance s ())
+
+  -- add equality constraints
+  fdEqualBool :: FDBoolSpec s -> FDBoolSpec s -> FDInstance s ()
+  fdEqualInt :: FDIntSpec s -> FDIntSpec s -> FDInstance s ()
+  fdEqualCol :: FDColSpec s -> FDColSpec s -> FDInstance s ()
+
+  fdConstrainIntTerm :: FDIntTerm s -> Integer -> s (Constraint s)
+  fdSplitIntDomain :: FDIntTerm s -> s ([Constraint s],Bool)
+  fdSplitBoolDomain :: FDBoolTerm s -> s ([Constraint s],Bool)
+\end{lstlisting}
+
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=\lstinline|EnumTerm|-Typklasse]
+class (Solver s, Term s t, Show (TermBaseType s t)) => EnumTerm s t where
+  type TermBaseType s t :: *
+
+  getDomainSize :: t -> s (Int)
+  getDomain :: t -> s [TermBaseType s t]
+  setValue :: t -> TermBaseType s t -> s [Constraint s]
+  splitDomain :: t -> s ([[Constraint s]],Bool)
+  splitDomains :: [t] -> s ([[Constraint s]],[t])
+  getValue :: t -> s (Maybe (TermBaseType s t))
+  defaultOrder :: [t] -> s [t]
+  enumerator :: (MonadTree m, TreeSolver m ~ s) => Maybe ([t] -> m ())
+
+  getDomainSize x = do
+    r <- getDomain x
+    return $ length r
+
+  getValue x = do
+    d <- getDomain x
+    return $ case d of
+      [v] -> Just v
+      _ -> Nothing
+  splitDomain x = do
+    d <- getDomain x
+    case d of
+      [] ->  return ([],True)
+      [_] -> return ([[]],True)
+      _ ->   do
+        rr <- mapM (setValue x) d
+        return (rr,True)
+
+  splitDomains [] = return ([[]],[])
+  splitDomains (a@(x:b)) = do
+    s <- getDomainSize x
+    if s==0
+      then return ([],[])
+      else if s==1 
+        then splitDomains b
+        else do
+          (r,v) <- splitDomain x
+          if v
+            then return (r,b)
+            else return (r,a)
+
+  defaultOrder = firstFail
+  enumerator = Nothing
+\end{lstlisting}
+
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=MCP-\lstinline|labelling|-Funktion]
+labelling :: (MonadTree m, TreeSolver m ~ s, EnumTerm s t) 
+          => ([t] -> s [t]) -> [t] -> m ()
+labelling _ [] = true
+labelling o l = label $ do 
+  ll <- o l
+  (cl,c) <- splitDomains ll
+  let ml = map (\l -> foldr (/\) true $ map addC l) cl
+  return $ do
+    levelList ml
+    labelling return c
+
+levelList :: (Solver s, MonadTree m, TreeSolver m ~ s) => [m ()] -> m ()
+levelList [] = false
+levelList [a] = a
+levelList l = let len     = length l
+                  (p1,p2) = splitAt (len `div` 2) l
+              in (levelList p1) \/ (levelList p2)
+\end{lstlisting}
+
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=MCP-\lstinline|assignments|-Funktion]
+assignment :: (EnumTerm s t, MonadTree m, TreeSolver m ~ s) 
+           => t -> m (TermBaseType s t)
+assignment q = label $ getValue q >>= 
+  \y -> (case y of Just x -> return $ return x; _ -> return false)
+
+assignments :: (EnumTerm s t, MonadTree m, TreeSolver m ~ s) 
+            => [t] -> m [TermBaseType s t]
+assignments = mapM assignment
+\end{lstlisting}
+
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=MCP-Labeling-Strategien]
+firstFail :: EnumTerm s t => [t] -> s [t]
+firstFail qs = do ds <- mapM getDomainSize qs 
+                  return [ q | (d,q) <- zip ds qs 
+                             , then sortWith by d ]
+
+inOrder :: EnumTerm s t => [t] -> s [t]
+inOrder = return
+
+middleOut :: EnumTerm s t => [t] -> s [t]
+middleOut l = let n = (length l) `div` 2 in
+              return $ interleave (drop n l) (reverse $ take n l)
+
+endsOut :: EnumTerm s t => [t] -> s [t]
+endsOut  l = let n = (length l) `div` 2 in
+             return $ interleave (reverse $ drop n l) (take n l)
+
+interleave []     ys = ys
+interleave (x:xs) ys = x:interleave ys xs
+\end{lstlisting}
+
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=MCP-Hilfsfunktionen zur Implementierung von \lstinline|labelWith|(Code-Listing 99)]
+colList :: (Constraint s ~ Either Model q, MonadTree m, TreeSolver m ~ s) 
+        => ModelCol -> Int -> m [ModelInt]
+colList col len = do addM $ (Sugar.@=) (size col) (asExpr len)
+                     return $ map (\i -> col!cte i) [0..len-1]
+
+getColItems :: FDSolver s => ModelCol -> FDColSpecType s 
+            -> FDInstance s [FDIntTerm s]
+getColItems c tp = do [cc] <- getColTerm [c] tp
+                      lst <- liftFD $ fdColInspect cc
+                      return lst
+
+getColTerm :: FDSolver s => [ModelCol] -> FDColSpecType s 
+           -> FDInstance s [FDColSpec s]
+getColTerm m tp = do
+  s <- get
+  put $ s { fdsForceCol = m++(fdsForceCol s) }
+  commit
+  s2 <- get
+  let ids = map (\x -> decompColLookup (fdsDecomp s2) x) m
+  specs <- mapM (\(Just id) -> getColSpec_ id (Set.singleton tp)) ids
+  return $ map (snd . myFromJust ("getColTerm(tp="++(show tp)++")")) specs
+\end{lstlisting}

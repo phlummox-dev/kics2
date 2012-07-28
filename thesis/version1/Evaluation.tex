@@ -26,16 +26,16 @@ Wie man an den Ergebnissen sieht, benötigt die erweiterte KiCS2-Version in fast 
 \\
 Auch die Vereinfachung eines arithmetischen Ausdrucks mit 4003 Knoten benötigt fast doppelt so lange, wenn man die erweiterte KiCS2-Version verwendet. Bei den übrigen Benchmarks bleibt der Overhead für die CLPFD-Erweiterung hingegen im Rahmen.
 \par
-In einem weiteren Benchmark wurde die Performance der Finite Domain Solver anhand des N-Damen-Problems verglichen. Betrachtet wurden dabei eine generate\&test-Variante des N-Damen-Problems ohne FD-Constraints (siehe Anhang), die Lösung des CLPFD-Modells (vergleiche Code-Listing 70) mit den beiden MCP-FD-Solvern, wobei jeweils einmal die \lstinline|InOrder|- und einmal die \lstinline|FirstFail|-Labeling-Strategie getestet wurden, und der direkte Aufruf des Gecode-Solvers ohne KiCS2 mit dem im Grundlagenkapitel vorgestellten MCP-Modell (vergleiche Code-Listing 45).
+In einem weiteren Benchmark wurde die Performance der Finite Domain Solver anhand des N-Damen-Problems verglichen. Betrachtet wurden dabei eine generate\&test-Variante des N-Damen-Problems ohne FD-Constraints (siehe Anhang \ref{anhangE}), die Lösung des CLPFD-Modells (vergleiche Code-Listing 70) mit den beiden MCP-FD-Solvern, wobei jeweils einmal die \lstinline|InOrder|- und einmal die \lstinline|FirstFail|-Labeling-Strategie getestet wurden, und der direkte Aufruf des Gecode-Solvers ohne KiCS2 mit dem im Grundlagenkapitel vorgestellten MCP-Modell (vergleiche Code-Listing 45).
 \begin{figure}[!h]
 \begin{center}
 \begin{tabular}{|*{7}{r|}}
 \hline
 n  & gen. \& test & \multicolumn{2}{c|}{Overton} & \multicolumn{2}{c|}{Gecode} & Gecode (direkt) \\\hline
    &           & \lstinline|InOrder|   & \lstinline|FirstFail| & \lstinline|InOrder|   & \lstinline|FirstFail| & \lstinline|FirstFail| \\\hline
-1  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  \\
-2  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  \\
-3  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  \\
+%1  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  \\
+%2  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  \\
+%3  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  \\
 4  &     0.04  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  &  $<$0.01  \\
 5  &     0.66  &     0.02  &     0.02  &     0.02  &     0.02  &     0.01  \\
 6  &    11.12  &     0.03  &     0.03  &     0.02  &     0.02  &     0.02  \\
@@ -50,7 +50,7 @@ n  & gen. \& test & \multicolumn{2}{c|}{Overton} & \multicolumn{2}{c|}{Gecode} &
 \caption{Benchmarks: Performance der Solver im Vergleich}
 \end{center}
 \end{figure}
-Die Benchmarks zeigen, dass die generate\&test-Implementierung des N-Damen-Problems für größere n nicht mit den FD-Solvern mithalten kann. Bereits die Berechnung des 8-Damen-Problems benötigt länger als zehn Minuten. Die MCP-FD-Solver lösen das gleiche Problem in unter einer Sekunde. Auch für größere n-Werte berechnen beide Solver die Lösungen in einer akzeptablen Zeit.
+Die Benchmarks zeigen, dass die generate\&test-Implementierung des N-Damen-Problems für größere n nicht mit den FD-Solvern konkurrieren kann. Bereits die Berechnung des 8-Damen-Problems benötigt länger als zehn Minuten. Die MCP-FD-Solver lösen das gleiche Problem in unter einer Sekunde. Auch für größere n-Werte berechnen beide Solver die Lösungen in einer akzeptablen Zeit.
 \\
 Wie zu erwarten war, ist der auf C++-basierende Gecode-Solver allerdings erheblich schneller als der in Haskell realisierte Overton-Solver. Durch Einsatz einer vorteilhaften Labeling-Strategie wie \lstinline|FirstFail|, bei der die Labeling-Variablen mit dem am weitesten eingeschränkten Wertebereich bevorzugt werden, können die Zeiten für beide MCP-Solver noch einmal erheblich verbessert werden.
 \\

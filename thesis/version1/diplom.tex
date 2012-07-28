@@ -1,4 +1,4 @@
-\documentclass[parskip=half*,a4paper, german, twoside, 10pt, DIV=11,BCOR=1cm]{scrartcl}
+\documentclass[parskip=half*,a4paper, german, twoside, 11pt, DIV=15,BCOR=0.6cm]{scrartcl}
 
 \usepackage[latin1]{inputenc}
 \usepackage[pdftex]{graphicx} % Einbindung von Grafiken (pdf, png, jpg)
@@ -48,9 +48,9 @@
 
 
 \begin{document}
-\clearscrheadfoot 
-\cfoot[\pagemark]{ \pagemark} 
-\pagestyle{scrheadings}
+%\clearscrheadfoot 
+%\cfoot[\pagemark]{ \pagemark} 
+%\pagestyle{scrheadings}
 
 
 \setlength{\parindent}{0pt}		% kein Einrücken nach Absatz
@@ -59,6 +59,8 @@
 
 \pagenumbering{roman}
 \include{./Titel/Erklaerung}
+
+\include{./Titel/Abstract}
 
 
 
@@ -79,6 +81,9 @@
 \include{Zusammenfassung}
 
 \begin{appendix}
+\include{./Anhang/CLPFDAnleitung}
+\include{./Anhang/MCPAuszuege}
+\include{./Anhang/MCPSolverCode}
 \include{./Anhang/WrappingProblemBsp}
 \include{./Anhang/GenerateTest}
 \end{appendix}
