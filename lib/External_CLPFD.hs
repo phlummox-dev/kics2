@@ -58,9 +58,8 @@ external_d_C_prim_FD_le x y cs | gnfCheck x && gnfCheck y = if xLessY then C_Suc
 
 external_d_C_prim_FD_leq :: CP.C_Int -> CP.C_Int -> ConstStore -> CP.C_Success
 external_d_C_prim_FD_leq x y cs | gnfCheck x && gnfCheck y = if xLessEqualY then C_Success else CP.d_C_failed cs
-                                | otherwise                = let c1 = wrapCs $ newRelConstr Less x y
-                                                                 c2 = wrapCs $ newRelConstr Equal x y
-                                                             in guardCons defCover (WrappedConstr [c1,c2]) C_Success
+                                | otherwise                = let c = wrapCs $ newRelConstr LessEqual x y
+                                                             in guardCons defCover (WrappedConstr [c]) C_Success
   where xLessEqualY = fromCurry $ CP.d_OP_lt_eq x y cs
 
 external_d_C_prim_FD_ge :: CP.C_Int -> CP.C_Int -> ConstStore -> CP.C_Success

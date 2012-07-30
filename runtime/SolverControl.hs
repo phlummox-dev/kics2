@@ -22,8 +22,8 @@ filterCs (wc:wcs) = let (cs,wcs') = filterCs wcs
 
 -- list of supported constraint solvers
 solvers :: (Store m, NonDet a) => [Solver m a]
-solvers = [Solver runGecode, Solver runOverton]
---solvers = [Solver runOverton,Solver runGecode]
+--solvers = [Solver runGecode, Solver runOverton]
+solvers = [Solver runOverton,Solver runGecode]
 
 -- try solving all constraints of the heterogenous list of external constraints by running the supported solvers
 -- one after another

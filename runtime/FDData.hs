@@ -3,7 +3,6 @@
 module FDData (ArithOp (..), FDConstraint (..), RelOp (..), LabelingStrategy (..), updateFDConstr) where
 
 import Types
---import ExternalSolver
 import Data.Typeable
 
 -- ---------------------------------------------------------------------------
@@ -28,7 +27,8 @@ data ArithOp
 data RelOp 
   = Equal
   | Diff
-  | Less 
+  | Less
+  | LessEqual 
  deriving (Eq,Show)
 
 -- Haskell-Type for LabelingStrategies

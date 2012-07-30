@@ -132,7 +132,7 @@ baseLabelInfo = Info {
 -- and collects labeling information if available
 -- using Haskell's state monad
 translateOverton :: [FDConstraint] -> (MCPModel,MCPLabelInfo)
-translateOverton fdCs = --trace ("\nOverton FDConstraints:\n" ++ show fdCs ++ "\n") $
+translateOverton fdCs = trace ("\nOverton FDConstraints:\n" ++ show fdCs ++ "\n") $
                         let (mcpCs,state) = runState (mapM (translateConstr translateOvertonList) fdCs) baseTLState
                             info = labelInfo state
                         in (ModelWrapper mcpCs, info)
@@ -141,7 +141,7 @@ translateOverton fdCs = --trace ("\nOverton FDConstraints:\n" ++ show fdCs ++ "\
 -- and collects labeling information if available
 -- using Haskell's state monad
 translateGecode :: [FDConstraint] -> (MCPModel,MCPLabelInfo)
-translateGecode fdCs = --trace ("\nGecode FDConstraints:\n" ++ show fdCs ++ "\n") $
+translateGecode fdCs = trace ("\nGecode FDConstraints:\n" ++ show fdCs ++ "\n") $
                        let (mcpCs,state) = runState (mapM (translateConstr translateGecodeList) fdCs) baseTLState
                            info = labelInfo state
                            mcpColCs = additionalCs state
@@ -255,9 +255,10 @@ newColCs col vs = (size col @= cte (length vs)) : newColCs' col vs 0
    newColCs' col (v:vs) n = ((col @!! n) @= v) : newColCs' col vs (n+1) 
 
 -- Translates relational operators to appropriate MCP operators
-translateRelOp Equal = (@=)
-translateRelOp Diff  = (@/=)
-translateRelOp Less  = (@<)
+translateRelOp Equal     = (@=)
+translateRelOp Diff      = (@/=)
+translateRelOp Less      = (@<)
+translateRelOp LessEqual = (@<=)
 
 -- Translates arithmetic operators to appropriate MCP operators
 translateArithOp Plus  = (@+)
@@ -278,7 +279,8 @@ solveWithMCP Overton (ModelWrapper mcpCs) info = solveWithOverton mcpCs info
 solveWithMCP Gecode  (ModelWrapper mcpCs) info = solveWithGecode  mcpCs info
 
 solveWithOverton :: [Model] -> MCPLabelInfo -> MCPSolution
-solveWithOverton mcpCs info = case maybeLabelVars of 
+solveWithOverton mcpCs info = trace ("MCPConstraints: " ++ show mcpCs) $
+                              case maybeLabelVars of 
   Nothing      -> error "MCPSolver.solveWithOverton: Found no variables for labeling."
   Just lVars -> 
     if (not (inDomain lVars dVars)) 
