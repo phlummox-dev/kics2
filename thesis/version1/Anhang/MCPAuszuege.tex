@@ -1,7 +1,7 @@
-\section{Auszüge aus dem Monadic Constraint Programming Framework}
+\section{Auszüge aus dem Monadic-Constraint-Programming-Framework}
 \label{anhangB}
 
-\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=Repräsentation von Integerausdrücken]
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=Repräsentation von Integer-Ausdrücken]
 data Expr t c b =
     Term t
   | ExprHole Int
@@ -19,7 +19,7 @@ data Expr t c b =
   | Channel (BoolExpr t c b)
 \end{lstlisting}
 
-\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=MCP \emph{collections}]
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=MCP-Collections]
 data ColExpr t c b = 
     ColTerm c
   | ColList [Expr t c b]
@@ -171,7 +171,7 @@ allDiff c = boolSimplify $ AllDiff False c
 allDiffD c = boolSimplify $ AllDiff True c
 \end{lstlisting}
 
-\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=\lstinline|FDSolver|-Typklasse]
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,escapechar=§,caption=\lstinline|FDSolver|-Typklasse]
 class (Solver s, Term s (FDIntTerm s), Term s (FDBoolTerm s),
  Eq (FDBoolSpecType s), Ord (FDBoolSpecType s), Enum (FDBoolSpecType s), 
  Bounded (FDBoolSpecType s), Show (FDBoolSpecType s), Eq (FDIntSpecType s), 
@@ -223,9 +223,9 @@ class (Solver s, Term s (FDIntTerm s), Term s (FDBoolTerm s),
   fdTypeReqCol = return (\(EGEdge { egeLinks = EGTypeData { colData = l } }) 
     -> map (\x -> (x,Set.fromList [minBound..maxBound])) l)
 
-  fdTypeVarInt :: s (Set (FDIntSpecType s))
+  fdTypeVarInt  :: s (Set (FDIntSpecType s))
   fdTypeVarBool :: s (Set (FDBoolSpecType s))
-  fdTypeVarInt = return $ Set.singleton maxBound
+  fdTypeVarInt  = return $ Set.singleton maxBound
   fdTypeVarBool = return $ Set.singleton maxBound
 
   -- rating functions for specification of terms
@@ -259,7 +259,7 @@ class (Solver s, Term s t, Show (TermBaseType s t)) => EnumTerm s t where
   splitDomains :: [t] -> s ([[Constraint s]],[t])
   getValue :: t -> s (Maybe (TermBaseType s t))
   defaultOrder :: [t] -> s [t]
-  enumerator :: (MonadTree m, TreeSolver m ~ s) => Maybe ([t] -> m ())
+  enumerator :: (MonadTree m, TreeSolver m §$\sim$§ s) => Maybe ([t] -> m ())
 
   getDomainSize x = do
     r <- getDomain x
@@ -296,8 +296,8 @@ class (Solver s, Term s t, Show (TermBaseType s t)) => EnumTerm s t where
   enumerator = Nothing
 \end{lstlisting}
 
-\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=MCP-\lstinline|labelling|-Funktion]
-labelling :: (MonadTree m, TreeSolver m ~ s, EnumTerm s t) 
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,escapechar=§,caption=MCP-\lstinline|labelling|-Funktion]
+labelling :: (MonadTree m, TreeSolver m §$\sim$§ s, EnumTerm s t) 
           => ([t] -> s [t]) -> [t] -> m ()
 labelling _ [] = true
 labelling o l = label $ do 
@@ -308,7 +308,7 @@ labelling o l = label $ do
     levelList ml
     labelling return c
 
-levelList :: (Solver s, MonadTree m, TreeSolver m ~ s) => [m ()] -> m ()
+levelList :: (Solver s, MonadTree m, TreeSolver m §$\sim$§ s) => [m ()] -> m ()
 levelList [] = false
 levelList [a] = a
 levelList l = let len     = length l
@@ -316,13 +316,13 @@ levelList l = let len     = length l
               in (levelList p1) \/ (levelList p2)
 \end{lstlisting}
 
-\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=MCP-\lstinline|assignments|-Funktion]
-assignment :: (EnumTerm s t, MonadTree m, TreeSolver m ~ s) 
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,escapechar=§,caption=MCP-\lstinline|assignments|-Funktion]
+assignment :: (EnumTerm s t, MonadTree m, TreeSolver m §$\sim$§ s) 
            => t -> m (TermBaseType s t)
 assignment q = label $ getValue q >>= 
   \y -> (case y of Just x -> return $ return x; _ -> return false)
 
-assignments :: (EnumTerm s t, MonadTree m, TreeSolver m ~ s) 
+assignments :: (EnumTerm s t, MonadTree m, TreeSolver m §$\sim$§ s) 
             => [t] -> m [TermBaseType s t]
 assignments = mapM assignment
 \end{lstlisting}
@@ -348,8 +348,8 @@ interleave []     ys = ys
 interleave (x:xs) ys = x:interleave ys xs
 \end{lstlisting}
 
-\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=MCP-Hilfsfunktionen zur Implementierung von \lstinline|labelWith|(Code-Listing 99)]
-colList :: (Constraint s ~ Either Model q, MonadTree m, TreeSolver m ~ s) 
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,escapechar=§,caption=MCP-Hilfsfunktionen zur Implementierung von \lstinline|labelWith|]
+colList :: (Constraint s §$\sim$§ Either Model q, MonadTree m, TreeSolver m §$\sim$§ s) 
         => ModelCol -> Int -> m [ModelInt]
 colList col len = do addM $ (Sugar.@=) (size col) (asExpr len)
                      return $ map (\i -> col!cte i) [0..len-1]

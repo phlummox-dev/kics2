@@ -1,11 +1,11 @@
 \select@language {ngerman}
 \contentsline {figure}{\numberline {1}{\ignorespaces L\"osung f\"ur das 4-Damen-Problem}}{9}{figure.1}
-\contentsline {figure}{\numberline {2}{\ignorespaces Vorgang zum L\"osen von Finite Domain Constraints in KiCS2}}{32}{figure.2}
-\contentsline {figure}{\numberline {3}{\ignorespaces Suchbaum \textbf {vor} Aufruf von \lstinline |searchFDCs|}}{51}{figure.3}
-\contentsline {figure}{\numberline {4}{\ignorespaces Suchbaum \textbf {nach} Aufruf von \lstinline |searchFDCs|}}{51}{figure.4}
-\contentsline {figure}{\numberline {5}{\ignorespaces Ablauf der Bindung und Rekonstruktion eines Wertes}}{61}{figure.5}
-\contentsline {figure}{\numberline {6}{\ignorespaces Benchmarks: Unifikation in KiCS2 ohne und mit CLPFD-Erweiterung}}{97}{figure.6}
-\contentsline {figure}{\numberline {7}{\ignorespaces Benchmarks: Performance der Solver im Vergleich}}{98}{figure.7}
-\contentsline {figure}{\numberline {8}{\ignorespaces Ausschnitt des Suchbaums \textbf {vor} Aufruf von \lstinline |searchWrappedCs|}}{120}{figure.8}
-\contentsline {figure}{\numberline {9}{\ignorespaces Ausschnitt des Suchbaums \textbf {nach} Aufruf von \lstinline |searchWrappedCs| (Curry-Bindungsconstraints in Wrapper)}}{120}{figure.9}
-\contentsline {figure}{\numberline {10}{\ignorespaces Ausschnitt des Suchbaums \textbf {nach} Aufruf von \lstinline |searchWrappedCs| (separate Behandlung von Curry-Bindungsconstraints)}}{120}{figure.10}
+\contentsline {figure}{\numberline {2}{\ignorespaces Vorgang zum L\"osen von Finite-Domain-Constraints in KiCS2}}{32}{figure.2}
+\contentsline {figure}{\numberline {3}{\ignorespaces Suchbaum \textbf {vor} Aufruf von \lstinline |searchFDCs|}}{50}{figure.3}
+\contentsline {figure}{\numberline {4}{\ignorespaces Suchbaum \textbf {nach} Aufruf von \lstinline |searchFDCs|}}{50}{figure.4}
+\contentsline {figure}{\numberline {5}{\ignorespaces Ablauf der Bindung und Rekonstruktion eines Wertes}}{59}{figure.5}
+\contentsline {figure}{\numberline {6}{\ignorespaces Benchmarks: Unifikation in KiCS2 ohne und mit CLPFD-Erweiterung}}{95}{figure.6}
+\contentsline {figure}{\numberline {7}{\ignorespaces Benchmarks: Performance der Solver im Vergleich}}{96}{figure.7}
+\contentsline {figure}{\numberline {8}{\ignorespaces Ausschnitt des Suchbaums \textbf {vor} Aufruf von \lstinline |searchWrappedCs|}}{118}{figure.8}
+\contentsline {figure}{\numberline {9}{\ignorespaces Ausschnitt des Suchbaums \textbf {nach} Aufruf von \lstinline |searchWrappedCs| (Wrapping der Curry-Bindungs-Constraints)}}{118}{figure.9}
+\contentsline {figure}{\numberline {10}{\ignorespaces Ausschnitt des Suchbaums \textbf {nach} Aufruf von \lstinline |searchWrappedCs| (separate Behandlung der Curry-Bindungs-Constraints)}}{118}{figure.10}

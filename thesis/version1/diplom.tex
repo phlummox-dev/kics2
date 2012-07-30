@@ -1,43 +1,20 @@
 \documentclass[parskip=half*,a4paper, german, twoside, 11pt, DIV=15,BCOR=0.6cm]{scrartcl}
 
 \usepackage[latin1]{inputenc}
-\usepackage[pdftex]{graphicx} % Einbindung von Grafiken (pdf, png, jpg)
-\usepackage{color}           % später vermutlich wieder entfernen
 \usepackage{listings}
-
 \usepackage[ngerman]{babel}
 \usepackage{enumerate}
-
 \usepackage{hyperref}
-
-\usepackage{scrpage2} 
 \usepackage{tikz}
 \usetikzlibrary{arrows}
 \usepgfmodule{shapes}
 
 \usepackage{setspace}
-\usepackage[numbers, square]{natbib}   % Für \setlength{\bibsep}{3mm}; square macht eckige Klammern
-
-
-\usepackage{chessboard}                  % for drawing chessboards
+\usepackage[numbers, square]{natbib}
+\usepackage{chessboard}
 \storechessboardstyle{4x4}{maxfield=d4}
 
-\onehalfspacing	              % Zeilenabstand 1.5
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-% Größenanpassungen
-%
-%\setlength{\unitlength}{1cm}
-%\setlength{\oddsidemargin}{1.8cm}
-%\setlength{\evensidemargin}{1cm}
-%\setlength{\textwidth}{15.5cm}
-%\setlength{\topmargin}{-1.2cm}
-%\setlength{\textheight}{23cm}
-%\columnsep 0.5cm
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\onehalfspacing
 
 \lstset{
     basicstyle={\ttfamily}
@@ -48,14 +25,10 @@
 
 
 \begin{document}
-%\clearscrheadfoot 
-%\cfoot[\pagemark]{ \pagemark} 
-%\pagestyle{scrheadings}
 
+\setlength{\parindent}{0pt}
 
-\setlength{\parindent}{0pt}		% kein Einrücken nach Absatz
-
-\include{./Titel/Titelblatt}               % und eidesstattliche Erklärung
+\include{./Titel/Titelblatt}
 
 \pagenumbering{roman}
 \include{./Titel/Erklaerung}
@@ -67,6 +40,7 @@
 \pagestyle{plain}
 \tableofcontents
 \lstlistoflistings
+\newpage
 \listoffigures
 \cleardoublepage
 
@@ -87,7 +61,6 @@
 \include{./Anhang/WrappingProblemBsp}
 \include{./Anhang/GenerateTest}
 \end{appendix}
-% Zweites Literaturverzeichnis, mit BibTeX
 
 \renewcommand\bibname{Literaturverzeichnis}
 \nocite{*} % auch die nicht verwendeten bibtex-Einträge einblenden

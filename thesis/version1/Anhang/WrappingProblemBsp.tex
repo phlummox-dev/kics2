@@ -1,22 +1,22 @@
-\section{Beispiel für Sonderbehandlung der Curry-Bindungsconstraints hinsichtlich des Wrappings}
+\section{Beispiel für Sonderbehandlung der Curry-Bindungs-Constraints hinsichtlich des Wrappings}
 \label{anhangD}
 
-Das folgende Beispiel zeigt die in Kapitel 4.3.3 angesprochene Problematik hinsichtlich des Wrappings der Curry-Bindungsconstraints noch einmal auf:
-\begin{lstlisting}[language=Haskell,caption=Beispiel für Problem bei Kombination von Curry-Bindungsconstraints und FD-Constraints]
+Das folgende Beispiel zeigt die in Kapitel 4.3.3 angesprochene Problematik hinsichtlich des Wrappings der Curry-Bindungs-Constraints noch einmal auf:
+\begin{lstlisting}[language=Haskell,caption=Beispiel für Problem bei Kombination von Curry-Bindungs-Constraints und FD-Constraints]
 l =:= genVars 2 & domain l 1 2 & labeling l where l free
 \end{lstlisting}
-Wie man sieht, wird in diesem Beispiel ein Curry-Gleichheitsconstraint über der freien Variable \lstinline|l| kombiniert mit FD-Constraints über der gleichen freien Variable. Die externe Implementierung von \lstinline|domain| und \lstinline|labeling| sorgt dafür, dass die \lstinline|Choice|, durch die \lstinline|l| intern repräsentiert wird, in eine \lstinline|NarrowedChoice| umgewandelt wird. Der Suchraum dieser \lstinline|NarrowedChoice| besteht aus allen möglichen Listen, die \lstinline|l| annehmen könnte, also die leere Liste, die Liste mit einer freien Integervariablen, mit zwei freien Integervariablen usw.
+Wie man sieht, wird in diesem Beispiel ein Curry-Gleichheits-Constraint über der freien Variable \lstinline|l| kombiniert mit FD-Constraints über der gleichen freien Variable. Die externe Implementierung von \lstinline|domain| und \lstinline|labeling| sorgt dafür, dass die \lstinline|Choice|, durch die \lstinline|l| intern repräsentiert wird, in eine \lstinline|NarrowedChoice| umgewandelt wird. Der Suchraum dieser \lstinline|NarrowedChoice| besteht aus allen möglichen Listen, die \lstinline|l| annehmen könnte, also die leere Liste, die Liste mit einer freien Integer-Variablen, mit zwei freien Integer-Variablen usw.
 \\
-Löst man das durch \lstinline|l =:= genVars 2| erzeugte Bindungsconstraint für die Variable \lstinline|l|. So legt die zugehörige Bindungsentscheidung fest, dass in den \lstinline|NarrowedChoices| nur die Pfade weiter ausgewertet werden sollen, in denen \lstinline|l| eine zweielementige Liste ist.
+Löst man das durch \lstinline|l =:= genVars 2| erzeugte Bindungs-Constraint für die Variable \lstinline|l|. So legt die zugehörige Bindungsentscheidung fest, dass in den \lstinline|NarrowedChoices| nur die Pfade weiter ausgewertet werden sollen, in denen \lstinline|l| eine zweielementige Liste ist.
 \\
-Die folgenden drei Abbildungen von KiCS2-Auswertungsbäumen für den obigen Beispielausdruck verdeutlichen die Problematik: Abbildung \textcolor{red}{$<$hier endgültige Abbildungsnr$>$} zeigt den KiCS2-Auswertungsbaum \textbf{bevor} durch Aufruf von \lstinline|searchWrappedCs| alle "'eingepackten"' Constraints eingesammelt werden. 
+Die folgenden drei Abbildungen von KiCS2-Auswertungsbäumen für den obigen Beispielausdruck verdeutlichen die Problematik: Abbildung 8 zeigt den KiCS2-Auswertungsbaum \textbf{bevor} durch Aufruf von \lstinline|searchWrappedCs| alle "'eingepackten"' Constraints eingesammelt werden. 
 \\
-Abbildung \textcolor{red}{$<$hier endgültige Abbildungsnr$>$} stellt den Auswertungsbaum nach dem Aufruf von \lstinline|searchWrappedCs| dar, das heißt alle \lstinline|WrappedConstraint|s in einem Pfad des Baumes wurden in einem \lstinline|Guard|-Ausdruck gesammelt. In diesem Fall sind auch die Curry-Bindungsconstraints in einem Constraint-Wrapper "'eingepackt"'.
+Abbildung 9 stellt den Auswertungsbaum nach dem Aufruf von \lstinline|searchWrappedCs| dar, das heißt alle \lstinline|WrappedConstraint|s in einem Pfad des Baumes wurden in einem \lstinline|Guard|-Ausdruck gesammelt. In diesem Fall sind auch die Curry-Bindungs-Constraints in einem Constraint-Wrapper "'eingepackt"'.
 \\
-In Abbildung \textcolor{red}{$<$hier endgültige Abbildungsnr$>$} wird der Auswertungsbaum ebenfalls nach dem Aufruf von \lstinline|searchWrappedCs| dargestellt. Die Curry-Bindungsconstraints werden dieses Mal allerdings gesondert behandelt und nicht in den Constraint-Wrapper "'gepackt"'.
+In Abbildung 10 wird der Auswertungsbaum ebenfalls nach dem Aufruf von \lstinline|searchWrappedCs| dargestellt. Die Curry-Bindungs-Constraints werden dieses Mal allerdings gesondert behandelt und nicht in den Constraint-Wrapper "'gepackt"'.
 \\
-Alle drei Abbildungen sind stark vereinfacht: Das für den Ausdruck \lstinline|l =:= genVars 2| erzeugte Bindungsconstraint wird durch \lstinline|CBC_l| (für \textbf{C}urry-\textbf{B}indung\textbf{c}onstraint für \textbf{l}) repräsentiert. Auch die FD-Constraints werden verkürzt dargestellt: So steht \lstinline|DomainN| für ein passendes \lstinline|FDDomain|-Constraint über einer \lstinline|N|-stelligen Liste. Das heißt, \lstinline|Domain0| ist äquivalent zu dem Constraint-Term \lstinline|FDDomain [] (Const 1) (Const 2)|, \lstinline|Domain1| zu dem \lstinline|FDConstraint|-Konstruktorterm \lstinline|FDDomain [FDVar 1] (Const 1) (Const 2)| usw. Für \lstinline|LabelN| gilt das gleiche: Hier entsprechen die verkürzten Formen passenden \lstinline|FDLabeling|-Constraints mit der entsprechenden Anzahl von Listenelementen.
-Abgesehen von dem Curry-Bindungsconstraint sind alle anderen Constraints in einem Constraint-Wrapper "'eingepackt"'. Nur in Abbildung 7 ist das Curry-Bindungsconstraint auch in einem solchen Wrapper "'verpackt"'.
+Alle drei Abbildungen sind stark vereinfacht: Das für den Ausdruck \lstinline|l =:= genVars 2| erzeugte Bindungs-Constraint wird durch \lstinline|CBC_l| (für \textbf{C}urry-\textbf{B}indung\textbf{c}onstraint für \textbf{l}) repräsentiert. Auch die FD-Constraints werden verkürzt dargestellt: So steht \lstinline|DomainN| für ein passendes \lstinline|FDDomain|-Constraint über einer \lstinline|N|-stelligen Liste. Das heißt, \lstinline|Domain0| ist äquivalent zu dem Constraint-Term \lstinline|FDDomain [] (Const 1) (Const 2)|, \lstinline|Domain1| zu dem \lstinline|FDConstraint|-Konstruktorterm \lstinline[breaklines=true]|FDDomain [FDVar 1] (Const 1) (Const 2)| usw. Für \lstinline|LabelN| gilt das gleiche: Hier entsprechen die verkürz\-ten Formen passenden \lstinline|FDLabeling|-Constraints mit der entsprechenden Anzahl von Listenelementen.
+Abgesehen von dem Curry-Bindungs-Constraint sind alle anderen Constraints in einem Constraint-Wrapper "'eingepackt"'. Nur in Abbildung 7 ist das Curry-Bindungs-Constraint auch in einem solchen Wrapper "'verpackt"'.
 \newpage
 \begin{figure}[!h]
 \begin{center}
@@ -82,7 +82,7 @@ Abgesehen von dem Curry-Bindungsconstraint sind alle anderen Constraints in eine
 \draw (n9) -- (n12);
 \end{tikzpicture}
 \end{center}
-\caption{Ausschnitt des Suchbaums \textbf{nach} Aufruf von \lstinline|searchWrappedCs| (Curry-Bindungsconstraints in Wrapper)}
+\caption{Ausschnitt des Suchbaums \textbf{nach} Aufruf von \lstinline|searchWrappedCs| (Wrapping der Curry-Bindungs-Constraints)}
 \end{figure}
 \begin{figure}[!h]
 \begin{center}
@@ -116,8 +116,8 @@ Abgesehen von dem Curry-Bindungsconstraint sind alle anderen Constraints in eine
 %\draw (n13) -- (n16);
 \end{tikzpicture}
 \end{center}
-\caption{Ausschnitt des Suchbaums \textbf{nach} Aufruf von \lstinline|searchWrappedCs| (separate Behandlung von Curry-Bindungsconstraints)}
+\caption{Ausschnitt des Suchbaums \textbf{nach} Aufruf von \lstinline|searchWrappedCs| (separate Behandlung der Curry-Bindungs-Constraints)}
 \end{figure}
-Der Vergleich der Abbildungen \textcolor{red}{$<$hier endgültige Abbildungsnr$>$} zeigt das Problem: Behandelt man alle Constraint-Typen gleich, so werden die Curry-Bindungsconstraints ebenfalls eingesammelt. Dadurch werden sie in einen \lstinline|Guard|-Knoten "'unterhalb"' der \lstinline|NarrowedChoice|-Knoten verschoben. Selbst wenn man nun zuerst die Curry-Bindungsconstraints löst, wird die Auswertung nicht mehr terminieren, da die \lstinline|NarrowedChoice|-Knoten zu diesem Zeitpunkt bereits ausgewertet wurden. Es können also nicht mehr die "'richtigen"' Pfade der \lstinline|NarrowedChoice|s für die Auswertung ausgewählt werden. Stattdessen werden alle Pfade nacheinander ausgewertet.
+Der Vergleich der Abbildungen 9 und 10 zeigt das Problem: Behandelt man alle Constraint-Typen gleich, so werden die Curry-Bindungs-Constraints ebenfalls eingesammelt. Dadurch werden sie in einen \lstinline|Guard|-Knoten "'unterhalb"' der \lstinline|NarrowedChoice|-Knoten verschoben. Selbst wenn man nun zuerst die Curry-Bindungs-Constraints löst, wird die Auswertung nicht mehr terminieren, da die \lstinline|NarrowedChoice|-Knoten zu diesem Zeitpunkt bereits ausgewertet wurden. Es können also nicht mehr die "'richtigen"' Pfade der \lstinline|NarrowedChoice|s für die Auswertung ausgewählt werden. Stattdessen werden alle Pfade nacheinander ausgewertet.
 \\
-Verhindern lässt sich dies nur, wenn man die Curry-Bindungsconstraints gesondert behandelt und nicht mit den anderen Constraints einsammelt, denn in diesem Fall bleiben die \lstinline|Guard|-Knoten mit Bindungsconstraints "'oberhalb"' der \lstinline|NarrowedChoice|-Knoten im Auswertungsbaum (vergleiche Abbildung \textcolor{red}{$<$hier endgültige Abbildungsnr$>$}).
+Verhindern lässt sich dies nur, wenn man die Curry-Bindungs-Constraints gesondert behandelt und nicht mit den anderen Constraints einsammelt, denn in diesem Fall bleiben die \lstinline|Guard|-Knoten mit Bindungs-Constraints "'oberhalb"' der \lstinline|NarrowedChoice|-Knoten im Auswertungsbaum (vergleiche Abbildung 10).
