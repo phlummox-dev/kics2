@@ -11,11 +11,11 @@ Das Kapitel ist in drei Abschnitte unterteilt: Der erste Abschnitt beschreibt di
 
 \subsubsection{Übersetzung der Constraints in die MCP-Modellierungssprache}
 \label{uebersetzung}
-Constraint-Modelle des Monadic-Constraint-Programming-Frameworks entsprechen Bäume mit verschiedenen Knotenarten. Die Solver des Frameworks lösen ein solches Modell, indem sie auf Pfaden durch den Baum Knoten für Knoten gemäß einer zuvor festgelegten Suchstrategie entlangwandern und je nach Knotenart unterschiedliche Solver-Aktionen durchführen. Zu diesen Solver-Aktionen gehören beispielsweise das Hinzufügen eines Constraints in ihren Constraint-Speicher oder die Generierung einer neuen Constraint-Variable.
+Constraint-Modelle des Monadic-Constraint-Programming-Frameworks entsprechen Bäumen mit verschiedenen Knotenarten. Die Solver des Frameworks lösen ein solches Modell, indem sie Pfade durch den Baum Knoten für Knoten gemäß einer zuvor festgelegten Suchstrategie verfolgen und je nach Knotenart unterschiedliche Solver-Aktionen durchführen. Zu diesen Solver-Aktionen gehören beispielsweise das Hinzufügen eines Constraints zu ihrem Constraint-Speicher oder die Generierung einer neuen Constraint-Variablen.
 \par
 \textbf{Übersetzung von FD-Termen und Listen von FD-Termen:}
 \\
-Im Grundlagenkapitel über das MCP-Framework wurde dessen Finite-Domain-Schnittstelle bereits beschrieben. Diese bietet eine Reihe von Constraint-Funktionen mit zwei unterschiedlichen Implementierungen (in zwei separaten Modulen): Die erste Implementierung erzeugt nur ein zur Funktion passendes FD-Constraint. Die zweite fügt dieses Constraint zusätzlich mit Hilfe eines \lstinline|Add|-Knotens zu einem trivialen Baummodell hinzu.
+Im Grundlagenkapitel über das MCP-Framework wurde dessen Finite-Domain-Schnittstelle bereits beschrieben. Diese bietet eine Reihe von Constraint-Funktionen mit zwei unterschiedlichen Implementierungen (in zwei separaten Modulen): Die erste Implementierung erzeugt nur ein zur Funktion passendes MCP-FD-Constraint. Die zweite fügt dieses Constraint zusätzlich mit Hilfe eines \lstinline|Add|-Knotens zu einem trivialen Baummodell hinzu.
 \par
 Anstatt die KiCS2-interne Repräsentation eines FD-Modells direkt in ein MCP-Baummodell zu übersetzen, konstruiert man erst passende MCP-Constraints für jedes \lstinline|FDConstraint| und baut dann mit diesen erst unmittelbar vor Aufruf des Solvers ein Baummodell auf. Die direkte Überführung in ein monadisches Baummodell würde insbesondere die Übersetzung von Constraint-Variablen erschweren, da im Baummodell eine Collection neuer Variablen einfach durch Aufruf von \lstinline|exists| erzeugt wird. Man müsste in diesem Fall das \lstinline|FDConstraint|-Modell vor der Übersetzung analysieren, um mit einem einmaligen Aufruf von \lstinline|exists| die benötigte Variablenanzahl zu erzeugen. Dann müsste man jeder Variablen aus dem \lstinline|FDConstraint|-Modell eine der erzeugten Variablen in der Collection zuordnen. Das Problem dabei ist, dass die Variablen erst bei der Auswertung durch den Solver generiert werden. Das heißt, um eine bestimmte Variable zu adressieren, müsste man bei der Modellierung auf das jeweilige Feld in der Collection zugreifen.
 \\
@@ -46,7 +46,7 @@ translateTerm v@(FDVar i) = do $
 \end{lstlisting}
 Ist der zu übersetzende FD-Term eine Konstante, so wird der konstante Integer-Wert mit Hilfe der Schnittstellenfunktion \lstinline|cte| in einen MCP-Integer-Ausdruck überführt. 
 \\
-Bei der Übersetzung einer FD-Variablen betrachtet man hingegen zunächst die Tabelle der bislang übersetzten Variablen im aktuellen Zustand. Diese Tabelle durchsucht man unter Verwendung der \lstinline|Integer|-Repräsentation der FD-Variablen-\lstinline|ID|, die man durch die vordefinierte KiCS2-Funktion \lstinline|getKey| erhält. Gibt es für die FD-Variable einen Eintrag, das heißt, die Variable wurde bereits übersetzt, so gibt man diese Übersetzung zurück. Anderfalls wird die Funktion \lstinline|newVar| aufgerufen, die eine neue MCP-Integer-Variable erzeugt.
+Bei der Übersetzung einer FD-Variablen betrachtet man hingegen zunächst die Tabelle der bislang übersetzten Variablen im aktuellen Zustand. Diese Tabelle durchsucht man unter Verwendung der \lstinline|Integer|-Repräsentation der FD-Variablen-\lstinline|ID|, die man durch die vordefinierte KiCS2-Funktion \lstinline|getKey| erhält. Gibt es für die FD-Variable einen Eintrag - das heißt, die Variable wurde bereits übersetzt - so gibt man diese Übersetzung zurück. Anderfalls wird die Funktion \lstinline|newVar| aufgerufen, die eine neue MCP-Integer-Variable erzeugt.
 \begin{lstlisting}[language=Haskell,caption=Erzeugung einer MCP-Integer-Variable]
 newVar :: Term Int -> State TLState ModelInt
 newVar (Var i) = do $
@@ -61,7 +61,7 @@ newVar (Var i) = do $
   put newState
   return nvar
 \end{lstlisting}
-Diese Funktion konstruiert mit Hilfe der im \lstinline|TLState| gespeicherten nächsten Variablenreferenz eine neue MCP-Integer-Variable \lstinline|nvar|, wobei die Schnittstellenfunktion \lstinline|asExpr| aus dem zunächst erzeugten \lstinline|ModelIntTerm| in einen Integer-Ausdruck vom Typ \lstinline|ModelInt| macht. Für die übersetzte Variable wird dann ein neuer Eintrag in der Übersetzungstabelle angelegt. Außerdem wird der Zähler für die nächsten Variablenreferenz inkrementiert. Mit den aktualisierten Werten wird schließlich ein neuer \lstinline|TLState| konstruiert, der den alten ersetzt, und die generierte MCP-Variable wird zurückgegeben.
+Diese Funktion konstruiert mit Hilfe der im \lstinline|TLState| gespeicherten nächsten Variablenreferenz eine neue MCP-Integer-Variable \lstinline|nvar|, wobei \lstinline|asExpr| den zunächst erzeugten \lstinline|ModelIntTerm| in einen Integer-Ausdruck vom Typ \lstinline|ModelInt| umwandelt. Für die übersetzte Variable wird dann ein neuer Eintrag in der Übersetzungstabelle angelegt. Außerdem wird der Zähler für die nächste Variablenreferenz inkrementiert. Mit den aktualisierten Werten wird schließlich ein neuer \lstinline|TLState| konstruiert, der den alten ersetzt, und die generierte MCP-Variable wird zurückgegeben.
 \par
 Listen von FD-Termen sollen in MCP-Collections vom Typ \lstinline|ModelCol| übersetzt werden. Dazu definiert man eine Funktion \lstinline|translateList|:
 \begin{lstlisting}[language=Haskell,caption=Übersetzung von Listen von FD-Termen]
@@ -73,7 +73,7 @@ Mit der zuvor definierten Funktion \lstinline|translateTerm| werden bei Aufruf v
 \par
 \textbf{Übersetzung der FD-Constraints:}
 \\
-Nun, da man in der Lage ist, Argumente der \lstinline|FDConstraint|s in entsprechende Repräsentationen der MCP-Modellierungssprache zu überführen, kann man die FD-Constraints selbst übersetzen:
+Nun, da man in der Lage ist, Argumente der \lstinline|FDConstraint|s in entsprechende Repräsentationen der MCP-Modellierungssprache zu überführen, kann man die \lstinline|FDConstraint|s selbst übersetzen:
 \begin{lstlisting}[language=Haskell,caption=Übersetzung der \lstinline|FDConstraint|s 1]
 translateConstr :: FDConstraint -> State TLState Model
 translateConstr (FDRel relop t1 t2) = do $
@@ -119,7 +119,7 @@ translateConstr (FDDomain vs l u) = do $
   return $ domain mcpVs mcpL mcpU
 \end{lstlisting}
 
-Die Constraints \lstinline|FDSum| und \lstinline|FDAllDifferent| werden nach dem gleichen Prinzip übersetzt: Zunächst überführt man ihre Argumente mit \lstinline|translateList| bzw. \lstinline|translateTerm| in MCP-Collections bzw. Integer-Ausdrücke. Dann ruft man die passende Constraint-Funktion des Frameworks auf - in diesem Fall \lstinline|xsum| bzw. \lstinline|allDiff|, um ein entsprechendes MCP-Constraint zu erzeugen.
+Die Constraints \lstinline|FDSum| und \lstinline|FDAllDifferent| werden nach dem gleichen Prinzip übersetzt: Zunächst überführt man ihre Argumente mit \lstinline|translateList| bzw. \lstinline|translateTerm| in MCP-Collections bzw. Integer-Ausdrücke. Dann ruft man die passende Constraint-Funktion des Frameworks auf - in diesem Fall \lstinline|xsum| bzw. \lstinline|allDiff| - um ein entsprechendes MCP-Constraint zu erzeugen.
 \\
 Da das MCP-Framework kein Domain-Constraint bereitstellt, mit dem man den Wertebereich für eine Liste von FD-Variablen festlegen kann, muss man bei der Übersetzung von \lstinline|FDDomain|-Constraints auf die Schnittstellenfunktion \lstinline|forall| zurückgreifen. Wie im Grundlagenkapitel schon erwähnt, generiert die \lstinline|forall|-Funktion ein Constraint, das nur gültig ist, wenn ein übergebenes Prädikat für alle Elemente der gegebenen Collection erfüllbar ist. Mit Hilfe der \lstinline|forall|-Funktion definiert man nun selbst ein Domain-Constraint über MCP-Collections namens \lstinline|domain|. Diese \lstinline|domain|-Funktion erhält eine MCP-Collection sowie zwei Integer-Ausdrücke für die untere bzw. obere Grenze des Wertebereichs als Argumente und überprüft mit Hilfe von \lstinline|forall| die Gültigkeit des Prädikats \lstinline|(\var -> var @: (lower,upper))| für alle Elemente der Collection. Dieses Prädikat bindet jeweils ein Element der Collection mit Hilfe der MCP-Constraint-Funktion \lstinline|(@:)| an den durch \lstinline|lower| und \lstinline|upper| gegebenen Wertebereich.
 \\
@@ -137,7 +137,7 @@ data MCPLabelInfo = Info {
   strategy     :: Maybe LabelingStrategy
 }
 \end{lstlisting}
-Zwischengespeichert werden die FD-Variablen, über denen das Labeling durchgeführt werden soll, deren Repräsentation als MCP-Collection, eine unbenutzte \lstinline|ID|, die später für die Ausgabe der durch den Solver gefundenen Lösungen benötigt wird sowie die gewählte Labeling-Strategie.
+Zwischengespeichert werden die FD-Variablen, über denen das Labeling durchgeführt werden soll, deren Repräsentation als MCP-Collection, eine unbenutzte \lstinline|ID|, die später für die Ausgabe der durch den Solver gefundenen Lösungen benötigt wird, sowie die gewählte Labeling-Strategie.
 \\
 Dieses Objekt zur Sicherung der Labeling-Informationen wird in den \lstinline|TLState| aufgenommen, damit man bei der "'Übersetzung"' eines "'\lstinline|FDLabeling|-Constraints"' darauf zugreifen kann:
 \begin{lstlisting}[language=Haskell,caption=Translation State (angepasst)]
@@ -156,9 +156,9 @@ translateConstr (FDLabeling str vs j) = do $
   put newState 
   return (toBoolExpr True)
 \end{lstlisting}
-Zunächst wird die Liste der Labeling-Variablen übersetzt. Dann konstruiert man ein \lstinline|MCPLabelInfo|-Objekt mit allen nötigen Informationen und aktualisiert damit den \lstinline|TLState|. Da die Funktion \lstinline|translateConstr| ein FD-Constraint vom Typ \lstinline|Model| eingekapselt in der Monade \lstinline|State TLState| zurückgeben muss, erzeugt man mit dem Aufruf \lstinline|toBoolExpr True| ein immer erfüllbares Constraint als entsprechenden Rückgabewert.
+Zunächst wird die Liste der Labeling-Variablen übersetzt. Dann konstruiert man ein \lstinline|MCPLabelInfo|-Objekt mit allen nötigen Informationen und aktualisiert damit den \lstinline|TLState|. Da die Funktion \lstinline|translateConstr| ein FD-Constraint vom Typ \lstinline|Model| eingekapselt in der Monade \lstinline|State TLState| zurückgeben muss, erzeugt man mit dem Aufruf \lstinline|toBoolExpr True| ein immer erfüllbares MCP-FD-Constraint als entsprechenden Rückgabewert.
 \par
-Mit den vorgestellten Funktionen kann man die eigentliche Übersetzungsfunktion angeben, die ein KiCS2-internes Constraint-Modell vom Typ \lstinline|[FDConstraint]| in eine Liste von Constraints der MCP-Modellierungssprache (Typ \lstinline|[Model]|) übersetzt:
+Mit den vorgestellten Funktionen kann man die eigentliche Übersetzungsfunktion angeben, die ein KiCS2-internes Constraint-Modell vom Typ \lstinline|[FDConstraint]| in eine Liste von Constraints der MCP-Modellierungssprache (vom Typ \lstinline|[Model]|) übersetzt:
 \begin{lstlisting}[language=Haskell,caption=Übersetzungsfunktion,label=translateToMCP]
 baseTLState :: TLState
 baseTLState = TLState { 
@@ -173,9 +173,10 @@ translateToMCP fdCs =
       info = labelInfo state
   in (mcpCs, info)
 \end{lstlisting}
-Diese Funktion übersetzt jedes Constraint in der gegebene Liste mit Hilfe von \lstinline|translateConstr| in ein Constraint der MCP-Modellierungssprache. Dabei wird die \lstinline|State|-Monade mit dem Startzustand \lstinline|baseTLState| ausgeführt und schließlich werden die übersetzten Constraints sowie die gesammelten Labeling-Informationen zurückgegeben.
+Diese Funktion übersetzt alle Constraints der Liste mit \lstinline|translateConstr| in MCP-Constraints. Dazu wird die \lstinline|State|-Monade mit dem Startzustand \lstinline|baseTLState| ausgeführt und die übersetzten Constraints sowie die gesammelten Labeling-Informationen werden zurückgegeben.
 \par
-Abschließend zeigt das folgende Listing beispielhaft das übersetzte MCP-Modell des 2-Damen-Problems, das in Listing \ref{2damen}  modelliert wurde:
+Das folgende Listing zeigt das übersetzte MCP-Modell des 2-Damen-Problems (aus Listing \ref{2damen}):
+%Abschließend zeigt das folgende Listing beispielhaft das übersetzte MCP-Modell des 2-Damen-Problems, das in Listing \ref{2damen}  modelliert wurde:
 \begin{lstlisting}[language=Haskell,basicstyle=\ttfamily\small,caption=Beispiel: 2-Damen-Problem (MCP-Modellierungssprache)]
 [ BoolAnd 
    (BoolAnd
@@ -191,20 +192,19 @@ Abschließend zeigt das folgende Listing beispielhaft das übersetzte MCP-Modell d
   Rel (Plus (Const -1) (Term (ModelIntVar 1))) EREqual 
     (Term (ModelIntVar 3)),
   Rel (Term (ModelIntVar 0)) ERDiff (Term (ModelIntVar 3)),
-  BoolConst True
-]
+  BoolConst True ]
 \end{lstlisting}
 
 \subsubsection{Konstruktion und Lösung von MCP-Baummodellen}
-Im letzten Abschnitt wurde beschrieben, wie man die KiCS2-interne Darstellung von Finite-Domain-Constraints in die Modellierungssprache des Monadic-Constraint-Programming-Frame\-works übersetzt. MCP-Solver lösen die Constraints dieser Modellierungssprache jedoch nicht direkt, sondern sie arbeiten auf einem baumförmigen Modell, das sie gemäß einer zuvor festgelegten Suchstrategie auswerten. Das bedeutet, ein Solver verfolgt einen Pfad durch das Baummodell und interpretiert die Knoten entlang dieses Pfades. Abhängig vom gerade betrachteten Knoten erzeugt er dann beispielsweise eine neue Constraint-Variable oder trägt ein Constraint in seinen Constraint-Speicher ein. Letztendlich führt die Auswertung eines Pfades von der Wurzel bis zu einem Blattknoten des Baummodells entweder zu einer Lösung des modellierten Problems oder zu einem Fehlschlag.
+Im letzten Abschnitt wurde beschrieben, wie man die KiCS2-interne Darstellung von Finite-Domain-Constraints in die Modellierungssprache des Monadic-Constraint-Programming-Frame\-works übersetzt. MCP-Solver lösen die Constraints dieser Modellierungssprache jedoch nicht direkt, sondern sie arbeiten auf einem baumförmigen Modell, das sie gemäß einer zuvor festgelegten Suchstrategie auswerten. Das bedeutet, ein Solver verfolgt einen Pfad durch das Baummodell und interpretiert die Knoten entlang dieses Pfades. Abhängig vom gerade betrachteten Knoten erzeugt er dann z.B. eine neue Constraint-Variable oder trägt ein Constraint in seinen Constraint-Speicher ein. Letztlich führt die Auswertung eines Pfades von der Wurzel bis zu einem Blattknoten entweder zu einer Lösung des modellierten Problems oder zu einem Fehlschlag.
 \par
-Dieser Abschnitt erklärt die Konstruktion eines solchen Baummodells aus einer Liste von MCP-Finite-Domain-Constraints. Außerdem wird kurz auf das Labeling von Constraint-Variablen im MCP-Framework eingegangen. Abschließend zeigt dieses Unterkapitel den Aufruf der beiden vom Framework bereitgestellten FD-Constraint-Solver sowie die Vorbereitung der von ihnen gefundenden Lösungen für die Ausgabe durch KiCS2.
+Dieser Abschnitt erklärt die Konstruktion eines solchen Baummodells aus einer Liste von MCP-FD-Constraints. Außerdem wird auf das Labeling von Constraint-Variablen im MCP-Framework eingegangen. Abschließend wird der Aufruf der beiden vom Framework bereitgestellten FD-Solver sowie die Vorbereitung der gefundenden Lösungen für die Ausgabe durch KiCS2 gezeigt.
 \par
 \textbf{Konstruktion eines MCP-Baummodells:}
 \\
 Im Grundlagenkapitel über das MCP-Framework wurden zwei unterschiedliche Implementierung für die Constraint-Funktionen der MCP-Modellierungssprache vorgestellt, eine, die nur einen passenden FD-Constraint-Term erzeugt, und eine, die für dieses Constraint einen Baummodellknoten erzeugt. Für die zweite Implementierung wurde die Framework-Funktion \lstinline|addM| verwendet, die ein gegebenes MCP-FD-Constraint durch Konstruktion eines  \lstinline|Add|-Knotens einem trivialen Baummodell hinzufügt. Diese Funktion kann man auch verwenden, um für eine Liste von MCP-FD-Constraints ein zugehöriges Baummodell zu generieren.
 \\
-Als zweites Hilfsmittel benötigt man dann noch eine MCP-Collection derjenigen Variablen, über denen das Labeling durchgeführt werden soll. Zur Erinnerung: Modelliert man ein Constraint-Problem direkt mit der MCP-Modellierungssprache, so erfolgt dies durch Angabe eines Baummodells vom Typ \lstinline|FDSolver solver => Tree solver ModelCol| (vergleiche hierzu die Modellierung des N-Damen-Problems in Kapitel 2.3.2, Listing \ref{mcpNDamen}). Über der im Baummodell eingekapselten Collection von Constraint-Variablen wird beim Aufruf eines FD-Solvers das Labeling durchgeführt. Somit kann man zur Übersetzung einer Liste von MCP-FD-Constraints in ein monadischen Baummodell die folgende Funktion definieren:
+Als zweites Hilfsmittel benötigt man dann noch eine MCP-Collection derjenigen Variablen, über denen das Labeling durchgeführt werden soll. Zur Erinnerung: Modelliert man ein Constraint-Problem direkt mit der MCP-Modellierungssprache, so erfolgt dies durch Angabe eines Baummodells vom Typ \lstinline|FDSolver solver => Tree solver ModelCol| (vergleiche Kapitel 2.3.2, Listing \ref{mcpNDamen}). Über der im Baummodell eingekapselten Collection von Constraint-Variablen wird beim Aufruf eines FD-Solvers das Labeling durchgeführt. Somit kann man zur Übersetzung einer Liste von MCP-FD-Constraints in ein monadisches Baummodell folgende Funktion definieren:
 \begin{lstlisting}[language=Haskell,escapechar=§,caption=Umwandlung einer Liste von FD-Constraints in ein MCP-Baummodell]
 addM :: (Constraint solver §$\sim$§ Either Model q) => 
         Model -> Tree solver ()
@@ -215,7 +215,7 @@ toModelTree :: FDSolver s => [Model] -> ModelCol
 toModelTree model mcpLabelVars = 
   mapM_ addM model >> return mcpLabelVars
 \end{lstlisting}
-Das erzeugte Baummodell ist dabei vom Typ \lstinline|Tree (FDInstance s) ModelCol|. Das heißt, man parametrisiert das Modell bereits mit dem Solver \lstinline|FDInstance s|, der als Wrapper für Finite-Domain-Solver dient, die die Typklasse \lstinline|FDSolver| implementieren. Die Transformation der gegebenen Liste von MCP-FD-Constraints mit der Funktion \lstinline|addM| erzeugt für jedes Constraint in der Liste einen \lstinline|Add|-Knoten im Baummodell. Durch die Verwendung von \lstinline|mapM_| werden alle diese \lstinline|Add|-Knoten sequentialisiert. Das heißt, sie werden zu einem einzigen Baummodell verknüpft. Durch den Aufruf von \lstinline|return mcpLabelVars| wird schließlich ein \lstinline|Return|-Knoten für die übergebenen Labeling-Variablen generiert und dem Baummodell als Blattknoten hinzugefügt.
+Das erzeugte Baummodell ist dabei vom Typ \lstinline|Tree (FDInstance s) ModelCol|. Das heißt, man parametrisiert das Modell bereits mit dem Solver \lstinline|FDInstance s|, der als Wrapper für Finite-Domain-Solver dient, die die Typklasse \lstinline|FDSolver| implementieren. Die Transformation der gegebenen Liste von MCP-FD-Constraints mit der Funktion \lstinline|addM| erzeugt für jedes Constraint in der Liste einen \lstinline|Add|-Baumknoten. Durch die Verwendung von \lstinline|mapM_| werden alle diese \lstinline|Add|-Knoten sequentialisiert. Das heißt, sie werden zu einem einzigen Baummodell verknüpft. Durch den Aufruf von \lstinline|return mcpLabelVars| wird schließlich ein \lstinline|Return|-Knoten für die übergebenen Labeling-Variablen generiert und dem Baummodell als Blattknoten hinzugefügt.
 \\
 Wie ein direkt mit der MCP-Modellierungssprache formuliertes Modell, ist das resultierende Baummodell dann bereit für das Labeling und den Aufruf eines konkreten FD-Solvers.
 \par
@@ -233,7 +233,7 @@ class (Solver s, Term s t, Show (TermBaseType s t)) =>
     getValue :: t -> s (Maybe (TermBaseType s t))
     ...
 \end{lstlisting}
-Eine Instanz der \lstinline|EnumTerm|-Typklasse wird über zwei Typvariablen mit einer konkreten MCP-Solver- und MCP-Term-Implementierung verknüpft. Zur Wiederholung: Durch eine Instanz der Typklasse \lstinline|Term| wird ein Term-Typ und damit insbesondere die Darstellung von Constraint-Variablen für einen MCP-Solver eingeführt.
+Eine Instanz der \lstinline|EnumTerm|-Typklasse wird über zwei Typvariablen mit einer konkreten MCP-Solver- und MCP-Term-Implementierung verknüpft. Zur Wiederholung: Durch eine Instanz der Typklasse \lstinline|Term| wird ein Term-Typ und damit insbesondere die Darstellung von Constraint-Variablen für einen MCP-Solver festgelegt.
 \\
 Bei der Instanziierung dieser Typklasse muss ein sogenannter \lstinline|TermBaseType s t| angegeben werden. Dabei handelt es sich um den für den Wertebereich der Constraint-Variablen verwendeten Typ, also z.B. \lstinline|Int| für FD-Constraints über Integer-Domains. Darüberhinaus stellt dieses Interface eine Reihe von Funktionen zur Verfügung:
 \begin{itemize}
@@ -248,20 +248,22 @@ Um die gleiche Constraint-Variable in einem Baummodell mit unterschiedlichen Wer
 \\
 Das MCP-Framework unterstützt vier Labeling-Funktionen: \lstinline|inOrder|, \lstinline|firstFail|, \lstinline|middleOut| und \lstinline|endsOut|. Das Labeling-Verhalten dieser Funktionen wurde in Kapitel \ref{clpfdlib} bereits beschrieben. 
 \par
-Mit der Funktion \lstinline|assignments| werden schließlich Blattknoten für gefundene Lösungen im Baummodell erzeugt. Das bedeutet, für jede Constraint-Variable aus der Liste der Labeling-Variablen wird ein \lstinline|Return|-Knoten generiert, falls sich für diese Variable in diesem Auswertungszweig genau eine mögliche Belegung ergeben hat. Andernfalls wird ein \lstinline|Fail|-Knoten für die Variable erzeugt.
+Mit der Funktion \lstinline|assignments| werden schließlich Blattknoten für gefundene Lösungen im Baummodell erzeugt. Das bedeutet, für jede Constraint-Variable aus der Liste der Labeling-Variablen wird ein \lstinline|Return|-Knoten generiert, falls sich für diese Variable in diesem Auswertungszweig genau eine mögliche Belegung ergeben hat. Andernfalls wird ein \lstinline|Fail|-Knoten für die Variable erzeugt. 
 \\
 Die Implementierung der \lstinline|labelling|-Funktion, der \lstinline|assignments|-Funktion, der Labeling-Strategie-Funktionen sowie die vollständige \lstinline|EnumTerm|-Typklasse findet man im Anhang \ref{anhangB}.
 \\
-Schließlich wird das MCP-Baummodell für das Labeling um einen Knoten erweitert:
+Zur Durchführung des Labelings haben die MCP-Entwickler das Baummodell um einen Knoten erweitert:
 \begin{lstlisting}[language=Haskell,caption=MCP-Baummodell: \lstinline|Label|-Knoten]
 data Tree solver a = ... | Label (solver (Tree solver a))
 \end{lstlisting}
 Dieser Knoten ermöglicht die dynamische Erzeugung von Variablenbelegungen während des Labelings in Abhängigkeit vom Solver-Zustand. Daher enthält der \lstinline|Label|-Knoten die generierten Teilmodelle eingekapselt in der Solver-Monade. 
 \par
 Mit den vorgestellten MCP-Funktionen für das Labeling und der Erweiterung des Baummodells kann man die Funktion \lstinline|labelWith| definieren, die für eine gegebene Labeling-Strategie und eine Liste von Labeling-Variablen bei Aufruf eines FD-Solvers die entsprechenden (Teil-)Baummodelle konstruiert.
+\newpage
 \begin{lstlisting}[language=Haskell,caption=Labeling von MCP-Baummodellen]
-labelWith :: EnumTerm s t => LabelingStrategy -> ModelCol 
-          -> Tree s [TermBaseType s t]
+labelWith :: (FDSolver s, EnumTerm s (FDIntTerm s)) => 
+  LabelingStrategy -> ModelCol 
+  -> Tree (FDInstance s) [TermBaseType s (FDIntTerm s)]
 labelWith strategy col = Label $ do
   lst <- getColItems col maxBound
   return $ do
@@ -283,11 +285,11 @@ solveWithMCP :: MCPSolver -> [Model] -> MCPLabelInfo -> MCPSolution
 solveWithMCP Overton mcpCs info = solveWithOverton mcpCs info
 solveWithMCP Gecode  mcpCs info = solveWithGeoce   mcpCs info
 \end{lstlisting}
-Um einen der beiden Solver des MCP-Frameworks auswählen zu können, definiert man sich die Datenstruktur \lstinline|MCPSolver| mit den Werten \lstinline|Overton| für den direkt in Haskell realisierten Solver (basierend auf der Implementierung von David Overton \cite{Overton}) und \lstinline|Gecode| für die C++-basierte Gecode Solver Bibliothek. Das Framework selbst ruft beide Solver über die gleiche überladene \lstinline|solve|-Funktion auf, wie man weiter unten sieht.
+Um einen der beiden Solver des MCP-Frameworks auswählen zu können, definiert man sich die Datenstruktur \lstinline|MCPSolver| mit den Werten \lstinline|Overton| für den direkt in Haskell realisierten Solver (basierend auf der Implementierung von David Overton \cite{Overton}) und \lstinline|Gecode| für die C++-basierte Gecode-Solver-Bibliothek. Das Framework selbst ruft beide Solver über die gleiche überladene \lstinline|solve|-Funktion auf, wie man weiter unten sieht.
 \\
 Die Funktion \lstinline|solveWithMCP| ruft je nach übergebenem MCP-Solver eine der beiden tatsächlichen Lösungsfunktionen auf. Dabei reicht sie die Liste der übersetzten Constraints sowie die gesammelten Labeling-Informationen weiter.
 \\
-Ihr Rückgabewert ist vom Typ \lstinline|MCPSolution|. Es handelt sich hierbei um einen Typ, der die gefundenden Lösungen zusammen mit zusätzlichen Informationen zurückgibt, die die Ausgabe der Lösungen durch KiCS2 erleichtert:
+Ihr Rückgabewert ist vom Typ \lstinline|MCPSolution|. Es handelt sich hierbei um einen Typ, der die gefundenen Lösungen zusammen mit zusätzlichen Informationen enthält, die die Ausgabe der Lösungen durch KiCS2 erleichtern:
 \begin{lstlisting}[language=Haskell,caption=Datenstruktur zur Speicherung von Lösungsinformationen]
 type MCPSolution = SolutionInfo C_Int (FDTerm Int)
 
@@ -297,7 +299,7 @@ data SolutionInfo a b = SolInfo {
   choiceID  :: ID
 }
 \end{lstlisting}
-\lstinline|MCPSolution| wird mit Hilfe der polymorphen Datenstruktur \lstinline|SolutionInfo a b| definiert. Diese Datenstruktur speichert alle nötigen Informationen, um die für ein Constraint-Problem gefundenen Lösungen durch KiCS2 ausgeben zu lassen. Dabei legen die beiden Typvariablen zum einen den Typ für die Lösungswerte (\lstinline|a|) und zum anderen den Typ der für das Labeling verwendeten Constraint-Variablen (\lstinline|b|) fest. Zu den gespeicherten Informationen gehören dann die gefundenen Lösungen, die Labeling-Variablen (vor ihrer Übersetzung) sowie eine unbenutzt \lstinline|ID|. Warum man genau diese Informationen für die Ausgabe der Lösungen benötigt, wird im nächsten Abschnitt erklärt.
+\lstinline|MCPSolution| wird mit Hilfe der polymorphen Datenstruktur \lstinline|SolutionInfo a b| definiert. Diese Datenstruktur speichert alle nötigen Informationen, um die für ein Constraint-Problem gefundenen Lösungen durch KiCS2 ausgeben zu lassen. Dabei legen die beiden Typvariablen zum einen den Typ für die Lösungswerte (\lstinline|a|) und zum anderen den Typ der für das Labeling verwendeten Constraint-Variablen (\lstinline|b|) fest. Zu den gespeicherten Informationen gehören die gefundenen Lösungen, die Labeling-Variablen (vor der Übersetzung) sowie eine unbenutzte \lstinline|ID|. Warum man genau diese Informationen für die Lösungsausgabe benötigt, wird im nächsten Abschnitt erklärt.
 \\
 In diesem Fall werden für die MCP-Solver die gefundenen Integer-Lösungswerte in ihrer \lstinline|C_Int|-Repräsentation und die Labeling-Variablen in ihrer \lstinline|(FDTerm Int)|-Darstellung gesichert.
 \par
@@ -316,7 +318,7 @@ solveWithOverton mcpCs info = case maybeMCPVars of
         modelTree = toModelTree mcpCs mcpVars
         solutions = snd $ solve dfs it $
           (modelTree :: OvertonTree) >>= labelWith strtgy
-    in S (SolInfo (map (map toCurry) solutions) vars choiceID)
+    in SolInfo (map (map toCurry) solutions) vars choiceID
   where maybeMCPVars = mcpLabelVars info
 \end{lstlisting}
 Diese Funktion prüft zunächst, ob das \lstinline|MCPLabelInfo|-Objekt eine MCP-Collection mit den über\-setz\-ten Labeling-Variablen enthält. Ist dies nicht der Fall, so wird die Auswertung der FD-Constraints abgebrochen und eine passende Fehlermeldung zurückgegeben. Andernfalls werden auch die anderen zwischengespeicherten Labeling-Informationen bestimmt und mit \lstinline|fromJust| aus dem \lstinline|Maybe|-Wrapper "'ausgepackt"'. Durch Aufruf von \lstinline|toModelTree| wird dann aus der Liste der MCP-FD-Constraints (\lstinline|mcpCs|) und mit den übersetzten Labeling-Variablen (\lstinline|mcpVars|) ein Baummodell konstruiert. Schließlich wird die MCP-Funktion \lstinline|solve| aufgerufen. Neben einem Baummodell erwartet diese eine primitive Suchstrategie und einen sogenannten Such-Transformer als Argument. Ein solcher Such-Transformer kann verwendet werden, um komplexere Suchalgorithmen umzusetzen. Beispielsweise gibt es Such-Transformer, die die Auswertung eines Baummodells ab einer bestimmten Tiefe im Baum oder ab einer gewissen Anzahl gefundener Lösungen abbrechen.
@@ -326,29 +328,29 @@ Hier wird als primitive Suchstrategie die Tiefensuche (\lstinline|dfs|) und als 
 Da MCP-Baummodelle mit dem zu verwendenden Constraint-Solver parametrisiert werden, muss das zuvor erzeugte Baummodell vor dem Aufruf von \lstinline|solve| durch eine Typannotation noch in ein Baummodell für den Overton-Solver (\lstinline|OvertonTree|) gecastet werden. Auf diese Weise ist sichergestellt, dass die "'richtige Implementierung"' der überladenen \lstinline|solve|-Funktion aufgerufen wird. 
 \\
 Außerdem muss noch das Labeling für das Baummodell durchgeführt werden. Dazu wird die weiter oben vorgestellte Funktion \lstinline|labelWith| mit der gewählten Labeling-Strategie über der im Baummodell eingekapselten Collection der Labeling-Variablen aufgerufen.
-\par
+\\
 Als Rückgabewert liefert die Funktion \lstinline|solve| ein Tupel bestehend aus der Anzahl der Auswertungsschritte und einer Liste der gefundenen Lösungen zurück. Da man hier nur an den Lösungen interessiert ist, wählt man mit \lstinline|snd| nur die Lösungsliste aus. Diese Lösungsliste hat abhängig vom Solver entweder den Typ \lstinline|[[Int]]| (Overton) oder \lstinline|[[Integer]]|. Ihre einzelnen Lösungswerte werden dann mit Hilfe der Funktion \lstinline|toCurry| (Gegenstück zur in Kapitel 4.1.2 im Listing \ref{fromCurry} vorgestellten \lstinline|fromCurry|-Funktion) in Werte vom Typ \lstinline|C_Int| übersetzt. Wie man im nächsten Abschnitt sehen wird, ist dies für die Ausgabe der Lösungswerte durch KiCS2 erforderlich. 
 \\
-Mit den übersetzten Lösungen, den gesicherten Labeling-Variablen und der ebenfalls zwischengespeicherten unbenutzten \lstinline|ID| wird dann ein neues \lstinline|MCPLabelInfo|-Objekt konstruiert und zurück\-ge\-geben.
+Mit den übersetzten Lösungen, den gesicherten Labeling-Variablen und der ebenfalls zwischengespeicherten unbenutzten \lstinline|ID| wird dann ein neues \lstinline|MCPSolution|-Objekt konstruiert und zurück\-ge\-geben.
 \\
-Die Funktion \lstinline|solveWithGecode| wird nach dem gleichen Prinzip implementiert. Dabei ist der einzige wirkliche Unterschied das Casting des Baummodells: In diesem Fall muss nämlich der Typ \lstinline|Tree (FDInstance (GecodeWrappedSolver RuntimeGecodeSolver)) ModelCol| für die Typannotation verwendet werden, damit die entsprechende \lstinline|solve|-Implementierung aufgerufen wird. Die vollständige Realisierung des Gecode-Solvers findet man im Anhang \ref{anhangC}.
+Die Funktion \lstinline|solveWithGecode| wird nach dem gleichen Prinzip implementiert. Dabei ist der einzig wirkliche Unterschied das Casting des Baummodells: In diesem Fall muss nämlich der Typ \lstinline|Tree (FDInstance (GecodeWrappedSolver RuntimeGecodeSolver)) ModelCol| für die Typannotation verwendet werden, damit die entsprechende \lstinline|solve|-Implementierung aufgerufen wird. Die vollständige Realisierung des Gecode-Solvers findet man im Anhang \ref{anhangC}.
 
 \subsubsection{Ausgabe der vom Solver bestimmten Lösungen durch KiCS2}
 \label{output}
 In den beiden vorherigen Abschnitten wurde beschrieben, wie man die KiCS2-interne Darstellung eines FD-Constraint-Modells in ein semantisch äquivalentes MCP-Modell übersetzt und dieses dann mit einem der beiden FD-Solver des Frameworks löst. Nun muss nur noch eine Möglichkeit gefunden werden, diese Lösungen mit Hilfe von KiCS2 auszugeben. Dazu müssen die Lösungen in irgendeiner Form wieder in den Suchbaum eingebunden werden, den die verschiedenen Suchstrategien von KiCS2 auswerten.
 \par
-Zunächst sollte man sich noch einmal klarmachen, was man erreichen will: Im Allgemeinen ist es das Ziel beim Lösen eines Finite-Domain-Constraint-Problems, Belegungen für die darin vorkommenden Constraint-Variablen zu finden, so dass alle Constraints erfüllt sind. Modelliert man ein solches Problem mit der in Kapitel 4.1.1 vorgestellten CLPFD-Bibliothek, so kennzeichnet man diejenigen Constraint-Variablen, für die die Solver Belegungen ermitteln sollen, mit Hilfe eines \lstinline|labeling|- bzw. \lstinline|labelingWith|-Constraints. Diesen Labeling-Funktionen wird man bei der Modellierung in Curry in der Regel eine Liste von freien Variablen (vom Typ \lstinline|Int|) übergeben, über denen auch die weiteren FD-Constraints definiert sind. KiCS2-intern werden diese freien Variablen dann zunächst in FD-Constraint-Variablen vom Typ \lstinline|FDTerm Int| und dann in Integer-Variablen der MCP-FD-Modellierungssprache übersetzt. Die FD-Solver des Frameworks ermitteln dann Belegungen für diese Integer-Variablen.
+Zunächst sollte man sich noch einmal klarmachen, was man erreichen will: Im Allgemeinen ist es das Ziel beim Lösen eines Finite-Domain-Constraint-Problems, Belegungen für die darin vorkommenden Constraint-Variablen zu finden, so dass alle Constraints erfüllt sind. Modelliert man ein solches Problem mit der in Kapitel \ref{clpfdlib} vorgestellten CLPFD-Bibliothek, so kennzeichnet man diejenigen Constraint-Variablen, für die die Solver Belegungen ermitteln sollen, mit Hilfe eines \lstinline|labeling|- bzw. \lstinline|labelingWith|-Constraints. Diesen Labeling-Funktionen wird man bei der Modellierung in Curry in der Regel eine Liste von freien Variablen (vom Typ \lstinline|Int|) übergeben, über denen auch die weiteren FD-Constraints definiert sind. KiCS2-intern werden diese freien Variablen dann zunächst in FD-Constraint-Variablen vom Typ \lstinline|FDTerm Int| und dann in Integer-Variablen der MCP-FD-Modellierungssprache übersetzt. Die FD-Solver des Frameworks ermitteln dann Belegungen für diese Integer-Variablen.
 \\
-Somit hat man mit Hilfe der MCP-FD-Solver Integer-Werte für die freien Variablen bestimmt, über denen das Constraint-Problem ursprünglich in Curry formuliert wurde. Das Ziel muss es nun also sein, die gefundenen Lösungen an diese freien Variablen zu binden, so dass deren Bindungen beim Aufruf von KiCS2 auf der Kommandozeile ausgegeben werden können.
+Somit hat man mit Hilfe der MCP-FD-Solver Integer-Werte für die freien Variablen bestimmt, über denen das Constraint-Problem ursprünglich in Curry formuliert wurde. Das Ziel muss es nun also sein, die gefundenen Lösungen an diese freien Variablen zu binden, so dass deren Bindungen beim Aufruf eines Constraint-Modells in KiCS2 auf der Kommandozeile ausgegeben werden können.
 \par
-Die Idee ist nun, dass man die vom Solver gefundenen Lösungswerte mit Hilfe von Curry-Bindungs-Constraints an die zu den Labeling-Variablen zugehörigen freien Variablen bindet. Dabei macht man sich die KiCS2-\lstinline|bind|-Funktion zunutzt, die in Kapitel 4.1.4 (vergleiche Listing \ref{bind}) vorgestellt wurde. Diese überladene Funktion kann einen Wert eines Typen, der die Typklasse \lstinline|Unifiable| implementiert, durch ein Bindungs-Constraint an eine gegebene \lstinline|ID| binden. 
+Die Idee ist nun, dass man die vom Solver gefundenen Lösungswerte mit Hilfe von Curry-Bindungs-Constraints an die zu den Labeling-Variablen zugehörigen freien Variablen bindet. Dabei macht man sich die KiCS2-\lstinline|bind|-Funktion zunutze, die in Kapitel 4.1.4 (vergleiche Listing \ref{bind}) vorgestellt wurde. Diese überladene Funktion kann einen Wert eines Typen, der die Typklasse \lstinline|Unifiable| implementiert, durch ein Bindungs-Constraint an eine gegebene \lstinline|ID| binden. 
 \\
-Mit Hilfe von \lstinline|bind| erzeugt man für jede Labeling-Variable einen \lstinline|Guard|-Ausdruck mit einem Bindungs-Constraint, das den gefundenen Lösungswert an die \lstinline|ID| dieser Labeling-Variable und damit an die zugehörige freie Variable bindet. Da es durchaus vorkommen kann, dass für eine Variable mehrere Belegungen möglich sind, muss man in solchen Fällen je einen \lstinline|Guard|-Ausdruck für jede Belegung konstruieren und die verschiedenen \lstinline|Guard|-Ausdrücke dann mit Hilfe von KiCS2-Standard-\lstinline|Choice|s verküpfen.
+Mit Hilfe von \lstinline|bind| erzeugt man für jede Labeling-Variable einen \lstinline|Guard|-Ausdruck mit einem Bindungs-Constraint, das den gefundenen Lösungswert an die \lstinline|ID| dieser Labeling-Variable und damit an die zugehörige freie Variable bindet. Da es durchaus vorkommen kann, dass für eine Variable mehrere Belegungen möglich sind, muss man in solchen Fällen je einen \lstinline|Guard|-Ausdruck für jede Belegung konstruieren und die verschiedenen \lstinline|Guard|-Ausdrücke dann mit Hilfe von KiCS2-Standard-\lstinline|Choice|s verknüpfen.
 \\
-Wenn man nun also einen \lstinline|Guard|-Ausdruck der Form \lstinline|Guard (FDConstr fdCS) e| mit einer KiCS2-Suchstrategie wie der Tiefensuche auswertet, dann löst man zunächst das durch \lstinline|fdCs| gegebene Constraint-Modell mit Hilfe der MCP-FD-Solver. Diese geben einen \lstinline|MCPSolution|-Wert mit den ermittelten Lösungen und den für das Labeling verwendeten Variablen zurück. Mit Hilfe dieser Informationen generiert man \lstinline|Guard|-Ausdrücke mit entsprechenden Bindungs-Constraints. Aus diesen \lstinline|Guard|s, die teilweise auch durch \lstinline|Choice|s verknüpft sein können, und dem durch die FD-Constraints beschränkten nicht-deterministischen Ausdruck \lstinline|e| konstruiert man schließlich einen neuen nicht-deterministischen Ausdruck, der mit Hilfe einer KiCS2-Suchstrategie weiter ausgewertet werden kann.
+Wenn man nun also einen \lstinline|Guard|-Ausdruck der Form \lstinline|Guard (FDConstr fdCS) e| mit einer KiCS2-Suchstrategie wie der Tiefensuche auswertet, dann löst man zunächst das durch \lstinline|fdCs| gegebene Constraint-Modell mit Hilfe der MCP-FD-Solver. Diese geben einen \lstinline|MCPSolution|-Wert mit den ermittelten Lösungen und den für das Labeling verwendeten Variablen zurück. Mit Hilfe dieser Informationen generiert man \lstinline|Guard|-Ausdrücke mit entsprechenden Bindungs-Constraints. Aus diesen \lstinline|Guard|s, die teilweise auch durch \lstinline|Choice|s verknüpft sein können, und dem durch die FD-Constraints beschränkten nicht-deterministischen Ausdruck \lstinline|e| konstruiert man schließlich einen neuen nicht-deterministischen Ausdruck, der mit Hilfe der jeweiligen KiCS2-Suchstrategie weiter ausgewertet werden kann.
 \\
 Auf diese Weise werden die generierten Bindungs-Constraint gelöst und KiCS2 kann die Bindungen für die zu den Labeling-Variablen zugehörigen freien Variablen, also die Lösungen eines Constraint-Problems, auf der Kommandozeile ausgeben.
-\begin{lstlisting}[language=Haskell,caption=Aufruf des Overton-Solvers (Auswertung mit Tiefensuche)]
+\begin{lstlisting}[language=Haskell,caption=Aufruf des Overton-Solvers (Auswertung mit Tiefensuche),label=runMCPSolver]
 ...
   dfsGuard (FDConstr fdCs) e = 
     runMCPSolver Overton fdCs e >>= dfs cont
@@ -365,21 +367,21 @@ runMCPSolver solver fdCs e = do $
 Dabei ist die Funktion \lstinline|bindSolutions|, die einen neuen nicht-deterministischen Ausdruck mit den passenden Bindungs-Constraints generiert, folgendermaßen definiert:
 \begin{lstlisting}[language=Haskell,caption=Bindung der Constraint-Lösungen,label=bindSolutions]
 bindSolutions :: NonDet a => MCPSolution -> a -> a
-bindSolutions (SolInfo [] _ _) _ = failCons
-bindSolutions (SolInfo [s] vs _) e = bindLabelVars vs s e
+bindSolutions (SolInfo []     _  _) _ = failCons
+bindSolutions (SolInfo [s]    vs _) e = bindLabelVars vs s e
 bindSolutions (SolInfo (s:ss) vs i) e = choiceCons i solution 
                                                      solutions
   where 
    solution  = bindLabelVars vs s e
    solutions = bindSolutions (SolInfo ss vs (leftID i)) e
 \end{lstlisting}
-Falls die Lösungsliste des \lstinline|MCPSolution|-Werts leer ist, so wird der Konstruktor für eine fehlgeschlagene Berechnung zurückgegeben. Falls nur noch eine Lösung gebunden werden muss, so wird die Funktion \lstinline|bindLabelVars| (siehe unten) aufgerufen. Bei mehreren Lösungen wird hingegen eine binäre \lstinline|Choice| über den verschachtelten \lstinline|Guard|-Ausdrücken zur Bindung der ersten Lösung (\lstinline|solution|) und den \lstinline|Choice|s zur Bindung der restlichen Lösungen konstruiert (\lstinline|solutions|). Für diese \lstinline|Choice| wird die bislang unbenutzte \lstinline|ID| \lstinline|i| verwendet. Zur Bindung der restlichen Lösungen erfolgt ein rekursiver Aufruf von \lstinline|bindSolutions| mit einem aktualisierten \lstinline|MCPSolution|-Wert, der die restlichen Lösungen \lstinline|ss| sowie eine neue \lstinline|ID| durch den Aufruf von \lstinline|leftID i| erhält.
+Falls die Lösungsliste des \lstinline|MCPSolution|-Werts leer ist, so wird der Konstruktor für eine fehlgeschlagene Berechnung zurückgegeben. Falls nur noch eine Lösung gebunden werden muss, so wird die Funktion \lstinline|bindLabelVars| (siehe unten) aufgerufen. Bei mehreren Lösungen wird hingegen eine binäre \lstinline|Choice| über den verschachtelten \lstinline|Guard|-Ausdrücken zur Bindung der ersten Lösung (\lstinline|solution|) und den \lstinline|Choice|s zur Bindung der restlichen Lösungen (\lstinline|solutions|) konstruiert. Für die Konstruktion dieser \lstinline|Choice| wird die bislang unbenutzte \lstinline|ID| \lstinline|i| verwendet. Zur Bindung der restlichen Lösungen erfolgt ein rekursiver Aufruf von \lstinline|bindSolutions| mit einem aktualisierten \lstinline|MCPSolution|-Wert, der die restlichen Lösungen \lstinline|ss| sowie eine neue \lstinline|ID| durch den Aufruf von \lstinline|leftID i| erhält.
 \par
-Die Funktion \lstinline|bindLabelVars| bindet die Labeling-Variablen an eine Lösung. Das heißt jede einzelne Labeling-Variable wird an eine Belegung gebunden. Dazu erzeugt die Funktion \lstinline|bindLabelVar| für jede Variable einen \lstinline|Guard|-Ausdruck mit einem Curry-Bindungs-Constraint, das durch den Aufruf von \lstinline|bind| generiert wird. Durch den rekursiven Aufruf von \lstinline|bindLabelVars| werden die einzelnen \lstinline|Guard|-Ausdrücke ineinander verschachtelt, so dass letztendlich nur ein einzelner Ausdruck resultiert.
+Die Funktion \lstinline|bindLabelVars| bindet die Labeling-Variablen an eine Lösung. Das heißt, jede einzelne Labeling-Variable wird an eine Belegung gebunden. Dazu erzeugt die Funktion \lstinline|bindLabelVar| für jede Variable einen \lstinline|Guard|-Ausdruck mit einem Curry-Bindungs-Constraint, das durch den Aufruf von \lstinline|bind| generiert wird. Durch den rekursiven Aufruf von \lstinline|bindLabelVars| werden die einzelnen \lstinline|Guard|-Ausdrücke ineinander verschachtelt, so dass letztendlich nur ein einzelner Ausdruck resultiert.
 \\
 Stimmt die Länge der Liste der Variablenbelegungen nicht mit der Länge der Liste der Labeling-Variablen überein, so gibt \lstinline|bindLabelVars| eine Fehlermeldung zurück. 
 \\
-Konstante Werte zwischen den Labeling-Variablen werden von \lstinline|bindLabelVar| ignoriert.
+Konstante Werte in der Liste der Labeling-Variablen werden von \lstinline|bindLabelVar| ignoriert.
 \begin{lstlisting}[language=Haskell,caption=Bindung der Labeling-Variablen,label=bindLabelVar]
 bindLabelVars :: NonDet a => [FDTerm Int] -> [C_Int] -> a -> a
 bindLabelVars []     []     e = e

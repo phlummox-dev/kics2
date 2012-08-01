@@ -23,7 +23,7 @@ Nach der Installation sollte man die Gecode-Bibliotheken noch zum \emph{library 
 \\
 Weitere Hinweise zu Gecode kann man unter \href{http://www.gecode.org/documentation.html}{http://www.gecode.org/documentation.html} in der Anleitung \emph{Modeling and Programming with Gecode} finden.
 \par
-Nun kann man das Monadic-Constraint-Programming-Framework installieren. Dazu lädt man von Hackage DB (\href{http://hackage.haskell.org/package/monadiccp-0.7.4}{http://hackage.haskell.org/package/monadiccp-0.7.4}) die neueste Version 0.7.4 (Stand: Juli 2012) des Frameworks herunter. Nachdem man die Source-Dateien entpackt hat (\lstinline|tar xzvf monadiccp-0.7.4.tar.gz|), kann man die Konfiguration durchführen. Dabei muss man beachten, dass das Konfigurationsflag für die Installation der MCP-Gecode-Quelldateien gesetzt und der Pfad zu den Bibliotheken und Header-Dateien der Gecode-Installation angegeben werden muss, also zum Beispiel:
+Nun kann man das Monadic-Constraint-Programming-Framework installieren. Dazu lädt man von Hackage DB (\href{http://hackage.haskell.org/package/monadiccp-0.7.4}{http://hackage.haskell.org/package/monadiccp-0.7.4}) die neueste Version 0.7.4 (Stand: Juli 2012) des Frameworks herunter. Nachdem man die Source-Dateien entpackt hat (\lstinline|tar xzvf monadiccp-0.7.4.tar.gz|), kann man die Konfiguration durchführen. Dabei muss man beachten, dass das Konfigurationsflag für die Installation der MCP-Gecode-Quelldateien gesetzt und der Pfad zu den Bibliotheken und Header-Dateien der Gecode-Installation angegeben werden muss:
 \begin{lstlisting}[language=bash,frame=no]
 cd monadiccp-0.7.4
 runhaskell Setup.hs configure --extra-include-dirs=
@@ -50,8 +50,8 @@ Bei der Modellierung von Finite-Domain-Constraints mit der CLPFD-Bibliothek soll
 [<unification_constraints>] & <domain_constraints> & 
   <fd_constraints> & <labeling_constraint>
 \end{lstlisting}
-Als erstes gibt man etwaige Curry-Gleichheits-Constraints für die Constraint-Variablen an, dann legt man ein Wertebereich für die Constraint-Variablen fest, danach folgen beliebige FD-Constraints über den eingeführten Constraint-Variablen und schließlich initiiert man deren Labeling durch Angabe eines "'Labeling-Constraints"'.
-\item Die Curry-Gleichheits-Constraints sind optional und können gegebenenfalls auch an anderer Stelle spezifiziert werden. Sie zuerst anzugeben kann jedoch den Lösungsvorgang beschleunigen, da diese Constraints während der Auswertung dann KiCS2-intern nicht verschoben werden müssen.
+Als erstes gibt man etwaige Curry-Gleichheits-Constraints für die Constraint-Variablen an, dann legt man einen Wertebereich für die Constraint-Variablen fest, danach folgen beliebige FD-Constraints über den eingeführten Constraint-Variablen und schließlich initiiert man deren Labeling durch Angabe eines "'Labeling-Constraints"'.
+\item Die Curry-Gleichheits-Constraints sind optional und können gegebenenfalls auch an anderer Stelle spezifiziert werden. Sie zuerst anzugeben, kann jedoch den Lösungsvorgang beschleunigen, da diese Constraints während der Auswertung dann KiCS2-intern nicht verschoben werden müssen.
 \item Für das Labeling kann - falls gewünscht - mittels des \lstinline|labelingWith|-Constraints eine spezielle Labeling-Strategie angegeben werden. Verwendet man stattdessen das \lstinline|labeling|-Constraint, so wird das Labeling der Constraint-Variablen in der gegebenen Reihefolge durchgeführt. Verzichtet man völlig auf ein "'Labeling"'-Constraint, so erhält man eine Fehlermeldung.
-\item Weiterhin ist zu beachten, dass für sämtliche Labeling-Variablen auch ein Wertebereich festgelegt wird. Bei nicht Berücksichtigung wird ebenfalls eine Fehlermeldung ausgegeben.
+\item Weiterhin ist zu beachten, dass für sämtliche Labeling-Variablen auch ein Wertebereich festgelegt wird. Bei Nichtberücksichtigung wird ebenfalls eine Fehlermeldung ausgegeben.
 \end{enumerate}

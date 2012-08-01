@@ -2,15 +2,15 @@
 \label{anhangC}
 Wie schon im Kapitel 4.3.2 angedeutet, verwendet man zur Übersetzung der Constraints in die MCP-FD-Modellierungssprache unterschiedliche Implementierungen für die beiden Constraint-Solver. Genauer gesagt, die Implementierung variiert für die beiden Solver hinsichtlich der Überset\-zung von FD-Listen in MCP-Collections. Der Gecode-Solver erwartet, dass man für jede FD-Liste eine MCP-Collection-Variable einführt und etwaigen konstanten Werten in dieser Liste mit Hilfe der \lstinline|(@!!)|-Funktion des \lstinline|(@=)|-Constraints eine Position in der durch die Variable repräsentierten Collection zuweist (vergleiche hierzu die Funktion \lstinline|newColCs|). Der Overton-Solver kann hingegen auch mit konstanten MCP-Collections, also mit Listen vom Typ \lstinline|ModelInt| arbeiten.
 \\
-Um neue MCP-Collection-Variablen für den Gecode-Solver einführen zu können, ist es notwendig, FD-Listen eindeutig identifizieren zu können. Nur auf diese Weise kann gewährleistet werden, dass bei der Übersetzung die gleiche FD-Liste auf die gleiche MCP-Collection-Variable abgebildet wird. Daher wird der unten angegebene Datentyp zur Repräsentation von FD-Listen eingeführt. Für diese FD-Listen werden dann bei der Übersetzung nach dem gleichen Prinzip, dass auch schon zur Übersetzung von FD-Variablen angewandt wurde, neue MCP-Collection-Variablen eingeführt (siehe dazu die Funktionen \lstinline|translateGecodeList| und \lstinline|newColVar|).
+Um neue MCP-Collection-Variablen für den Gecode-Solver einführen zu können, ist es notwendig, FD-Listen eindeutig identifizieren zu können. Nur auf diese Weise kann gewährleistet werden, dass bei der Übersetzung die gleiche FD-Liste auf die gleiche MCP-Collection-Variable abgebildet wird. Daher wird der unten angegebene Datentyp zur Repräsentation von FD-Listen eingeführt. Für diese FD-Listen werden dann bei der Übersetzung nach dem gleichen Prinzip, das auch schon zur Übersetzung von FD-Variablen angewandt wurde, neue MCP-Collection-Variablen eingeführt (siehe dazu die Funktionen \lstinline|translateGecodeList| und \lstinline|newColVar|).
 
 \begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=Einführung eines Identifiers für FD-Listen]
--- representation of list of fd variables
+-- representation of lists of fd terms:
 -- ID to identify a specific fd list is necessary for translating
 -- fd lists into mcp collections for the Gecode solver
 data FDList a = FDList ID [a]
 
--- helper function to convert curry integer lists to a list of fd terms
+-- helper function to convert curry integer lists to lists of fd terms
 toFDList :: Constrainable a b => ID -> CP.OP_List a -> FDList b
 toFDList i vs = FDList i (toFDList' vs)
   where
@@ -18,11 +18,22 @@ toFDList i vs = FDList i (toFDList' vs)
    toFDList' (CP.OP_Cons v vs) = toCsExpr v : toFDList' vs
 \end{lstlisting}
 
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=Angepasste \lstinline|FDConstraint|s]
+data FDConstraint
+  = FDRel RelOp (FDTerm Int) (FDTerm Int)
+  | FDArith ArithOp (FDTerm Int) (FDTerm Int) (FDTerm Int)
+  | FDSum (FDList (FDTerm Int)) (FDTerm Int)
+  | FDAllDifferent (FDList (FDTerm Int))
+  | FDDomain (FDList (FDTerm Int)) (FDTerm Int) (FDTerm Int)
+  | FDLabeling LabelingStrategy (FDList (FDTerm Int)) ID
+ deriving (Eq,Show,Typeable)
+\end{lstlisting}
+
+\newpage
 \textbf{MCPSolver-Modul:}
 
-\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,frame=no]
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,escapechar=§,frame=no]
+{-# LANGUAGE TypeFamilies, FlexibleContexts #-}
 
 module MCPSolver where
 
@@ -63,11 +74,11 @@ instance ExternalFDSolver MCPSolver FDConstraint where
 
   -- |Type for storing labeling information for the MCP solvers:
   -- @labelVars    - labeling variables in original representation
-  -- @mcpLabelVars - labeling variables translated into corresponding 
-  --                 MCP representation
   -- @domainVars   - list of fd variables, for which a domain was defined
   --                 necessary to check, whether a domain was defined for the 
   --                 labeling variables
+  -- @mcpLabelVars - labeling variables translated into corresponding 
+  --                 MCP representation
   -- @labelID      - fresh ID, necessary for constructing choices over solutions,
   --                 when transforming solver solutions into binding constraints
   -- @strategy     - labeling strategy
@@ -76,8 +87,7 @@ instance ExternalFDSolver MCPSolver FDConstraint where
          , domainVars   :: [FDTerm Int]
          , mcpLabelVars :: Maybe ModelCol
          , labelID      :: Maybe ID
-         , strategy     :: Maybe LabelingStrategy
-         }
+         , strategy     :: Maybe LabelingStrategy }
 
   newtype Solutions MCPSolver FDConstraint = 
     SolWrapper (SolutionInfo CP.C_Int (FDTerm Int))
@@ -87,7 +97,7 @@ instance ExternalFDSolver MCPSolver FDConstraint where
 
   solveWith = solveWithMCP 
 
-  makeConstrSolutions _ (SolWrapper solutions) e = bindSolutions solutions e
+  makeCsSolutions _ (SolWrapper solutions) e = bindSolutions solutions e
 
 -- type synonyms for easier access to associated types
 type MCPModel     = SolverModel MCPSolver FDConstraint
@@ -122,8 +132,7 @@ data TLState = TLState {
   nextColVarRef :: Int,
   nextIntVarRef :: Int,
   additionalCs  :: [Model],
-  labelInfo     :: MCPLabelInfo
-}
+  labelInfo     :: MCPLabelInfo }
 
 -- Initial state
 baseTLState :: TLState
@@ -133,8 +142,7 @@ baseTLState = TLState {
   nextIntVarRef = 0,
   nextColVarRef = 0,
   additionalCs  = [],
-  labelInfo     = baseLabelInfo
-}
+  labelInfo     = baseLabelInfo }
 
 -- Initial (empty) labeling information
 baseLabelInfo :: MCPLabelInfo
@@ -143,8 +151,7 @@ baseLabelInfo = Info {
   domainVars   = [],
   mcpLabelVars = Nothing,
   labelID      = Nothing,
-  strategy     = Nothing
-}
+  strategy     = Nothing }
 
 -- The Overton and Gecode solvers work on different representations of lists of 
 -- constraint variables. Therefore each solver has its own translation function:
@@ -169,7 +176,6 @@ translateGecode fdCs =
       info          = labelInfo state
       mcpColCs      = additionalCs state
   in (ModelWrapper (mcpCs ++ mcpColCs), info)
-
 
 -- Translates a single finite domain constraint into a specific MCP constraint
 -- using Haskell's state monad.
@@ -215,14 +221,13 @@ translateConstr tlList (FDLabeling str vs j)           = do
       newInfo  = info { labelVars    = Just vs
                       , mcpLabelVars = Just mcpVs
                       , labelID      = Just j
-                      , strategy     = Just str
-                      }
+                      , strategy     = Just str }
       newState = state { labelInfo = newInfo }
   put newState 
   return (toBoolExpr True)
 
 -- Constraining a MCP collection of variables to a domain
--- given by a lower and upper boundary
+-- defined by a lower and upper boundary
 domain :: ModelCol -> ModelInt -> ModelInt -> Model
 domain varList lower upper = forall varList (\var -> var @: (lower,upper))
 
@@ -245,17 +250,16 @@ newVar (FDVar i) = do
       varRef   = nextIntVarRef state
       nvar     = asExpr (ModelIntVar varRef :: ModelIntTerm ModelFunctions)
       newState = state { nextIntVarRef = varRef + 1
-                       , intVarMap = Map.insert (getKey i) nvar varMap
-                       }
+                       , intVarMap = Map.insert (getKey i) nvar varMap }
   put newState
   return nvar
 
--- Translates lists of expressions to MCP collection for the Overton Solver
+-- Translates lists of fd terms to MCP collection for the Overton Solver
 translateOvertonList :: FDList (FDTerm Int) -> State TLState ModelCol
 translateOvertonList (FDList _ vs) = do mcpExprList <- mapM translateTerm vs
                                         return (list mcpExprList)
 
--- Translates lists of expressions to MCP collection for the Gecode Solver
+-- Translates lists of fd terms to MCP collection for the Gecode Solver
 translateGecodeList :: FDList (FDTerm Int) -> State TLState ModelCol
 translateGecodeList l@(FDList i vs) = do 
   state <- get
@@ -264,7 +268,7 @@ translateGecodeList l@(FDList i vs) = do
 
 -- Creates a new MCP collection variable for the given list,
 -- Updates the translation state by inserting its MCP representation
--- into the map and incrementing the varref counter,
+-- into the map and incrementing the corresponding varref counter,
 -- Creates additional constraints for the collection variable
 -- describing its size and elements (only used for translateGecode)
 newColVar :: FDList (FDTerm Int) -> State TLState ModelCol
@@ -277,13 +281,13 @@ newColVar (FDList i vs) = do
       colCs    = additionalCs state
       newState = state { nextColVarRef = varRef + 1
                        , colVarMap = Map.insert (getKey i) nvar varMap
-                       , additionalCs = colCs ++ (newColCs nvar mcpVs)
-                       }
+                       , additionalCs = colCs ++ (newColCs nvar mcpVs) }
   put newState
   return nvar
 
 -- Creates additional constraints for collection variables 
--- describing their size and elements (only used for translateGecode)
+-- describing the size of a collection and its elements 
+-- (only used for translateGecode)
 newColCs :: ModelCol -> [ModelInt] -> [Model]
 newColCs col vs = (size col @= cte (length vs)) : newColCs' col vs 0
   where
@@ -308,11 +312,13 @@ type OvertonTree = Tree (FDInstance OvertonFD) ModelCol
 type GecodeTree  = 
   Tree (FDInstance (GecodeWrappedSolver RuntimeGecodeSolver)) ModelCol
 
--- Calling solve function for specific solver
+-- Calls solve function for specific solver
 solveWithMCP :: MCPSolver -> MCPModel -> MCPLabelInfo -> MCPSolution
 solveWithMCP Overton (ModelWrapper mcpCs) info = solveWithOverton mcpCs info
 solveWithMCP Gecode  (ModelWrapper mcpCs) info = solveWithGecode  mcpCs info
 
+-- Calls Overton Solver with corresponding model tree
+-- and prepares solutions for KiCS2
 solveWithOverton :: [Model] -> MCPLabelInfo -> MCPSolution
 solveWithOverton mcpCs info = case maybeLabelVars of 
   Nothing -> error "MCPSolver.solveWithOverton: Found no variables for labeling."
@@ -330,6 +336,8 @@ solveWithOverton mcpCs info = case maybeLabelVars of
   where maybeLabelVars = labelVars info
         dVars          = domainVars info
 
+-- Calls Gecode Solver with corresponding model tree 
+-- and prepares solutions for KiCS2
 solveWithGecode :: [Model] -> MCPLabelInfo -> MCPSolution
 solveWithGecode mcpCs info = case maybeLabelVars of 
   Nothing -> error "MCPSolver.solveWithGecode: Found no variables for labeling."
@@ -347,11 +355,14 @@ solveWithGecode mcpCs info = case maybeLabelVars of
   where maybeLabelVars = labelVars info
         dVars          = domainVars info
 
--- checks, if a domain for every labeling variable was specified
+-- checks, if a domain was specified for every labeling variable
 inDomain :: FDList (FDTerm Int) -> [FDTerm Int] -> Bool
 inDomain (FDList _ lVars) dVars = null $ lVars \\ dVars
 
 -- Label MCP collection with given strategy
+labelWith :: (FDSolver s, MonadTree m, TreeSolver m §$\sim$§ FDInstance s,
+  EnumTerm s (FDIntTerm s)) => LabelingStrategy -> ModelCol 
+  -> m [TermBaseType s (FDIntTerm s)]
 labelWith strategy col = label $ do
   lst <- getColItems col maxBound
   return $ do

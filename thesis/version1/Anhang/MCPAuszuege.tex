@@ -47,7 +47,7 @@ data BoolExpr t c b =
   | Sorted Bool (ColExpr t c b)
   | Dom (Expr t c b) (ColExpr t c b)
 \end{lstlisting}
-
+\newpage
 \begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=MCP-FD-Constraint-Konstruktorfunktionen]
 -- convertible to expressions:
 class ToExpr tt cc bb t where
@@ -247,8 +247,8 @@ class (Solver s, Term s (FDIntTerm s), Term s (FDBoolTerm s),
   fdSplitIntDomain :: FDIntTerm s -> s ([Constraint s],Bool)
   fdSplitBoolDomain :: FDBoolTerm s -> s ([Constraint s],Bool)
 \end{lstlisting}
-
-\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,caption=\lstinline|EnumTerm|-Typklasse]
+\newpage
+\begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,escapechar=§,caption=\lstinline|EnumTerm|-Typklasse]
 class (Solver s, Term s t, Show (TermBaseType s t)) => EnumTerm s t where
   type TermBaseType s t :: *
 
@@ -295,7 +295,7 @@ class (Solver s, Term s t, Show (TermBaseType s t)) => EnumTerm s t where
   defaultOrder = firstFail
   enumerator = Nothing
 \end{lstlisting}
-
+\newpage
 \begin{lstlisting}[language=Haskell,basicstyle=\footnotesize\ttfamily,escapechar=§,caption=MCP-\lstinline|labelling|-Funktion]
 labelling :: (MonadTree m, TreeSolver m §$\sim$§ s, EnumTerm s t) 
           => ([t] -> s [t]) -> [t] -> m ()
