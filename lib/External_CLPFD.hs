@@ -145,7 +145,7 @@ instance ConvertCurryHaskell C_LabelingStrategy LabelingStrategy where
   fromCurry C_EndsOut   = EndsOut
   fromCurry _           = error "KiCS2 error: LabelingStrategy data with no ground term"
 
--- helper function to convert curry integer lists to a list of fd terms
+-- helper function to convert curry integer lists to lists of fd terms
 toFDList :: Constrainable a b => ID -> CP.OP_List a -> FDList b
 toFDList i vs = FDList i (toFDList' vs)
   where

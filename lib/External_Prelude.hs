@@ -594,15 +594,9 @@ instance Constrainable C_Int (FDTerm Int) where
   toCsExpr (Choices_C_Int _ i@(FreeID _ _) _) = FDVar i
   toCsExpr v                                  = Const (fromCurry v)
 
-  bindLabelVar (FDVar i) v e   = guardCons defCover (ValConstr i v (bind i v)) e
-  bindLabelVar (Const _) _ e   = e
-
 instance Constrainable C_Bool (FDTerm Bool) where
   toCsExpr (Choices_C_Bool _ i@(FreeID _ _) _) = FDVar i
   toCsExpr v                                   = Const (fromCurry v)
-
-  bindLabelVar (FDVar i) v e   = guardCons defCover (ValConstr i v (bind i v)) e
-  bindLabelVar (Const _) _ e   = e
 
 -- ---------------------------------------------------------------------------
 -- Auxiliary operations for showing lists

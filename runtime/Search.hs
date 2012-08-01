@@ -272,6 +272,8 @@ printValsDFS backTrack cont goal = do
     follow c           = error $ "Search.prNarrowed: Bad choice " ++ show c
   prNarrowed _ i _ = error $ "Search.prNarrowed: Bad narrowed ID " ++ show i
 
+  prGuard _ (WrappedConstr wcs) e = solveAll wcs solvers e >>= \e' -> if backTrack then printValsDFS True  cont e'
+                                                                                   else printValsDFS False cont e'
   prGuard _ cs e = solve cs e >>= \mbSltn -> case mbSltn of
     Nothing                      -> return ()
     Just (reset, e') | backTrack -> printValsDFS True  cont e' >> reset
@@ -431,7 +433,6 @@ searchBFS act goal = do
       follow (NoDecision , j) = reset >> (cont (choicesCons defCover j zs) +++ (next cont xs ys))
       follow c                = error $ "Search.bfsFree: Bad choice " ++ show c
 
-    bfsGuard _ (WrappedConstr wcs) e = set >> solveAll wcs solvers e >>= bfs cont xs ys set reset -- not working in some cases
     bfsGuard _ cs e = set >> solve cs e >>= \mbSltn -> case mbSltn of
       Nothing            -> reset >> next cont xs ys
       Just (newReset, a) -> bfs cont xs ys set (newReset >> reset) a
@@ -527,6 +528,7 @@ startIDS olddepth newdepth act goal = do
       follow c             = error $ "Search.idsNarrowed: Bad choice " ++ show c
     idsNarrowed _ i _ = error $ "Search.idsNarrowed: Bad narrowed ID " ++ show i
 
+    idsGuard _ (WrappedConstr wcs) e = solveAll wcs solvers e >>= ids n cont 
     idsGuard _ cs e = solve cs e >>= \mbSltn -> case mbSltn of
       Nothing          -> mnil
       Just (reset, e') -> ids n cont e' |< reset

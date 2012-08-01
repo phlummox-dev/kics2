@@ -380,25 +380,30 @@ lookupValue i = do decId <- lookupDecisionID i
 class Constrainable ctype ttype | ttype -> ctype where
   -- |Convert a curry type into a constrainable term representation
   toCsExpr :: ctype -> ttype
-  -- |Bind a curry value to a constraint variable
-  -- (possibly by constructing guard expressions with binding constraints
-  -- using Unifiable.bind)
-  bindLabelVar :: NonDet a => ttype -> ctype -> a -> a
 
-
--- Simple generic constraint-term type
-data FDTerm a = Const a
-              | FDVar ID
- deriving (Eq,Show)
-
--- |Check whether the curry representation of a fd constraint variable was bound
+-- Check whether the curry representation of a fd constraint variable was bound
 -- to another value by using lookupValue
 -- and update the corresponding fd variable if necessary
 updateFDVar :: (Constrainable c (FDTerm t), FromDecisionTo c, Store m) => (FDTerm t) -> m (FDTerm t)
 updateFDVar c@(Const _) = return c
 updateFDVar (FDVar i)   = do a <- lookupValue i
-                             return (toCsExpr a)                                  
+                             return (toCsExpr a)
 
+-- Bind a curry value to a constraint variable
+-- (possibly by constructing guard expressions with binding constraints
+-- using Unifiable.bind)
+bindLabelVar :: (Constrainable c (FDTerm t), Unifiable c, NonDet a) => (FDTerm t) -> c -> a -> a
+bindLabelVar (FDVar i) v e   = guardCons defCover (ValConstr i v (bind i v)) e
+bindLabelVar (Const _) _ e   = e
+                                  
+-- Simple generic constraint-term type
+data FDTerm a = Const a
+              | FDVar ID
+ deriving (Eq,Show)
+
+-- representation of lists of fd terms:
+-- ID to identify a specific fd list is necessary for translating
+-- fd lists into mcp collections for the Gecode solver
 data FDList a = FDList ID [a]
  deriving (Eq,Show)
 
@@ -416,7 +421,7 @@ data MCPSolver = Gecode | Overton
 -- to their corresponding curry variables by constructing guard expressions
 -- with appropriate binding constraints
 -- if there are no solutions, return Fail
-bindSolutions :: (Constrainable s t, NonDet a) => SolutionInfo s t -> a -> a
+bindSolutions :: (Constrainable c (FDTerm t), Unifiable c, NonDet a) => SolutionInfo c (FDTerm t) -> a -> a
 bindSolutions (SolInfo [] _ _) _ = failCons 0 defFailInfo
 bindSolutions (SolInfo [sol] (FDList _ lVars) _) e = bindLabelVars lVars sol e
 bindSolutions (SolInfo (sol:sols) (FDList i lVars) choiceID) e = choiceCons defCover choiceID solution solutions
@@ -425,7 +430,7 @@ bindSolutions (SolInfo (sol:sols) (FDList i lVars) choiceID) e = choiceCons defC
 
 -- Bind each value of a solution to its corresponding constraint variable in the
 -- list of the labeling variables by calling Constrainable.bindLabelVar
-bindLabelVars :: (NonDet a, Constrainable s t) => [t] -> [s] -> a -> a
+bindLabelVars :: (Constrainable c (FDTerm t), Unifiable c, NonDet a) => [FDTerm t] -> [c] -> a -> a
 bindLabelVars []     []     e = e
 bindLabelVars []     (_:_)  _ = error "bindLabelVars: List of labeling variables and solutions have different length"
 bindLabelVars (_:_)  []     _ = error "bindLabelVars: List of labeling variables and solutions have different length"

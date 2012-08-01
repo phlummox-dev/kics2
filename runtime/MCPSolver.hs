@@ -1,8 +1,9 @@
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module MCPSolver where
 
+import ExternalSolver
 import Types
 import FDData
 import qualified Curry_Prelude as CP
@@ -12,7 +13,7 @@ import Control.CP.ComposableTransformers (solve)
 import Control.CP.SearchTree (addC, Tree (..),MonadTree(..))
 import Control.CP.EnumTerm
 import Control.CP.FD.Model
-import Control.CP.FD.FD (FDInstance, FDSolver, getColItems)
+import Control.CP.FD.FD (FDInstance, FDSolver(..), getColItems)
 import Control.CP.FD.Interface (colList)
 import Control.CP.FD.Solvers
 import Control.CP.FD.Gecode.Common (GecodeWrappedSolver)
@@ -22,12 +23,8 @@ import Control.CP.FD.OvertonFD.Sugar
 
 import qualified Data.Map as Map
 import Control.Monad.State
-
-import Debug.Trace
 import Data.Maybe (fromJust)
 import Data.List ((\\))
-
-import ExternalSolver
 
 -- ---------------------------------------------------------------------------
 -- WrappableConstraint instance for FDConstraint
@@ -46,9 +43,9 @@ instance ExternalFDSolver MCPSolver FDConstraint where
 
   -- |Type for storing labeling information for the MCP solvers:
   -- @labelVars    - labeling variables in original representation
-  -- @mcpLabelVars - labeling variables translated into corresponding MCP representation
   -- @domainVars   - list of fd variables, for which a domain was defined
   --                 necessary to check, whether a domain was defined for the labeling variables
+  -- @mcpLabelVars - labeling variables translated into corresponding MCP representation
   -- @labelID      - fresh ID, necessary for constructing choices over solutions, when transforming
   --                 solver solutions into binding constraints
   -- @strategy     - labeling strategy
@@ -66,7 +63,7 @@ instance ExternalFDSolver MCPSolver FDConstraint where
 
   solveWith = solveWithMCP 
 
-  makeConstrSolutions _ (SolWrapper solutions) e = bindSolutions solutions e
+  makeCsSolutions _ (SolWrapper solutions) e = bindSolutions solutions e
 
 
 -- type synonyms for easier access to associated types
@@ -98,8 +95,8 @@ type ColVarMap = Map.Map Integer ModelCol
 data TLState = TLState { 
   intVarMap     :: IntVarMap,
   colVarMap     :: ColVarMap,
-  nextColVarRef :: Int,
   nextIntVarRef :: Int,
+  nextColVarRef :: Int,
   additionalCs  :: [Model],
   labelInfo     :: MCPLabelInfo
 }
@@ -132,8 +129,7 @@ baseLabelInfo = Info {
 -- and collects labeling information if available
 -- using Haskell's state monad
 translateOverton :: [FDConstraint] -> (MCPModel,MCPLabelInfo)
-translateOverton fdCs = trace ("\nOverton FDConstraints:\n" ++ show fdCs ++ "\n") $
-                        let (mcpCs,state) = runState (mapM (translateConstr translateOvertonList) fdCs) baseTLState
+translateOverton fdCs = let (mcpCs,state) = runState (mapM (translateConstr translateOvertonList) fdCs) baseTLState
                             info = labelInfo state
                         in (ModelWrapper mcpCs, info)
 
@@ -141,8 +137,7 @@ translateOverton fdCs = trace ("\nOverton FDConstraints:\n" ++ show fdCs ++ "\n"
 -- and collects labeling information if available
 -- using Haskell's state monad
 translateGecode :: [FDConstraint] -> (MCPModel,MCPLabelInfo)
-translateGecode fdCs = trace ("\nGecode FDConstraints:\n" ++ show fdCs ++ "\n") $
-                       let (mcpCs,state) = runState (mapM (translateConstr translateGecodeList) fdCs) baseTLState
+translateGecode fdCs = let (mcpCs,state) = runState (mapM (translateConstr translateGecodeList) fdCs) baseTLState
                            info = labelInfo state
                            mcpColCs = additionalCs state
                        in (ModelWrapper (mcpCs ++ mcpColCs), info)
@@ -191,7 +186,7 @@ translateConstr tlList (FDLabeling str vs j) = do mcpVs <- tlList vs
                                                   return (toBoolExpr True)
 
 -- Constraining a MCP collection of variables to a domain
--- given by a lower and upper boundary
+-- defined by a lower and upper boundary
 domain :: ModelCol -> ModelInt -> ModelInt -> Model
 domain varList lower upper = forall varList (\var -> var @: (lower,upper))
 
@@ -217,12 +212,12 @@ newVar (FDVar i) = do state <- get
                       put newState
                       return nvar
 
--- Translates lists of expressions to MCP collection for the Overton Solver
+-- Translates lists of fd terms to MCP collection for the Overton Solver
 translateOvertonList :: FDList (FDTerm Int) -> State TLState ModelCol
 translateOvertonList (FDList _ vs) = do mcpExprList <- mapM translateTerm vs
                                         return (list mcpExprList)
 
--- Translates lists of expressions to MCP collection for the Gecode Solver
+-- Translates lists of fd terms to MCP collection for the Gecode Solver
 translateGecodeList :: FDList (FDTerm Int) -> State TLState ModelCol
 translateGecodeList l@(FDList i vs) = do state <- get
                                          let varMap = colVarMap state
@@ -230,7 +225,7 @@ translateGecodeList l@(FDList i vs) = do state <- get
 
 -- Creates a new MCP collection variable for the given list,
 -- Updates the translation state by inserting its MCP representation
--- into the map and incrementing the varref counter,
+-- into the map and incrementing the corresponding varref counter,
 -- Creates additional constraints for the collection variable describing its size and elements
 -- (only used for translateGecode)
 newColVar :: FDList (FDTerm Int) -> State TLState ModelCol
@@ -247,8 +242,9 @@ newColVar (FDList i vs) = do mcpVs <- mapM translateTerm vs
                              put newState
                              return nvar
 
--- Creates additional constraints for collection variables describing their size and elements (only used for translateGecode)
-newColCs :: ModelCol -> [ModelInt] -> [Model]
+-- Creates additional constraints for collection variables 
+-- describing the size of a collection and its elements 
+-- (only used for translateGecode)newColCs :: ModelCol -> [ModelInt] -> [Model]
 newColCs col vs = (size col @= cte (length vs)) : newColCs' col vs 0
   where
    newColCs' _   []     _ = []
@@ -273,14 +269,14 @@ translateArithOp Mult  = (@*)
 type OvertonTree = Tree (FDInstance OvertonFD) ModelCol
 type GecodeTree  = Tree (FDInstance (GecodeWrappedSolver RuntimeGecodeSolver)) ModelCol
 
--- Calling solve function for specific solver
+-- Calls solve function for specific solver
 solveWithMCP :: MCPSolver -> MCPModel -> MCPLabelInfo -> MCPSolution
 solveWithMCP Overton (ModelWrapper mcpCs) info = solveWithOverton mcpCs info
 solveWithMCP Gecode  (ModelWrapper mcpCs) info = solveWithGecode  mcpCs info
 
+-- Calls Overton Solver with corresponding model tree and prepare solutions for KiCS2
 solveWithOverton :: [Model] -> MCPLabelInfo -> MCPSolution
-solveWithOverton mcpCs info = trace ("MCPConstraints: " ++ show mcpCs) $
-                              case maybeLabelVars of 
+solveWithOverton mcpCs info = case maybeLabelVars of 
   Nothing      -> error "MCPSolver.solveWithOverton: Found no variables for labeling."
   Just lVars -> 
     if (not (inDomain lVars dVars)) 
@@ -295,6 +291,7 @@ solveWithOverton mcpCs info = trace ("MCPConstraints: " ++ show mcpCs) $
   where maybeLabelVars = labelVars info
         dVars          = domainVars info
 
+-- Calls Gecode Solver with corresponding model tree and prepare solutions for KiCS2
 solveWithGecode :: [Model] -> MCPLabelInfo -> MCPSolution
 solveWithGecode mcpCs info = case maybeLabelVars of 
   Nothing      -> error "MCPSolver.solveWithGecode: Found no variables for labeling."
@@ -311,11 +308,12 @@ solveWithGecode mcpCs info = case maybeLabelVars of
   where maybeLabelVars = labelVars info
         dVars          = domainVars info
 
--- checks, if a domain for every labeling variable was specified
+-- checks, if a domain was specified for every labeling variable
 inDomain :: FDList (FDTerm Int) -> [FDTerm Int] -> Bool
 inDomain (FDList _ lVars) dVars = null $ lVars \\ dVars
 
 -- Label MCP collection with given strategy
+labelWith :: (FDSolver s, MonadTree m, TreeSolver m ~ FDInstance s, EnumTerm s (FDIntTerm s)) => LabelingStrategy -> ModelCol -> m [TermBaseType s (FDIntTerm s)]
 labelWith strategy col = label $ do
   lst <- getColItems col maxBound
   return $ do

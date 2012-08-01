@@ -33,10 +33,10 @@ class WrappableConstraint c => ExternalFDSolver s c where	-- needs MultiParamTyp
   -- (i.e. by constructing guard expressions with binding constraints
   -- calling bindSolution)
   runSolver :: (Store m, NonDet a) => s -> [c] -> a -> m a
-  runSolver solver extCs e = do updatedCs <- mapM updateVars extCs
-                                let (solverCs,info) = translate solver updatedCs
-                                    results = solveWith solver solverCs info
-                                return $ makeConstrSolutions solver results e
+  runSolver solver wcs e = do updatedCs <- mapM updateVars wcs
+                              let (solverCs,info) = translate solver updatedCs
+                                  solutions       = solveWith solver solverCs info
+                              return $ makeCsSolutions solver solutions e
 
   -- |Translate given list of external constraints into a specific solver model
   -- and collect labeling information
@@ -47,4 +47,4 @@ class WrappableConstraint c => ExternalFDSolver s c where	-- needs MultiParamTyp
 
   -- |Transform solutions provided by a specific solver into bindings for
   -- the occurring constraint variables
-  makeConstrSolutions :: NonDet a => s -> Solutions s c -> a  -> a
+  makeCsSolutions :: NonDet a => s -> Solutions s c -> a  -> a
