@@ -7,7 +7,7 @@ module SolverControl where
 
 import Types
 import FDData
-import {-# SOURCE #-} MCPSolver -- necessary to prevent import cycle
+import {-# SOURCE #-} MCPSolver -- necessary to prevent import cycles
 
 import ExternalSolver
 
@@ -25,8 +25,10 @@ solvers :: (Store m, NonDet a) => [Solver m a]
 solvers = [Solver runGecode, Solver runOverton]
 --solvers = [Solver runOverton,Solver runGecode]
 
--- try to solve all constraints of the heterogenous list of wrappable constraints by running the supported solvers
--- one after another
+-- try to solve all constraints of the heterogenous list of wrappable constraints by filtering the list for constraints of the
+-- supported solvers
+-- if constraints of supported type are found, run the corresponding solver
+-- otherwise try the next solver in the list
 solveAll :: (Store m, NonDet a) => [WrappedConstraint] -> [Solver m a] -> a -> m a
 solveAll wcs []                       _ = error $ "SolverControl.solveAll: Not solvable with supported solvers: " ++ show wcs
 solveAll wcs ((Solver solve):solvers) e = case filterCs wcs of ([],[])   -> return $ failCons 0 defFailInfo
