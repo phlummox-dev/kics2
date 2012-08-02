@@ -376,6 +376,10 @@ lookupValue :: (Store m,FromDecisionTo a) => ID -> m a
 lookupValue i = do decId <- lookupDecisionID i
                    fromDecision i decId
 
+-- ---------------------------------------------------------------------------
+-- Conversion of Curry data types into constraint term representations
+-- ---------------------------------------------------------------------------
+
 -- needs MultiParamTypeClasses and FunctionalDependencies
 class Constrainable ctype ttype | ttype -> ctype where
   -- |Convert a curry type into a constrainable term representation
@@ -390,13 +394,13 @@ updateFDVar (FDVar i)   = do a <- lookupValue i
                              return (toCsExpr a)
 
 -- Bind a curry value to a constraint variable
--- (possibly by constructing guard expressions with binding constraints
--- using Unifiable.bind)
+-- by constructing guard expressions with binding constraints
+-- using Unifiable.bind
 bindLabelVar :: (Constrainable c (FDTerm t), Unifiable c, NonDet a) => (FDTerm t) -> c -> a -> a
 bindLabelVar (FDVar i) v e   = guardCons defCover (ValConstr i v (bind i v)) e
 bindLabelVar (Const _) _ e   = e
                                   
--- Simple generic constraint-term type
+-- Simple generic fd constraint term type
 data FDTerm a = Const a
               | FDVar ID
  deriving (Eq,Show)
@@ -414,7 +418,7 @@ data FDList a = FDList ID [a]
 -- - a fresh ID
 data SolutionInfo a b = SolInfo [[a]] (FDList b) ID
 
--- Solvers of the Monadic Constraint Programming Framework
+-- Solvers of the Monadic-Constraint-Programming-Framework
 data MCPSolver = Gecode | Overton
 
 -- Binds the solutions for a list of constraint variables (= labeling variables)
@@ -429,7 +433,7 @@ bindSolutions (SolInfo (sol:sols) (FDList i lVars) choiceID) e = choiceCons defC
         solutions = bindSolutions (SolInfo sols (FDList i lVars) (leftID choiceID)) e
 
 -- Bind each value of a solution to its corresponding constraint variable in the
--- list of the labeling variables by calling Constrainable.bindLabelVar
+-- list of the labeling variables
 bindLabelVars :: (Constrainable c (FDTerm t), Unifiable c, NonDet a) => [FDTerm t] -> [c] -> a -> a
 bindLabelVars []     []     e = e
 bindLabelVars []     (_:_)  _ = error "bindLabelVars: List of labeling variables and solutions have different length"

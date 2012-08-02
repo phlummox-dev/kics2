@@ -32,13 +32,13 @@ data RelOp
  deriving (Eq,Show)
 
 -- Haskell-Type for LabelingStrategies
-
 data LabelingStrategy = InOrder
                       | FirstFail
                       | MiddleOut
                       | EndsOut
  deriving (Eq,Ord,Show)
 
+-- update all fd terms of a fd constraint with given update function
 updateFDConstr :: Store m => (FDTerm Int -> m (FDTerm Int)) -> FDConstraint -> m FDConstraint
 updateFDConstr update (FDRel relOp t1 t2) = do t1' <- update t1
                                                t2' <- update t2

@@ -1,5 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-missing-methods #-}
 
+-- necessary to prevent import cycle
+
 module MCPSolver where
 
 import Types

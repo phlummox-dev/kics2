@@ -23,7 +23,7 @@ module ID
 
 import Control.Monad (liftM, when, zipWithM_)
 import Data.List (partition)
-import Data.Typeable
+import Data.Typeable -- for unwrapping wrappable constraints
 
 import Debug
 import IDSupply hiding (getDecisionRaw, setDecisionRaw, unsetDecisionRaw)
@@ -84,7 +84,7 @@ data Constraints
 getConstrList :: Constraints -> [Constraint]
 getConstrList (ValConstr _ _ c) = c
 getConstrList (StructConstr  c) = c
-getConstrList (WrappedConstr _) = error "ID.getConstrList: External Constraints" -- added for support of external constraints
+getConstrList (WrappedConstr _) = error "ID.getConstrList: Wrapped Constraints" -- added for support of wrappable constraints
 
 instance Show Constraints where
   showsPrec _ (ValConstr _ _ c) = showString "ValC "    . shows c
@@ -95,7 +95,7 @@ instance Eq Constraints where
  c1 == c2 = getConstrList c1 == getConstrList c2
 
 -- ---------------------------------------------------------------------------
--- External Constraints
+-- Wrappable Constraints
 -- ---------------------------------------------------------------------------
 
 -- members of this type class can be wrapped up in the single type WrappedConstraint

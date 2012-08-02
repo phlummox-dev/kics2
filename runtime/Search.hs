@@ -15,7 +15,7 @@ import Solver
 import Strategies
 import Types
 import MonadSearch
-import SolverControl -- for solving external constraints
+import SolverControl -- for solving wrapped constraints
 
 -- ---------------------------------------------------------------------------
 -- Search combinators for top-level search in the IO monad
@@ -118,13 +118,14 @@ printWithBindings bindings result = putStrLn $
 type DetExpr    a =             ConstStore -> a
 type NonDetExpr a = IDSupply -> ConstStore -> a
 
+-- adapted version for collecting wrapped constraints
 getNormalForm :: NormalForm a => NonDetExpr a -> IO a
 getNormalForm goal = do
   s <- initSupply
   let normalForm = const $!! goal s emptyCs $ emptyCs
   return $ searchForWrappedCs normalForm []
 
--- search normalized expression for Guards containing external constraints and collect these constraints in one Guard
+-- search normalized expression for Guards containing wrapped constraints and collect these constraints in one Guard
 searchForWrappedCs :: NormalForm a => a -> [WrappedConstraint] -> a
 searchForWrappedCs x wcs = match searchChoice searchNarrowed choicesCons failCons searchGuard searchVal x
   where searchChoice cd i x1 x2            = choiceCons cd i (searchForWrappedCs x1 wcs) (searchForWrappedCs x2 wcs)
@@ -134,7 +135,7 @@ searchForWrappedCs x wcs = match searchChoice searchNarrowed choicesCons failCon
         searchVal v | null wcs             = v
                     | otherwise            = guardCons defCover (WrappedConstr wcs) v
 
-{-
+{- original implementation
 getNormalForm :: NormalForm a => NonDetExpr a -> IO a
 getNormalForm goal = do
   s <- initSupply
