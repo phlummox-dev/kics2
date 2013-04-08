@@ -15,6 +15,7 @@ import Solver
 import Strategies
 import Types
 import MonadSearch
+import SolverControl -- for solving wrapped constraints
 
 -- ---------------------------------------------------------------------------
 -- Search combinators for top-level search in the IO monad
@@ -117,11 +118,29 @@ printWithBindings bindings result = putStrLn $
 type DetExpr    a =             ConstStore -> a
 type NonDetExpr a = IDSupply -> ConstStore -> a
 
+-- adapted version for collecting wrapped constraints
+getNormalForm :: NormalForm a => NonDetExpr a -> IO a
+getNormalForm goal = do
+  s <- initSupply
+  let normalForm = const $!! goal s emptyCs $ emptyCs
+  return $ searchForWrappedCs normalForm []
+
+-- search normalized expression for Guards containing wrapped constraints and collect these constraints in one Guard
+searchForWrappedCs :: NormalForm a => a -> [WrappedConstraint] -> a
+searchForWrappedCs x wcs = match searchChoice searchNarrowed choicesCons failCons searchGuard searchVal x
+  where searchChoice cd i x1 x2            = choiceCons cd i (searchForWrappedCs x1 wcs) (searchForWrappedCs x2 wcs)
+        searchNarrowed cd i xs             = choicesCons cd i (map (\x' -> searchForWrappedCs x' wcs) xs)
+        searchGuard _ (WrappedConstr wc) e = searchForWrappedCs e (wcs ++ wc)
+        searchGuard cd c e                 = guardCons cd c (searchForWrappedCs e wcs)
+        searchVal v | null wcs             = v
+                    | otherwise            = guardCons defCover (WrappedConstr wcs) v
+
+{- original implementation
 getNormalForm :: NormalForm a => NonDetExpr a -> IO a
 getNormalForm goal = do
   s <- initSupply
   return $ const $!! goal s emptyCs $ emptyCs
-
+-}
  -- |Evaluate a deterministic expression without search
 evalD :: Show a => DetExpr a -> IO ()
 evalD goal = print (goal emptyCs)
@@ -254,6 +273,8 @@ printValsDFS backTrack cont goal = do
     follow c           = error $ "Search.prNarrowed: Bad choice " ++ show c
   prNarrowed _ i _ = error $ "Search.prNarrowed: Bad narrowed ID " ++ show i
 
+  prGuard _ (WrappedConstr wcs) e = solveAll wcs solvers e >>= \e' -> if backTrack then printValsDFS True  cont e'
+                                                                                   else printValsDFS False cont e'
   prGuard _ cs e = solve cs e >>= \mbSltn -> case mbSltn of
     Nothing                      -> return ()
     Just (reset, e') | backTrack -> printValsDFS True  cont e' >> reset
@@ -338,6 +359,7 @@ searchDFS act goal = do
       follow c             = error $ "Search.dfsNarrowed: Bad choice " ++ show c
     dfsNarrowed _ i _ = error $ "Search.dfsNarrowed: Bad narrowed ID " ++ show i
 
+    dfsGuard _ (WrappedConstr wcs) e = solveAll wcs solvers e >>= dfs cont 
     dfsGuard _ cs e = solve cs e >>= \mbSltn -> case mbSltn of
       Nothing          -> mnil
       Just (reset, e') -> dfs cont e' |< reset
@@ -508,6 +530,7 @@ startIDS olddepth newdepth act goal = do
       follow c             = error $ "Search.idsNarrowed: Bad choice " ++ show c
     idsNarrowed _ i _ = error $ "Search.idsNarrowed: Bad narrowed ID " ++ show i
 
+    idsGuard _ (WrappedConstr wcs) e = solveAll wcs solvers e >>= ids n cont 
     idsGuard _ cs e = solve cs e >>= \mbSltn -> case mbSltn of
       Nothing          -> mnil
       Just (reset, e') -> ids n cont e' |< reset
@@ -597,6 +620,9 @@ searchMSearch' cont = match smpChoice smpChoices smpChoices smpFail smpGuard smp
     sumF = if isCovered cd then ssum (decCover cd) i else msum
 
 
+  smpGuard cd cs@(WrappedConstr wcs) e
+   | isCovered cd = constrainMSearch (decCover cd) cs (searchMSearch' cont e)
+   | otherwise = solveAll wcs solvers e >>= searchMSearch' cont
   smpGuard cd cs e 
    | isCovered cd = constrainMSearch (decCover cd) cs (searchMSearch' cont e)
    | otherwise = solve cs e >>= maybe mzero (searchMSearch' cont . snd)

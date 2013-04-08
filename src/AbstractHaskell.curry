@@ -179,6 +179,7 @@ data Statement
 data Pattern
   = PVar VarIName              -- pattern variable (unique index / name)
   | PLit Literal               -- literal (Integer/Float/Char constant)
+  | PULit Literal              -- unboxed literal
   | PComb QName [Pattern]      -- application (m.c e1 ... en) of n-ary
                                -- constructor m.c (PComb (m,c) [e1,...,en])
   | PAs VarIName Pattern       -- as-pattern (extended Curry)

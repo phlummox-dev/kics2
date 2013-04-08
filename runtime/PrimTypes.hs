@@ -112,6 +112,20 @@ instance Coverable BinInt where
   cover (Fail_BinInt cd info)    = Fail_BinInt (incCover cd) info
   cover (Guard_BinInt cd cs x)   = Guard_BinInt (incCover cd) cs (cover x)
 
+instance FromDecisionTo BinInt where
+  fromDecision i ((ChooseN 0 1),_) = 
+    do
+     x3 <- lookupValue (leftID i)
+     return (Neg x3)
+  fromDecision _ ((ChooseN 1 0),_) = return Zero
+  fromDecision i ((ChooseN 2 1),_) = 
+    do
+     x3 <- lookupValue (leftID i)
+     return (Pos x3)
+  fromDecision _ (NoDecision,j) = return (generate (supply j))
+  fromDecision i (ChooseLeft,_) = error ("Prelude.BinInt.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision i (ChooseRight,_) = error ("Prelude.BinInt.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _ ((LazyBind _),_) = error "Prelude.BinInt.fromDecision: No rule for LazyBind decision yet"
 -- Nats
 
 data Nat
@@ -217,6 +231,21 @@ instance Coverable Nat where
   cover (Choices_Nat cd i xs) = Choices_Nat (incCover cd) i (map cover xs)
   cover (Fail_Nat cd info) = Fail_Nat (incCover cd) info
   cover (Guard_Nat cd c e)    = Guard_Nat (incCover cd) c (cover e)
+
+instance FromDecisionTo Nat where
+  fromDecision _ ((ChooseN 0 0),_) = return IHi
+  fromDecision i ((ChooseN 1 1),_) = 
+    do
+     x3 <- lookupValue (leftID i)
+     return (O x3)
+  fromDecision i ((ChooseN 2 1),_) = 
+    do
+     x3 <- lookupValue (leftID i)
+     return (I x3)
+  fromDecision _ (NoDecision,j) = return (generate (supply j))
+  fromDecision i (ChooseLeft,_) = error ("Prelude.Nat.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision i (ChooseRight,_) = error ("Prelude.Nat.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _ ((LazyBind _),_) = error "Prelude.Nat.fromDecision: No rule for LazyBind decision yet"
 -- Higher Order Funcs
 
 -- BEGIN GENERATED FROM PrimTypes.curry
@@ -289,6 +318,9 @@ instance Coverable (Func t0 t1) where
   cover (Choices_Func cd i cs) = Choices_Func (incCover cd) i (map cover cs)
   cover (Fail_Func cd info)    = Fail_Func (incCover cd) info
   cover (Guard_Func cd cs f)   = Guard_Func (incCover cd) cs (cover f)   
+
+instance FromDecisionTo (Func t0 t1) where
+  fromDecision _ _ = error "ERROR: No fromDecision for Func"   
 -- END GENERATED FROM PrimTypes.curry
 
 -- BEGIN GENERATED FROM PrimTypes.curry
@@ -361,6 +393,9 @@ instance Coverable (C_IO t0) where
   cover (Choices_C_IO cd i cs) = Choices_C_IO (incCover cd) i (map cover cs)
   cover (Fail_C_IO cd info) = Fail_C_IO (incCover cd) info
   cover (Guard_C_IO cd cs cio) = Guard_C_IO (incCover cd) cs (cover cio)
+
+instance FromDecisionTo (C_IO t0) where
+  fromDecision _ _ = error "ERROR: No fromDecision for C_IO"
 -- END GENERATED FROM PrimTypes.curry
 
 instance ConvertCurryHaskell ca ha => ConvertCurryHaskell (C_IO ca) (IO ha)
@@ -444,6 +479,8 @@ instance Coverable (PrimData a) where
   cover (Fail_PrimData cd info)    = Fail_PrimData (incCover cd) info
   cover (Guard_PrimData cd cs x)   = Guard_PrimData (incCover cd) cs (cover x)
 
+instance FromDecisionTo (PrimData a) where
+  fromDecision _ _ = error "ERROR: No fromDecision for PrimData"
 -- END GENERATED FROM PrimTypes.curry
 
 instance ConvertCurryHaskell (PrimData a) a where -- needs FlexibleInstances
