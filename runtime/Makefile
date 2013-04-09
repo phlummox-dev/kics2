@@ -37,6 +37,7 @@ endif
 	echo "  Build-Depends:"                                  >> $@
 	echo "      base, containers, ghc, mtl"                  >> $@
 	echo "    , parallel-tree-search, tree-monad"            >> $@
+	echo "    , monadiccp"                                   >> $@
 	echo "  Exposed-modules:"                                >> $@
 	echo "      Basics, CurryException, Debug, IDSupply"     >> $@
 	echo "    , Installation, MonadList, MonadSearch"        >> $@
