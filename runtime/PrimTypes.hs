@@ -1,10 +1,168 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, MagicHash #-}
 module PrimTypes where
 
 import System.IO (Handle)
+import GHC.Exts (Int (I#), Int#, (==#), (<#), (*#), (+#), quotInt#, remInt#, negateInt#)
 
 import Debug
 import Types
+
+-- Curry_Int
+data C_Int
+     = C_Int Int#
+     | C_CurryInt BinInt
+     | Choice_C_Int Cover ID C_Int C_Int
+     | Choices_C_Int Cover ID ([C_Int])
+     | Fail_C_Int Cover FailInfo
+     | Guard_C_Int Cover Constraints C_Int
+
+instance Show C_Int where
+  showsPrec d (Choice_C_Int cd i x y) = showsChoice d cd i x y
+  showsPrec d (Choices_C_Int cd i xs) = showsChoices d cd i xs
+  showsPrec d (Guard_C_Int cd c e) = showsGuard d cd c e
+  showsPrec _ (Fail_C_Int _ _) = showChar '!'
+  showsPrec d (C_Int x1) = shows (I# x1)
+  showsPrec d (C_CurryInt x1) = case (const $## x1) emptyCs of
+    Choice_BinInt _ _ _ _ -> shows x1
+    Choices_BinInt _ _ _  -> shows x1
+    Fail_BinInt _ _       -> shows x1
+    Guard_BinInt _ _ _    -> shows x1
+    gnfBinInt             -> shows (I# (curryint2primint gnfBinInt))
+
+instance Read C_Int where
+  readsPrec d s = map readInt (readsPrec d s) where readInt (I# i, s) = (C_Int i, s)
+
+instance NonDet C_Int where
+  choiceCons = Choice_C_Int
+  choicesCons = Choices_C_Int
+  failCons = Fail_C_Int
+  guardCons = Guard_C_Int
+  try (Choice_C_Int cd i x y) = tryChoice cd i x y
+  try (Choices_C_Int cd i xs) = tryChoices cd i xs
+  try (Fail_C_Int cd info) = Fail cd info
+  try (Guard_C_Int cd c e) = Guard cd c e
+  try x = Val x
+  match f _ _ _ _ _ (Choice_C_Int cd i x y) = f cd i x y
+  match _ f _ _ _ _ (Choices_C_Int cd i@(NarrowedID _ _) xs) = f cd i xs
+  match _ _ f _ _ _ (Choices_C_Int cd i@(FreeID _ _) xs) = f cd i xs
+  match _ _ _ _ _ _ (Choices_C_Int _  i _) = error ("Prelude.Int.match: Choices with ChoiceID " ++ (show i))
+  match _ _ _ f _ _ (Fail_C_Int cd info) = f cd info
+  match _ _ _ _ f _ (Guard_C_Int cd cs e) = f cd cs e
+  match _ _ _ _ _ f x = f x
+
+instance Generable C_Int where
+  generate s = Choices_C_Int defCover (freeID [1] s) [C_CurryInt (generate (leftSupply s))]
+
+instance NormalForm C_Int where
+  ($!!) cont x@(C_Int _) cs = cont x cs
+  ($!!) cont (C_CurryInt x1) cs = ((\y1 -> cont (C_CurryInt y1)) $!! x1) cs
+  ($!!) cont (Choice_C_Int cd i x y) cs = nfChoice cont cd i x y cs
+  ($!!) cont (Choices_C_Int cd i xs) cs = nfChoices cont cd i xs cs
+  ($!!) cont (Guard_C_Int cd c x) cs = guardCons cd c ((cont $!! x) (addCs c cs))
+  ($!!) _ (Fail_C_Int cd info) _ = failCons cd info
+  ($##) cont x@(C_Int _) cs = cont x cs
+  ($##) cont (C_CurryInt x1) cs = ((\y1 -> cont (C_CurryInt y1)) $## x1) cs
+  ($##) cont (Choice_C_Int cd i x y) cs = gnfChoice cont cd i x y cs
+  ($##) cont (Choices_C_Int cd i xs) cs = gnfChoices cont cd i xs cs
+  ($##) cont (Guard_C_Int cd c x) cs = guardCons cd c ((cont $## x) (addCs c cs))
+  ($##) _ (Fail_C_Int cd info) _ = failCons cd info
+  searchNF search cont x@(C_Int _) = cont x
+  searchNF search cont (C_CurryInt x1) = search (\y1 -> cont (C_CurryInt y1)) x1
+  searchNF _ _ x = error ("Prelude.Int.searchNF: no constructor: " ++ (show x))
+
+instance Unifiable C_Int where
+  (=.=) (C_Int      x1) (C_Int      y1) _ = if (x1 ==# y1) then C_Success else Fail_C_Success defCover defFailInfo
+  (=.=) (C_Int      x1) (C_CurryInt y1) cs = ((primint2curryint x1) =:= y1) cs
+  (=.=) (C_CurryInt x1) (C_Int      y1) cs = (x1 =:= (primint2curryint y1)) cs
+  (=.=) (C_CurryInt x1) (C_CurryInt y1) cs = (x1 =:= y1) cs
+  (=.=) _ _ _ = Fail_C_Success defCover defFailInfo
+  (=.<=) (C_Int      x1) (C_Int      y1) _ = if (x1 ==# y1) then C_Success else Fail_C_Success defCover defFailInfo
+  (=.<=) (C_Int      x1) (C_CurryInt y1) cs = ((primint2curryint x1) =:<= y1) cs
+  (=.<=) (C_CurryInt x1) (C_Int      y1) cs = (x1 =:<= (primint2curryint y1)) cs
+  (=.<=) (C_CurryInt x1) (C_CurryInt y1) cs = (x1 =:<= y1) cs
+  (=.<=) _ _ _= Fail_C_Success defCover defFailInfo
+  bind i (C_Int      x2) = (i :=: ChooseN 0 1) : bind (leftID i) (primint2curryint x2)
+  bind i (C_CurryInt x2) = (i :=: ChooseN 0 1) : bind (leftID i) x2
+  bind i (Choice_C_Int cd j l r) = [(ConstraintChoice cd j (bind i l) (bind i r))]
+  bind i (Choices_C_Int cd j@(FreeID _ _) xs) = bindOrNarrow i cd j xs
+  bind i (Choices_C_Int cd j@(NarrowedID _ _) xs) = [(ConstraintChoices cd j (map (bind i) xs))]
+  bind _ c@(Choices_C_Int cd i@(ChoiceID _) _) = error ("Prelude.Int.bind: Choices with ChoiceID: " ++ (show c))
+  bind _ (Fail_C_Int cd info) = [Unsolvable info]
+  bind i (Guard_C_Int cd cs e) = getConstrList cs ++ (bind i e)
+  lazyBind i (C_Int      x2) = [i :=: ChooseN 0 1, leftID i :=: LazyBind (lazyBind (leftID i) (primint2curryint x2))]
+  lazyBind i (C_CurryInt x2) = [i :=: ChooseN 0 1, leftID i :=: LazyBind (lazyBind (leftID i) x2)]
+  lazyBind i (Choice_C_Int cd j l r) = [(ConstraintChoice cd j (lazyBind i l) (lazyBind i r))]
+  lazyBind i (Choices_C_Int cd j@(FreeID _ _) xs) = lazyBindOrNarrow i cd j xs
+  lazyBind i (Choices_C_Int cd j@(NarrowedID _ _) xs) = [(ConstraintChoices cd j (map (lazyBind i) xs))]
+  lazyBind _ c@(Choices_C_Int cd i@(ChoiceID _) _) = error ("Prelude.Int.lazyBind: Choices with ChoiceID: " ++ (show c))
+  lazyBind _ (Fail_C_Int cd info) = [Unsolvable info]
+  lazyBind i (Guard_C_Int cd cs e) = getConstrList cs ++ [(i :=: (LazyBind (lazyBind i e)))]
+
+instance Coverable C_Int where
+  cover x@(C_Int _)             = x
+  cover (C_CurryInt x)          = C_CurryInt (cover x)
+  cover (Choice_C_Int cd i x y) = Choice_C_Int (incCover cd) i (cover x) (cover y)
+  cover (Choices_C_Int cd i xs) = Choices_C_Int (incCover cd) i (map cover xs)
+  cover (Fail_C_Int cd info)    = Fail_C_Int (incCover cd) info
+  cover (Guard_C_Int cd cs x)   = Guard_C_Int (incCover cd) cs (cover x)
+
+instance FromDecisionTo C_Int where
+  fromDecision i ((ChooseN 0 1),_) = 
+    do
+     x3 <- lookupValue (leftID i)
+     return (C_CurryInt x3)
+  fromDecision _ (NoDecision,j) = return (generate (supply j))
+  fromDecision i (ChooseLeft,_) = error ("Prelude.Int.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision i (ChooseRight,_) = error ("Prelude.Int.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _ ((LazyBind _),_) = error "Prelude.Int.fromDecision: No rule for LazyBind decision yet"
+
+instance ConvertCurryHaskell C_Int Int where
+  toCurry (I# i) = C_Int i
+
+  fromCurry (C_Int i)      = I# i
+  fromCurry (C_CurryInt i) = I# (curryint2primint i)
+  fromCurry _              = error "KiCS2 error: Int data with no ground term"
+
+instance ConvertCurryHaskell C_Int Integer where
+  toCurry i = int2C_Int (fromInteger i)
+   where
+    int2C_Int (I# c) = C_Int c
+
+  fromCurry (C_Int      i) = toInteger (I# i)
+  fromCurry (C_CurryInt i) = toInteger (I# (curryint2primint i))
+  fromCurry _              = error "KiCS2 error: Int data with no ground term"
+
+primint2curryint :: Int# -> BinInt
+primint2curryint n
+  | n <#  0#  = Neg (primint2currynat (negateInt# n))
+  | n ==# 0#  = Zero
+  | otherwise = Pos (primint2currynat n)
+
+primint2currynat :: Int# -> Nat
+primint2currynat n
+  | n ==# 1#                = IHi
+  | (n `remInt#` 2#) ==# 0# = O (primint2currynat (n `quotInt#` 2#))
+  | otherwise               = I (primint2currynat (n `quotInt#` 2#))
+
+currynat2primint :: Nat -> Int#
+currynat2primint IHi   = 1#
+currynat2primint (O n) = 2# *# currynat2primint n
+currynat2primint (I n) = 2# *# currynat2primint n +# 1#
+currynat2primint _ = error "KiCS2 error: Prelude.currynat2primint: no ground term"
+
+curryint2primint :: BinInt -> Int#
+curryint2primint Zero    = 0#
+curryint2primint (Pos n) = currynat2primint n
+curryint2primint (Neg n) = negateInt# (currynat2primint n)
+curryint2primint _ = error "KiCS2 error: Prelude.curryint2primint: no ground term"
+
+-- ---------------------------------------------------------------------------
+-- Constrainable instances:
+-- ---------------------------------------------------------------------------
+
+instance Constrainable C_Int (FDTerm Int) where
+  toCsExpr (Choices_C_Int _ i@(FreeID _ _) _) = FDVar i
+  toCsExpr v                                  = Const (fromCurry v)
 
 -- BinInt
 

@@ -1,12 +1,13 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module MCPSolver where
 
 import ExternalSolver
 import Types
 import FDData
-import qualified Curry_Prelude as CP
+import PrimTypes
 
 import Data.Expr.Sugar
 import Control.CP.ComposableTransformers (solve)
@@ -56,7 +57,7 @@ instance ExternalFDSolver MCPSolver FDConstraint where
                                                , strategy     :: Maybe LabelingStrategy
                                                }
 
-  newtype Solutions MCPSolver FDConstraint = SolWrapper (SolutionInfo CP.C_Int (FDTerm Int))
+  newtype Solutions MCPSolver FDConstraint = SolWrapper (SolutionInfo C_Int (FDTerm Int))
 
   translate Overton fdCs = translateOverton fdCs
   translate Gecode  fdCs = translateGecode fdCs

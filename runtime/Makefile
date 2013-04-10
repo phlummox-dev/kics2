@@ -35,14 +35,14 @@ endif
 	echo ""                                                  >> $@
 	echo "Library"                                           >> $@
 	echo "  Build-Depends:"                                  >> $@
-	echo "      base, containers, ghc, mtl"                  >> $@
-	echo "    , parallel-tree-search, tree-monad"            >> $@
-	echo "    , monadiccp"                                   >> $@
+	echo "      base, containers, ghc, monadiccp"            >> $@
+	echo "    , mtl, parallel-tree-search, tree-monad"       >> $@
 	echo "  Exposed-modules:"                                >> $@
-	echo "      Basics, CurryException, Debug, IDSupply"     >> $@
-	echo "    , Installation, MonadList, MonadSearch"        >> $@
-	echo "    , PrimTypes, SafeExec"                         >> $@
+	echo "      Basics, CurryException, Debug, FDData"       >> $@
+	echo "    , IDSupply, Installation, MonadList"           >> $@
+	echo "    , MonadSearch, PrimTypes, SafeExec"            >> $@
 	echo "  Other-modules:"                                  >> $@
-	echo "      ConstStore, ID, Search, Solver"              >> $@
-	echo "    , Strategies, Types"                           >> $@
+	echo "      ConstStore, ExternalSolver, ID, MCPSolver"   >> $@
+	echo "    , Search, Solver, SolverControl, Strategies"   >> $@
+	echo "    , Types"                                       >> $@
 	echo "  hs-source-dirs: ., $(IDSUPPLYDIR)"               >> $@

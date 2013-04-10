@@ -7,7 +7,7 @@ module SolverControl where
 
 import Types
 import FDData
-import {-# SOURCE #-} MCPSolver -- necessary to prevent import cycles
+import MCPSolver
 
 import ExternalSolver
 

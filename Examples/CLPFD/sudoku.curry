@@ -36,7 +36,7 @@ readSudoku s = map (map transDigit) s
    transDigit c = if c==' ' then x else ord c - ord '0'
       where x free
 
--- sudoku s1 l where l free
+-- usage: sudoku s1 l where l free
 
 s1 = ["9  2  5  ",
       " 4  6  3 ",
