@@ -149,7 +149,7 @@ varInExpS exp = (replace x y (Var v)) =:= exp &> v where x, y, v free
 varInExpEq :: Exp -> VarName
 varInExpEq exp = iff (replace x y (Var v) == exp) v where x, y, v free
 
--- find a variable in an expression having 20003 nodes
+-- find a variable in an expression having 25003 nodes
 goal_expVar_S  = varInExpS  (genExpWithVar 25000)
 goal_expVar_Eq = varInExpEq (genExpWithVar 25000)
 

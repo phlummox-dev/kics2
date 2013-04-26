@@ -118,7 +118,7 @@ halfKey =  mapFst (`div` 2)
 mapFst :: (a -> b) -> (a, c) -> (b, c)
 mapFst f (a, b) = (f a, b)
 
-{- original (&)
+-- original (&)
 (&) :: C_Success -> C_Success -> ConstStore -> C_Success
 (&) C_Success                   s _  = s
 (&) x@(Fail_C_Success _ _)      _ _  = x
@@ -126,29 +126,25 @@ mapFst f (a, b) = (f a, b)
 (&) (Choice_C_Success cd i a b) s cs = Choice_C_Success  cd i ((a & s) cs) ((b & s) cs)
 (&) (Choices_C_Success cd i xs) s cs = 
       Choices_C_Success cd (narrowID i) (map (\x -> (x & s) cs) xs)
--}
 
+{-
+-- lift Guards with structural and value constraints
 (&) :: C_Success -> C_Success -> ConstStore -> C_Success
-(&) C_Success                                  y _  = y
-(&) x@(Fail_C_Success _ _)                     _ _  = x
-(&) (Guard_C_Success cd c@(StructConstr _) e)  y cs = Guard_C_Success cd c ((e & y) $! addCs c cs)
-(&) (Guard_C_Success cd c@(ValConstr _ _ _) e) y cs = Guard_C_Success cd c ((e & y) $! addCs c cs)
-(&) x                                          y cs = maySwitch y x cs
+(&) C_Success                y _  = y
+(&) x@(Fail_C_Success _ _)   _ _  = x
+(&) (Guard_C_Success cd c e) y cs = Guard_C_Success cd c ((e & y) $! addCs c cs)
+(&) x                        y cs = maySwitch y x cs
 
 -- lift Guards with structural and value constraints
 maySwitch :: C_Success -> C_Success -> ConstStore -> C_Success
-maySwitch C_Success              x                  _  = x
-maySwitch y@(Fail_C_Success _ _) _                  _  = y
-maySwitch (Guard_C_Success cd c@(StructConstr _) e) x  cs = Guard_C_Success cd c ((x & e) $! addCs c cs)
-maySwitch (Guard_C_Success cd c@(ValConstr _ _ _) e) x cs = Guard_C_Success cd c ((x & e) $! addCs c cs)
-maySwitch y (Choice_C_Success cd i a b)                cs = Choice_C_Success cd i ((a & y) cs) ((b & y) cs)
-maySwitch y (Choices_C_Success cd i xs)                cs = Choices_C_Success cd (narrowID i) (map (\x -> (x & y) cs) xs)
-maySwitch y (Guard_C_Success cd c e)                   cs = Guard_C_Success cd c ((e & y) $! addCs c cs)
-maySwitch (Guard_C_Success cd c e) x                   cs = Guard_C_Success cd c ((x & e) $! addCs c cs)
-maySwitch y x                                          _  = error $ "maySwitch: " ++ show y ++ " " ++ show x
+maySwitch C_Success                x    _  = x
+maySwitch y@(Fail_C_Success _ _)   _    _  = y
+maySwitch (Guard_C_Success cd c e) x    cs = Guard_C_Success cd c ((x & e) $! addCs c cs)
+maySwitch y (Choice_C_Success cd i a b) cs = Choice_C_Success cd i ((a & y) cs) ((b & y) cs)
+maySwitch y (Choices_C_Success cd i xs) cs = Choices_C_Success cd (narrowID i) (map (\x -> (x & y) cs) xs)
+maySwitch y x                           _  = error $ "maySwitch: " ++ show y ++ " " ++ show x
 
-
-{- interleaved (&) from Bernd
+-- interleaved (&) from Bernd
 (&) :: C_Success -> C_Success -> C_Success
 (&) C_Success        y = y
 (&) x@Fail_C_Success _ = x
@@ -162,4 +158,20 @@ maySwitch y (Choice_C_Success i a b) = Choice_C_Success i (a & y) (b & y)
 maySwitch y (Choices_C_Success i xs) = Choices_C_Success (narrowID i) (map (& y) xs)
 maySwitch y (Guard_C_Success cs e)   = Guard_C_Success cs (e & y)
 maySwitch y x                        = error $ "maySwitch: " ++ show y ++ " " ++ show x
+
+
+-- interleaved (&) from Bernd
+(&) :: C_Success -> C_Success -> ConstStore -> C_Success
+(&) C_Success        y _ = y
+(&) x@(Fail_C_Success _ _) _ _ = x
+(&) x                y cs = maySwitch y x cs
+
+maySwitch :: C_Success -> C_Success -> ConstStore -> C_Success
+maySwitch C_Success              x _ = x
+maySwitch y@(Fail_C_Success _ _) _ _ = y
+maySwitch (Guard_C_Success cd c e) x cs = Guard_C_Success cd c ((x & e) $! addCs c cs)
+maySwitch y (Choice_C_Success cd i a b) cs = Choice_C_Success cd i ((a & y) cs) ((b & y) cs)
+maySwitch y (Choices_C_Success cd i xs) cs = Choices_C_Success cd (narrowID i) (map (\x -> (x & y) cs) xs)
+maySwitch y (Guard_C_Success cd c e) cs   = Guard_C_Success cd c ((e & y) $! addCs c cs)
+maySwitch y x                       _ = error $ "maySwitch: " ++ show y ++ " " ++ show x
 -}

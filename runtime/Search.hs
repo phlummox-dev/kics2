@@ -17,6 +17,7 @@ import Types
 import MonadSearch
 import SolverControl -- for solving wrapped constraints
 
+
 -- ---------------------------------------------------------------------------
 -- Search combinators for top-level search in the IO monad
 -- ---------------------------------------------------------------------------
@@ -123,24 +124,26 @@ getNormalForm :: NormalForm a => NonDetExpr a -> IO a
 getNormalForm goal = do
   s <- initSupply
   let normalForm = const $!! goal s emptyCs $ emptyCs
-  return $ searchForWrappedCs normalForm []
+  return $ searchForWrappedCs [] normalForm
 
 -- search normalized expression for Guards containing wrapped constraints and collect these constraints in one Guard
-searchForWrappedCs :: NormalForm a => a -> [WrappedConstraint] -> a
-searchForWrappedCs x wcs = match searchChoice searchNarrowed choicesCons failCons searchGuard searchVal x
-  where searchChoice cd i x1 x2            = choiceCons cd i (searchForWrappedCs x1 wcs) (searchForWrappedCs x2 wcs)
-        searchNarrowed cd i xs             = choicesCons cd i (map (\x' -> searchForWrappedCs x' wcs) xs)
-        searchGuard _ (WrappedConstr wc) e = searchForWrappedCs e (wcs ++ wc)
-        searchGuard cd c e                 = guardCons cd c (searchForWrappedCs e wcs)
-        searchVal v | null wcs             = v
-                    | otherwise            = guardCons defCover (WrappedConstr wcs) v
-
-{- original implementation
+searchForWrappedCs :: NormalForm a => [WrappedConstraint] -> a -> a
+searchForWrappedCs wcs = match searchChoice searchNarrowed searchFree failCons searchGuard searchVal
+  where searchChoice cd i x1 x2            = choiceCons cd i (searchForWrappedCs wcs x1) (searchForWrappedCs wcs x2)
+        searchNarrowed cd i xs             = choicesCons cd i (map (searchForWrappedCs wcs) xs)
+        searchFree cd i xs                 = constrain $ choicesCons cd i xs
+	searchGuard _ (WrappedConstr wc) e = searchForWrappedCs (wc++wcs) e 
+        searchGuard cd c e                 = guardCons cd c (searchForWrappedCs wcs e)
+        searchVal v                        = constrain v
+        constrain x                        = if null wcs then x else guardCons defCover (WrappedConstr (reverse wcs)) x
+{-
+-- original implementation
 getNormalForm :: NormalForm a => NonDetExpr a -> IO a
 getNormalForm goal = do
   s <- initSupply
   return $ const $!! goal s emptyCs $ emptyCs
 -}
+
  -- |Evaluate a deterministic expression without search
 evalD :: Show a => DetExpr a -> IO ()
 evalD goal = print (goal emptyCs)
@@ -574,7 +577,8 @@ computeWithPar goal = getNormalForm goal >>= fromList . parSearch . searchMSearc
 
  -- |Collect results of a non-deterministic computation in a monadic structure
 encapsulatedSearch :: (MonadSearch m, NormalForm a) => a -> ConstStore -> m a
-encapsulatedSearch x store = searchMSearch $ const $!! x $ store
+--encapsulatedSearch x store = searchMSearch $ const $!! x $ store
+encapsulatedSearch x store = searchMSearch $ (searchForWrappedCs []) $ const $!! x $ store
 
 -- ---------------------------------------------------------------------------
 -- Generic search using MonadPlus instances for the result
