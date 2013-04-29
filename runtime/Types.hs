@@ -148,15 +148,15 @@ class (NonDet a, Show a) => NormalForm a where
 
 -- |Auxiliary function to apply the continuation to the normal forms of the
 -- two alternatives of a binary choice.
-nfChoice :: (NormalForm a, NonDet b) 
+nfChoice :: (NormalForm a, NonDet b)
          => (a -> ConstStore -> b) -> Cover -> ID -> a -> a -> ConstStore -> b
 nfChoice cont cd i x1 x2 cs = case i of
   ChoiceID      _ -> choiceCons cd i ((cont $!! x1) cs) ((cont $!! x2) cs)
-  _               -> internalError "Basics.nfChoice: no ChoiceID" 
+  _               -> internalError "Basics.nfChoice: no ChoiceID"
 
 -- |Auxiliary function to apply the continuation to the normal forms of the
 -- n alternatives of a n-ary choice.
-nfChoices :: (NormalForm a, NonDet b) 
+nfChoices :: (NormalForm a, NonDet b)
           => (a -> ConstStore -> b) -> Cover -> ID -> [a] -> ConstStore -> b
 nfChoices cont cd i xs cs = case i of
    ChoiceID _     -> internalError "Basics.nfChoices: ChoiceID"
@@ -165,7 +165,7 @@ nfChoices cont cd i xs cs = case i of
 
 -- |Auxiliary function to apply the continuation to the ground normal forms of
 -- the two alternatives of a binary choice.
-gnfChoice :: (NormalForm a, NonDet b) 
+gnfChoice :: (NormalForm a, NonDet b)
           => (a -> ConstStore -> b) -> Cover -> ID -> a -> a -> ConstStore -> b
 gnfChoice cont cd i x1 x2 cs = case i of
   ChoiceID _ -> choiceCons cd i ((cont $## x1) cs) ((cont $## x2) cs)
@@ -173,7 +173,7 @@ gnfChoice cont cd i x1 x2 cs = case i of
 
 -- |Auxiliary function to apply the continuation to the ground normal forms of
 -- the n alternatives of a n-ary choice.
-gnfChoices :: (NormalForm a, NonDet b) 
+gnfChoices :: (NormalForm a, NonDet b)
            => (a -> ConstStore -> b) -> Cover -> ID -> [a] -> ConstStore -> b
 gnfChoices cont cd i xs cs = narrows cs cd i (\x -> (cont $## x) cs) xs
 
@@ -234,8 +234,8 @@ unifyMatch x y cs = match uniChoice uniNarrowed uniFree failCons uniGuard uniVal
       where
       univChoice cd j y1 y2   = choiceCons cd  j (uniWith cs' y1) (uniWith cs' y2)
       univNarrowed cd j ys    = choicesCons cd j (map (uniWith cs') ys)
-      univFree cd j ys        = lookupCs cs j (uniWith cs') 
-                                 (if isCovered cd then uniWith cs' (narrows cs' cd j id ys) 
+      univFree cd j ys        = lookupCs cs j (uniWith cs')
+                                 (if isCovered cd then uniWith cs' (narrows cs' cd j id ys)
                                                   else (bindToVal j v cs'))
       univGuard cd c          = guardCons cd c . (uniWith $! c `addCs` cs')
       univVal w            = (v =.= w) cs'
@@ -265,19 +265,19 @@ unifyTry xVal yVal csVal = unify (try xVal) (try yVal) csVal -- 1. compute HNF h
   unify hx@(Free cdi i xs) hy@(Free cdj j nfy) cs = lookupCs cs i
     (\x -> unify (try x) hy cs)
     (lookupCs cs j (\y -> unify hx (try y) cs)
-                   (if isCovered cdi 
+                   (if isCovered cdi
                     then unify (try (narrows cs cdi i id xs)) hy cs
                     else (if isCovered cdj
                            then unify hx (try (narrows cs cdj j id nfy)) cs
                            else guardCons cdi (ValConstr i nfy [i :=: BindTo j]) C_Success)))
   -- one free variable and one value
   unify (Free cdi i xs) hy@(Val y) cs = lookupCs cs i
-    (\x -> unify (try x) hy cs) 
+    (\x -> unify (try x) hy cs)
     (if isCovered cdi then unify (try (narrows cs cdi i id xs)) hy cs
                       else bindToVal i y cs)
   -- one free variable and one value
   unify hx@(Val x) (Free cdj j ys) cs = lookupCs cs j
-    (\y -> unify hx (try y) cs) 
+    (\y -> unify hx (try y) cs)
     (if isCovered cdj then unify hx (try (narrows cs cdj j id ys)) cs
                       else bindToVal j x cs)
 
@@ -317,8 +317,8 @@ constrain cd i v = guardCons cd (ValConstr i v (bind i v)) C_Success
       uniyNarrowed cd j ys   = choicesCons cd j (map (unifyWith cs') ys)
       uniyGuard cd c         = guardCons cd c . (unifyWith $! c `addCs` cs')
       uniyVal vy          = (vx =.<= vy) cs'
-      uniyFree cd j ys    = 
-         lookupCs cs' j (unifyWith cs') 
+      uniyFree cd j ys    =
+         lookupCs cs' j (unifyWith cs')
           (if isCovered cd
            then unifyWith cs' (narrows cs' cd j id ys)
            else guardCons cd (StructConstr [j :=: LazyBind (lazyBind j vx)]) C_Success)
@@ -399,6 +399,11 @@ instance NonDet C_Success where
   choicesCons = Choices_C_Success
   failCons = Fail_C_Success
   guardCons = Guard_C_Success
+--     where guard cd cs (Guard_C_Success _ ds x) = Guard_C_Success cd (ConcurrentC [cs, ds]) x
+--           guard cd cs (Choice_C_Success ce i x y) = Choice_C_Success ce i (guard cd cs x) (guard cd cs y) -- TODO evil!
+--           guard cd cs (Choices_C_Success ce i xs) = Choices_C_Success ce i (map (guard cd cs) xs) -- TODO evil!
+--           guard cd cs x                        = Guard_C_Success cd cs x
+
   try (Choice_C_Success cd i x y) = tryChoice cd i x y
   try (Choices_C_Success cd i xs) = tryChoices cd i xs
   try (Fail_C_Success cd info) = Fail cd info
@@ -436,14 +441,14 @@ instance Unifiable C_Success where
   (=.<=) _ _ _ = Fail_C_Success defCover defFailInfo
   bind i C_Success = ((i :=: (ChooseN 0 0)):(concat []))
   bind i (Choice_C_Success cd j l r) = [(ConstraintChoice cd j (bind i l) (bind i r))]
-  bind i (Choices_C_Success cd j@(FreeID _ _) xs) = bindOrNarrow i cd j xs 
+  bind i (Choices_C_Success cd j@(FreeID _ _) xs) = bindOrNarrow i cd j xs
   bind i (Choices_C_Success cd j@(NarrowedID _ _) xs) = [(ConstraintChoices cd j (map (bind i) xs))]
   bind _ (Choices_C_Success cd i@(ChoiceID _) _) = internalError ("Prelude.Success.bind: Choices with ChoiceID: " ++ (show i))
   bind _ (Fail_C_Success cd info) = [Unsolvable info]
   bind i (Guard_C_Success _ cs e) = (getConstrList cs) ++ (bind i e)
   lazyBind i C_Success = [(i :=: (ChooseN 0 0))]
   lazyBind i (Choice_C_Success cd j l r) = [(ConstraintChoice cd j (lazyBind i l) (lazyBind i r))]
-  lazyBind i (Choices_C_Success cd j@(FreeID _ _) xs) = lazyBindOrNarrow i cd j xs 
+  lazyBind i (Choices_C_Success cd j@(FreeID _ _) xs) = lazyBindOrNarrow i cd j xs
   lazyBind i (Choices_C_Success cd j@(NarrowedID _ _) xs) = [(ConstraintChoices cd j (map (lazyBind i) xs))]
   lazyBind _ (Choices_C_Success cd i@(ChoiceID _) _) = internalError ("Prelude.Success.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _ (Fail_C_Success cd info) = [Unsolvable info]
@@ -457,6 +462,78 @@ instance Coverable C_Success where
   cover (Fail_C_Success cd info)  = Fail_C_Success (incCover cd) info
   cover (Guard_C_Success cd cs x)    = Guard_C_Success (incCover cd) cs (cover x)
 -- END GENERATED FROM PrimTypes.curry
+
+(&) :: C_Success -> C_Success -> ConstStore -> C_Success
+(&) C_Success                    s _  = s
+(&) x@(Fail_C_Success       _ _) _ _  = x
+(&) (Choice_C_Success  cd i a b) s cs = Choice_C_Success  cd i ((a & s) cs) ((b & s) cs)
+(&) (Choices_C_Success cd i  xs) s cs = Choices_C_Success cd (narrowID i) (map (\x -> (x & s) cs) xs)
+-- (&) (Guard_C_Success   cd   c e) s cc = Guard_C_Success cd c ((e & s) $! addCs c cc)
+
+(&) (Guard_C_Success   cd   c e) s cc = case s of
+  Guard_C_Success _ d x -> combine c d x
+  _                     -> case c of
+    SuspendedC i l -> Guard_C_Success cd (ConcurrentC [SuspendedC i (l & e $! cc)]) s
+    _ -> Guard_C_Success cd c ((e & s) $! addCs c cc)
+  where
+  combine (ConcurrentC cs) (ConcurrentC ds) x = Guard_C_Success cd (ConcurrentC (cs ++ ds))                     ((e & x) emptyCs)
+  combine (ConcurrentC cs) (SuspendedC j r) x = Guard_C_Success cd (ConcurrentC (cs ++ [promote j r x]))        e
+  combine (ConcurrentC cs) d                x = Guard_C_Success cd (ConcurrentC (cs ++ [d]))                    ((e & x) emptyCs)
+  combine (SuspendedC i l) (ConcurrentC ds) x = Guard_C_Success cd (ConcurrentC (promote i l e : ds))           x
+  combine (SuspendedC i l) (SuspendedC j r) x = Guard_C_Success cd (ConcurrentC [promote i l e, promote j r x]) C_Success
+  combine (SuspendedC i l) d                x = Guard_C_Success cd (ConcurrentC [promote i l e, d])             x
+  combine c                (ConcurrentC ds) x = Guard_C_Success cd (ConcurrentC (c : ds))                       ((e & x) emptyCs)
+  combine c                (SuspendedC j r) x = Guard_C_Success cd (ConcurrentC ([c, promote j r x]))           e
+  combine c                d                x = Guard_C_Success cd (ConcurrentC [c,d])                          ((e & x) emptyCs)
+
+  promote v a b = SuspendedC v (a & b $! cc)
+--
+-- (&) x                            C_Success _ = x
+-- (&) _                            y@(Fail_C_Success    _ _) _ = y
+-- (&) x                            y@(Guard_C_Success _ _ _) s = (y & x) s
+
+
+
+
+
+(&>) :: NonDet a => C_Success -> a -> a
+C_Success                  &> x = x
+Fail_C_Success    cd info  &> _ = failCons   cd info
+Choice_C_Success  cd i a b &> x = choiceCons cd i (a &> x) (b &> x)
+Choices_C_Success cd i xs  &> x = narrows emptyCs   cd i (&> x) xs
+-- Guard_C_Success   cd c e   &> x = guardCons cd c (e &> x)
+
+Guard_C_Success   cd c e   &> x = case try x of
+  Guard _ d y -> combine c d y
+  _             -> case c of
+    SuspendedC i l -> guardCons cd (ConcurrentC [SuspendedC i (l & e $! emptyCs)]) x
+    _              -> guardCons cd c (e &> x)
+  where
+  combine (ConcurrentC cs) (ConcurrentC ds) x = guardCons cd (ConcurrentC (cs ++ ds))                     (e &> x)
+  combine (ConcurrentC cs) d                x = guardCons cd (ConcurrentC (cs ++ [d]))                    (e &> x)
+  combine (SuspendedC i l) (ConcurrentC ds) x = guardCons cd (ConcurrentC (promote i l e : ds))           x
+  combine (SuspendedC i l) d                x = guardCons cd (ConcurrentC [promote i l e, d])             x
+  combine c                (ConcurrentC ds) x = guardCons cd (ConcurrentC (c : ds))                       (e &> x)
+  combine c                d                x = guardCons cd (ConcurrentC [c,d])                          (e &> x)
+
+  promote v a b = SuspendedC v (a & b $! emptyCs)
+
+{- interleaved (&) from Bernd
+(&) :: C_Success -> C_Success -> C_Success
+(&) C_Success        y = y
+(&) x@Fail_C_Success _ = x
+(&) x                y = maySwitch y x
+
+maySwitch :: C_Success -> C_Success -> C_Success
+maySwitch C_Success              x = x
+maySwitch y@Fail_C_Success       _ = y
+maySwitch (Guard_C_Success cs e) x = Guard_C_Success cs (x & e)
+maySwitch y (Choice_C_Success i a b) = Choice_C_Success i (a & y) (b & y)
+maySwitch y (Choices_C_Success i xs) = Choices_C_Success (narrowID i) (map (& y) xs)
+maySwitch y (Guard_C_Success cs e)   = Guard_C_Success cs (e & y)
+maySwitch y x                        = error $ "maySwitch: " ++ show y ++ " " ++ show x
+-}
+
 
 -- ---------------------------------------------------------------------------
 -- Functions

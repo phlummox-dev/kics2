@@ -28,6 +28,7 @@ import Files
 import FlatCurry2AbstractHaskell (fcy2abs)
 import LiftCase (liftCases)
 import EliminateCond (eliminateCond)
+import EnsureRigidity (ensureRigidity)
 import Message (putErrLn, showStatus, showDetail) --, showAnalysis)
 import ModuleDeps (ModuleIdent, Source, deps)
 import Names
@@ -67,7 +68,7 @@ locateCurryFile fn = do
   exists <- doesFileExist fn
   if exists
     then return (Just fn)
-    else lookupFileInPath fn [".curry", ".lcurry"] ["."] 
+    else lookupFileInPath fn [".curry", ".lcurry"] ["."]
 
 
 makeModule :: [(ModuleIdent, Source)] -> State -> ((ModuleIdent, Source), Int)
@@ -124,8 +125,12 @@ compileModule total state ((mid, (fn, fcy)), current) = do
   let fcy' = filterPrelude opts fcy
   dump DumpFlat opts fcyName (show fcy')
 
+  showDetail opts "Transforming rigid case expressions"
+  let pRigid = ensureRigidity fcy'
+  dump DumpRigid opts rigidName (show pRigid)
+
   showDetail opts "Lifting case expressions"
-  let pLifted = liftCases True fcy'
+  let pLifted = liftCases True pRigid
   dump DumpLifted opts liftedName (show pLifted)
 
   showDetail opts "Eliminate calls to cond"
@@ -167,6 +172,7 @@ compileModule total state ((mid, (fn, fcy)), current) = do
 
     where
     fcyName        = fcyFile $ withBaseName (++ "Dump")      mid
+    rigidName      = fcyFile $ withBaseName (++ "Rigid")     mid
     liftedName     = fcyFile $ withBaseName (++ "Lifted")    mid
     elimName       = fcyFile $ withBaseName (++ "ElimCond")  mid
     renamedName    = fcyFile $ withBaseName (++ "Renamed")   mid
@@ -229,7 +235,7 @@ integrateExternals opts (AH.Prog m imps td fd od) fn = do
     ]
  where
   defaultPragmas :: String
-  defaultPragmas = 
+  defaultPragmas =
       "{-# LANGUAGE MagicHash #-}\n"
    ++ "{-# OPTIONS_GHC -fno-warn-overlapping-patterns #-}"
 

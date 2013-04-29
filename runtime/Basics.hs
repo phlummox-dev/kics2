@@ -88,13 +88,13 @@ matchInteger rules (Neg nat) cs                =
   matchNat (map (mapFst abs) $ filter ((<0).fst) rules) nat cs
 matchInteger rules Zero _                      =
   maybe (failCons 0 defFailInfo) id $ lookup 0 rules
-matchInteger rules (Pos nat) cs                = 
+matchInteger rules (Pos nat) cs                =
   matchNat (filter ((>0).fst) rules) nat cs
 matchInteger rules (Choice_BinInt cd i l r) cs =
   narrow cd i (matchInteger rules l cs) (matchInteger rules r cs)
 matchInteger rules (Choices_BinInt cd i xs) cs =
   narrows cs cd i (\x -> matchInteger rules x cs) xs
-matchInteger _     (Fail_BinInt cd info) _     = 
+matchInteger _     (Fail_BinInt cd info) _     =
   failCons cd info
 matchInteger rules (Guard_BinInt cd c int)  cs =
   guardCons cd c (matchInteger rules int $! addCs c cs)
@@ -102,7 +102,7 @@ matchInteger rules (Guard_BinInt cd c int)  cs =
 matchNat :: NonDet a => [(Int, a)] -> Nat -> ConstStore -> a
 matchNat []    _  _                    = failCons 0 defFailInfo
 matchNat rules IHi _                   = maybe (failCons 0 defFailInfo) id $ lookup 1 rules
-matchNat rules (O nat) cs              = 
+matchNat rules (O nat) cs              =
   matchNat (map halfKey $ filter (evenPos.fst) rules) nat cs
   where
   evenPos n = even n && (0 < n)
@@ -117,27 +117,3 @@ halfKey =  mapFst (`div` 2)
 
 mapFst :: (a -> b) -> (a, c) -> (b, c)
 mapFst f (a, b) = (f a, b)
-
-(&) :: C_Success -> C_Success -> ConstStore -> C_Success
-(&) C_Success                   s _  = s
-(&) x@(Fail_C_Success _ _)      _ _  = x
-(&) (Guard_C_Success cd c e)    s cs = Guard_C_Success   cd c ((e & s) $! addCs c cs)
-(&) (Choice_C_Success cd i a b) s cs = Choice_C_Success  cd i ((a & s) cs) ((b & s) cs)
-(&) (Choices_C_Success cd i xs) s cs = 
-      Choices_C_Success cd (narrowID i) (map (\x -> (x & s) cs) xs)
-
-{- interleaved (&) from Bernd
-(&) :: C_Success -> C_Success -> C_Success
-(&) C_Success        y = y
-(&) x@Fail_C_Success _ = x
-(&) x                y = maySwitch y x
-
-maySwitch :: C_Success -> C_Success -> C_Success
-maySwitch C_Success              x = x
-maySwitch y@Fail_C_Success       _ = y
-maySwitch (Guard_C_Success cs e) x = Guard_C_Success cs (x & e)
-maySwitch y (Choice_C_Success i a b) = Choice_C_Success i (a & y) (b & y)
-maySwitch y (Choices_C_Success i xs) = Choices_C_Success (narrowID i) (map (& y) xs)
-maySwitch y (Guard_C_Success cs e)   = Guard_C_Success cs (e & y)
-maySwitch y x                        = error $ "maySwitch: " ++ show y ++ " " ++ show x
--}

@@ -62,8 +62,10 @@ addToGlobalCs              _ = return ()
 
 #else
 
-addCs (StructConstr  _) store = store
-addCs (ValConstr i v _) store = id $! Map.insert (getKey i) (V v) store
+addCs (StructConstr    _) store = store
+addCs (SuspendedC    _ _) store = store
+addCs (ConcurrentC     _) store = store
+addCs (ValConstr   i v _) store = id $! Map.insert (getKey i) (V v) store
 
 combineCs = Map.union
 
@@ -76,6 +78,8 @@ pureGlobalCs   = unsafePerformIO lookupGlobalCs
 lookupGlobalCs = readIORef globalCs
 
 addToGlobalCs (StructConstr     _) = return ()
+addToGlobalCs (SuspendedC     _ _) = return ()
+addToGlobalCs (ConcurrentC      _) = return ()
 addToGlobalCs cs@(ValConstr _ _ _) = modifyIORef globalCs (addCs cs)
 
 globalCs :: IORef ConstStore

@@ -43,6 +43,7 @@ data Verbosity
 -- |Dump formats of the compiler
 data DumpFormat
   = DumpFlat        -- dump flat curry
+  | DumpRigid       -- dump flat curry after ensuring rigidity of rigid cases
   | DumpLifted      -- dump flat curry after case lifting
   | DumpEliminated  -- dump flat curry after cond elimination
   | DumpRenamed     -- dump renamed flat curry
@@ -62,7 +63,7 @@ data Extension
   | ExtUnknown String
 
 allDumps :: [DumpFormat]
-allDumps = [ DumpFlat, DumpLifted, DumpEliminated, DumpRenamed
+allDumps = [ DumpFlat, DumpRigid, DumpLifted, DumpEliminated, DumpRenamed
            , DumpFunDecls, DumpTypeDecls, DumpAbstractHs]
 
 defaultOptions :: Options
@@ -144,7 +145,7 @@ options =
         nub (DumpLifted : opts :> optDump) | opts }))
       "dump flat curry after case lifting"
   , Option [] ["dump-elim"]
-      (NoArg (\opts -> { optDump := 
+      (NoArg (\opts -> { optDump :=
         nub (DumpEliminated : opts :> optDump) | opts}))
       "dump flat curry after cond elimination"
   , Option [] ["dump-abstract-hs"]

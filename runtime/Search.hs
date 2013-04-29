@@ -63,10 +63,10 @@ toIO (C_IO             io) _     = io
 toIO (Fail_C_IO       _ _) _     = throwFail "IO action failed"
 toIO (Choice_C_IO _ _ _ _) _     = throwNondet "Non-determinism in IO occured"
 toIO (Guard_C_IO  _  cs e) store = do
-  mbSolution <- solve cs e
-  case mbSolution of
-    Nothing       -> throwFail "IO action failed"
-    Just (_, val) -> do
+  result <- solve cs e
+  case result of
+    NoSolution        -> throwFail "IO action failed"
+    Solution (_, val) -> do
       -- add the constraint to the global constraint store to make it
       -- available to subsequent operations.
       -- This is valid because no backtracking is done in IO
@@ -208,65 +208,105 @@ showChoiceTree n goal = showsTree n [] "" (try goal) []
 -- which is internally expanded to apply the constructors encountered during
 -- search.
 prdfs :: NormalForm a => (a -> IO ()) -> NonDetExpr a -> IO ()
-prdfs prt goal = getNormalForm goal >>= printValsDFS False prt
+prdfs prt goal = getNormalForm goal >>= printValsDFS False prt []
+
+isSuspended :: ID -> [Constraints] -> Bool
+isSuspended i []     = False
+isSuspended i (c:cs) = case c of
+  SuspendedC j _ | i == j -> True
+  ConcurrentC ds          -> isSuspended i (cs ++ ds)
+  _                       -> isSuspended i cs
 
 -- The first argument backTrack indicates whether backtracking is needed
-printValsDFS :: NormalForm a => Bool -> (a -> IO ()) -> a -> IO ()
-printValsDFS backTrack cont goal = do
+printValsDFS :: NormalForm a => Bool -> (a -> IO ()) -> [Constraints] -> a -> IO ()
+printValsDFS backTrack cont constraints goal = do
   trace $ "prdfs: " ++ take 200 (show goal)
+  trace $ "suspended: " ++ show constraints
   match prChoice prNarrowed prFree prFail prGuard prVal goal
   where
   prFail _ _       = return ()
-  prVal v          = searchNF (printValsDFS backTrack) cont v
+  prVal v          = case constraints of
+    [] -> searchNF (\c -> printValsDFS backTrack c []) cont v
+    _  -> putStrLn "Goal suspended!"
   prChoice _ i x y = lookupDecision i >>= follow
     where
-    follow ChooseLeft  = printValsDFS backTrack cont x
-    follow ChooseRight = printValsDFS backTrack cont y
-    follow NoDecision  = if backTrack then do decide True ChooseLeft  x
-                                              decide True ChooseRight y
-                                              setDecision i NoDecision
-                                      else do decide True  ChooseLeft x
-                                              decide False ChooseRight y
+    follow ChooseLeft  = printValsDFS backTrack cont constraints x
+    follow ChooseRight = printValsDFS backTrack cont constraints y
+    follow NoDecision  = do
+                         setDecision i ChooseLeft  >> prSuspended constraints [] x
+                         setDecision i ChooseRight >> prSuspended constraints [] y
+                         setDecision i NoDecision
+--     follow NoDecision  = if backTrack then do decide True ChooseLeft  x
+--                                               decide True ChooseRight y
+--                                               setDecision i NoDecision
+--                                       else do decide True  ChooseLeft x
+--                                               decide False ChooseRight y
       -- Assumption 1: Binary choices can only be set to one of
       -- [NoDecision, ChooseLeft, ChooseRight], therefore the reset action may
       -- be ignored in between
-      where decide bt c a = setDecision i c >> printValsDFS bt cont a
+--       where decide bt c a = setDecision i c >> printValsDFS bt cont constraints a
     follow c           = error $ "Search.prChoice: " ++ show c
 
   prFree _ i xs   = lookupDecisionID i >>= follow
     where
     follow (LazyBind cs, _) = processLB backTrack cs i xs
-    follow (ChooseN c _, _) = printValsDFS backTrack cont (xs !! c)
-    follow (NoDecision , j) = cont $ choicesCons defCover j xs
+    follow (ChooseN c _, _) = printValsDFS backTrack cont constraints (xs !! c)
+    follow (NoDecision , j)
+      | isSuspended i constraints = putStrLn "Goal suspended!"
+      | otherwise     = cont $ choicesCons defCover j xs
     follow c                = error $ "Search.prFree: " ++ show c
 
   prNarrowed _ i@(NarrowedID pns _) xs = lookupDecision i >>= follow
     where
     follow (LazyBind cs) = processLB backTrack cs i xs
-    follow (ChooseN c _) = printValsDFS backTrack cont (xs !! c)
+    follow (ChooseN c _) = printValsDFS backTrack cont constraints (xs !! c)
     follow NoDecision
+      | isSuspended i constraints = putStrLn "Goal suspended!"
       | backTrack        = do
         foldr1 (>>) $ zipWith3 (decide True) [0 ..] xs pns
         setDecision i NoDecision
       | otherwise        = foldr1 (>>) $
         zipWithButLast3 (decide True) (decide False) [0 ..] xs pns
-      where decide bt n a pn = setDecision i (ChooseN n pn) >> printValsDFS bt cont a
+      where decide bt n a pn = setDecision i (ChooseN n pn) >> printValsDFS bt cont constraints a
     follow c           = error $ "Search.prNarrowed: Bad choice " ++ show c
   prNarrowed _ i _ = error $ "Search.prNarrowed: Bad narrowed ID " ++ show i
 
-  prGuard _ cs e = solve cs e >>= \mbSltn -> case mbSltn of
-    Nothing                      -> return ()
-    Just (reset, e') | backTrack -> printValsDFS True  cont e' >> reset
-                     | otherwise -> printValsDFS False cont e'
+  prGuard cd s@(SuspendedC i c) e = traceLookup lookupDecision i >>= follow
+    where
+    follow NoDecision = putStrLn "Goal suspended!"
+    follow _          = printValsDFS backTrack cont constraints $ c &> e
+  prGuard cd (ConcurrentC cc) e = prSuspended (constraints ++ cc) [] e
+
+  prGuard _ cs e = solve cs e >>= \result -> case result of
+    NoSolution                       -> return ()
+    Suspended                        -> putStrLn "Goal suspended!"
+    Solution (reset, e') -- | backTrack -> prSuspended constraints [] e' >> reset -- printValsDFS True  cont (reverse skipped ++ cs) e' >> reset
+                         | otherwise -> prSuspended constraints [] e' >> reset -- printValsDFS False cont constraints e' -- printValsDFS False cont (reverse skipped ++ cs) e'
+
+--   trySuspended = prSuspended constraints []
+
+  prSuspended []                        skipped e = printValsDFS backTrack cont (reverse skipped) e
+  prSuspended (c@(SuspendedC i s) : cs) skipped e = traceLookup lookupDecision i >>= follow
+    where
+    follow NoDecision = prSuspended cs (c : skipped) e
+    follow _          = prSuspended cs skipped $ s &> e -- printValsDFS backTrack cont (reverse skipped ++ cs) $ s &> e -- TODO problem!
+  prSuspended (ConcurrentC ds : cs)      skipped e = prSuspended (ds ++ cs) skipped e
+  prSuspended (c : cs)                   skipped e = do
+    trace $ "Solving constraint " ++ show c
+    solve c e >>= \result -> case result of
+      NoSolution                       -> return ()
+      Suspended                        -> putStrLn "Goal suspended!"
+      Solution (reset, e') -- | backTrack -> prSuspended (reverse skipped ++ cs) [] e' >> reset -- printValsDFS True  cont (reverse skipped ++ cs) e' >> reset
+                           | otherwise -> prSuspended (reverse skipped ++ cs) [] e' >> reset -- printValsDFS False cont (reverse skipped ++ cs) e'
 
   processLB True cs i xs = do
     reset <- setUnsetDecision i NoDecision
-    printValsDFS backTrack cont
+    printValsDFS backTrack cont constraints
       (guardCons defCover (StructConstr cs) $ choicesCons defCover i xs)
     reset
   processLB False cs i xs = do
     setDecision i NoDecision
-    printValsDFS backTrack cont
+    printValsDFS backTrack cont constraints
       (guardCons defCover (StructConstr cs) $ choicesCons defCover i xs)
 
 -- |Apply the first ternary function to the zipping of three lists, but
@@ -338,9 +378,9 @@ searchDFS act goal = do
       follow c             = error $ "Search.dfsNarrowed: Bad choice " ++ show c
     dfsNarrowed _ i _ = error $ "Search.dfsNarrowed: Bad narrowed ID " ++ show i
 
-    dfsGuard _ cs e = solve cs e >>= \mbSltn -> case mbSltn of
-      Nothing          -> mnil
-      Just (reset, e') -> dfs cont e' |< reset
+    dfsGuard _ cs e = solve cs e >>= \result -> case result of
+      NoSolution           -> mnil
+      Solution (reset, e') -> dfs cont e' |< reset
 
     processLB i cs xs = decide i NoDecision
                       $ guardCons defCover (StructConstr cs) $ choicesCons defCover i xs
@@ -412,9 +452,9 @@ searchBFS act goal = do
       follow (NoDecision , j) = reset >> (cont (choicesCons defCover j zs) +++ (next cont xs ys))
       follow c                = error $ "Search.bfsFree: Bad choice " ++ show c
 
-    bfsGuard _ cs e = set >> solve cs e >>= \mbSltn -> case mbSltn of
-      Nothing            -> reset >> next cont xs ys
-      Just (newReset, a) -> bfs cont xs ys set (newReset >> reset) a
+    bfsGuard _ cs e = set >> solve cs e >>= \result -> case result of
+      NoSolution             -> reset >> next cont xs ys
+      Solution (newReset, a) -> bfs cont xs ys set (newReset >> reset) a
 
     next _     []                   [] = mnil
     next cont' []                   bs = next cont' (reverse bs) []
@@ -508,9 +548,9 @@ startIDS olddepth newdepth act goal = do
       follow c             = error $ "Search.idsNarrowed: Bad choice " ++ show c
     idsNarrowed _ i _ = error $ "Search.idsNarrowed: Bad narrowed ID " ++ show i
 
-    idsGuard _ cs e = solve cs e >>= \mbSltn -> case mbSltn of
-      Nothing          -> mnil
-      Just (reset, e') -> ids n cont e' |< reset
+    idsGuard _ cs e = solve cs e >>= \result -> case result of
+      NoSolution           -> mnil
+      Solution (reset, e') -> ids n cont e' |< reset
 
     checkDepth deeper = if (n > 0) then deeper else abort
 
@@ -582,7 +622,7 @@ searchMSearch' cont = match smpChoice smpChoices smpChoices smpFail smpGuard smp
     follow ChooseRight = searchMSearch' cont y
     follow NoDecision  = decide i ChooseLeft x `plus` decide i ChooseRight y
     follow c           = error $ "Search.smpChoice: Bad decision " ++ show c
-    plus = if isCovered cd then splus (decCover cd) i else mplus 
+    plus = if isCovered cd then splus (decCover cd) i else mplus
 
   smpChoices cd i xs = lookupDecision i >>= follow
     where
@@ -597,9 +637,11 @@ searchMSearch' cont = match smpChoice smpChoices smpChoices smpFail smpGuard smp
     sumF = if isCovered cd then ssum (decCover cd) i else msum
 
 
-  smpGuard cd cs e 
+  smpGuard cd cs e
    | isCovered cd = constrainMSearch (decCover cd) cs (searchMSearch' cont e)
-   | otherwise = solve cs e >>= maybe mzero (searchMSearch' cont . snd)
+   | otherwise = solve cs e >>= \result -> case result of
+       NoSolution -> mzero
+       Solution s -> searchMSearch' cont (snd s)
 
   processLB cd i cs xs = decide i NoDecision
                         $ guardCons cd (StructConstr cs) (choicesCons cd i xs)

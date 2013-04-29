@@ -1,31 +1,41 @@
 -- ---------------------------------------------------------------------------
 -- Constraint Solving
 -- ---------------------------------------------------------------------------
-module Solver (Solution, solve,mkSolution) where
+module Solver (Result (..), Solution, solve,mkSolution) where
 
 import Types
 
-type Solution m a = m (Maybe (m (), a))
+data Result a
+  = NoSolution
+  | Suspended
+  | Solution a
+
+type Solution m a = m (Result (m (), a))
 
 mkDecision :: Store m => ID -> Decision -> a -> Solution m a
-mkDecision i d a = setUnsetDecision i d >>= \reset -> return $ Just (reset, a)
+mkDecision i d a = setUnsetDecision i d >>= \reset -> return $ Solution (reset, a)
 
 mkSolution :: Monad m => a -> Solution m a
-mkSolution a = return $ Just (return (), a)
+mkSolution a = return $ Solution (return (), a)
+
+suspended :: Monad m => Solution m a
+suspended = return Suspended
 
 noSolution :: Monad m => Solution m a
-noSolution = return Nothing
+noSolution = return NoSolution
 
 (>>-) :: Monad m => Solution m a -> (a -> Solution m b) -> Solution m b
 ma >>- mbf = do
-  mbSolutionA <- ma
-  case mbSolutionA of
-    Nothing          -> noSolution
-    Just (resetA, a) -> do
-      mbSolutionB <- mbf a
-      case mbSolutionB of
-        Nothing          -> resetA >> noSolution
-        Just (resetB, b) -> return $ Just (resetB >> resetA, b)
+  resultA <- ma
+  case resultA of
+    NoSolution           -> noSolution
+    Suspended            -> suspended
+    Solution (resetA, a) -> do
+      resultB <- mbf a
+      case resultB of
+        NoSolution           -> resetA >> noSolution
+        Suspended            -> suspended -- TODO: resetA?
+        Solution (resetB, b) -> return $ Solution (resetB >> resetA, b)
 
 solve :: (Store m, NonDet a) => Constraints -> a -> Solution m a
 solve cnstrs val = solve' (getConstrList cnstrs) val

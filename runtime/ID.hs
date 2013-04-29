@@ -26,6 +26,7 @@ import Data.List (partition)
 import Debug
 import IDSupply hiding (getDecisionRaw, setDecisionRaw, unsetDecisionRaw)
 import qualified IDSupply
+import {-# SOURCE #-} Types (C_Success)
 
 -- ---------------------------------------------------------------------------
 -- Fail Info
@@ -76,15 +77,21 @@ data Constraint
 data Constraints
   = forall a . ValConstr ID a [Constraint]
   | StructConstr [Constraint]
+  | SuspendedC ID C_Success
+  | ConcurrentC [Constraints] -- C_Success -- TODO propably [C_Success] without ID
 
 -- a selector to get the strucural constraint information from a constraint
 getConstrList :: Constraints -> [Constraint]
 getConstrList (ValConstr _ _ c) = c
 getConstrList (StructConstr  c) = c
+getConstrList (SuspendedC  _ _) = []
+getConstrList (ConcurrentC  cs) = concatMap getConstrList cs
 
 instance Show Constraints where
-  showsPrec _ (ValConstr _ _ c) = showString "ValC "    . shows c
-  showsPrec _ (StructConstr  c) = showString "StructC " . shows c
+  showsPrec _ (ValConstr  _ _ c) = showString "ValC "        . shows c
+  showsPrec _ (StructConstr   c) = showString "StructC "     . shows c
+  showsPrec _ (SuspendedC  i cs) = showString "SuspendedC "  . shows i . showString " [...]" -- showChar ' ' -- . showString ((take 100 $ show cs) ++ " ...] ")
+  showsPrec _ (ConcurrentC   cs) = showString "ConcurrentC " . shows cs
 
 instance Eq Constraints where
  c1 == c2 = getConstrList c1 == getConstrList c2
