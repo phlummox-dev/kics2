@@ -1,5 +1,5 @@
 \documentclass[
-,hyperref={pdfpagelabels=false}
+%,hyperref={pdfpagelabels=false}
 ,xcolor=dvipsnames
 ]{beamer}
 % Die Hyperref Option hyperref={pdfpagelabels=false} verhindert die Warnung:
@@ -25,7 +25,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \title{Implementing Residuation in KiCS2}
-\date{May 08, 2013}
+\date{May (07 ? 08), 2013}
 \author[Björn Peemöller]{\texorpdfstring
 {Björn Peemöller\\\texttt{bjp@informatik.uni-kiel.de}}
 {Björn Peemöller}
@@ -35,7 +35,6 @@
 \begin{document}
 
 \begin{frame}
-\todo{check date}
 \titlepage
 \end{frame}
 
@@ -95,9 +94,9 @@ Success
 \blocktitle{Behaviour}
 
 \begin{itemize}
-\item Function application is non-deterministic
-\item Function application \emph{instantiates} free variables
-      ($\leadsto$ construction of search space)
+\item Function application is non-deterministic w.r.t free variables
+\item Function application \emph{instantiates} free variables \\
+      $\leadsto$ construction of search space
 \end{itemize}
 
 \blocktitle{Characteristics}
@@ -146,25 +145,25 @@ kics2> \textsl{x + 1 =:= 2 & x =:= 1 where x free}
 \end{kics2}
 \end{frame}
 
-\begin{frame}[fragile]%---------------------------------------------------------
-\frametitle{Evaluation strategies in Curry}
-
-
-\blocktitle{Curry supports a combination of narrowing and residuation}
-
-\begin{itemize}
-\item \emph{Narrowing} for functions defined via pattern matching
-\item \emph{Residuation} for functions defined using (rigid)
-      \code{case}-expressions
-\item Support for primitive \emph{residuation} operator
-
-\begin{curry}[Primitive residuation operator \code{ensureNotFree}]
-ensureNotFree :: a -> a
-ensureNotFree external
-\end{curry}
-\end{itemize}
-
-\end{frame}
+% \begin{frame}[fragile]%---------------------------------------------------------
+% \frametitle{Evaluation strategies in Curry}
+% 
+% 
+% \blocktitle{Curry supports a combination of narrowing and residuation}
+% 
+% \begin{itemize}
+% \item \emph{Narrowing} for functions defined via pattern matching
+% \item \emph{Residuation} for functions defined using (rigid)
+%       \code{case}-expressions
+% \item Support for primitive \emph{residuation} operator
+% 
+% \begin{curry}[Primitive residuation operator \code{ensureNotFree}]
+% ensureNotFree :: a -> a
+% ensureNotFree external
+% \end{curry}
+% \end{itemize}
+% 
+% \end{frame}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -210,7 +209,7 @@ data ID = ChoiceID Integer
 
 \begin{itemize}
 \item Constraints are used to limit the search space
-\item They are normally introduced at unification
+\item They are normally introduced by unification
 \end{itemize}
 
 \begin{haskell}[Search Space Constraints]
@@ -279,11 +278,13 @@ ensureNotFree :: Curry a => a -> a
 ensureNotFree x = case try x of
   Val x        -> x
   Choice i l r -> mkChoice i (ensureNotFree l) (ensureNotFree r)
-  \alert{Free i xs    -> mkGuard (SuspendedC i) (mkChoices (narrowID i) xs)}
+  \alert{Free i xs    -> mkGuard (SuspendedC i) (mkChoices i xs)}
   Fail         -> mkFail
   Guard cs e   -> mkGuard cs (ensureNotFree e)
   \ldots
 \end{haskell}
+
+\pause
 
 Rigid case expressions are translated to use \code{ensureNotFree}
 
@@ -326,12 +327,34 @@ data Constraints = \ldots \alert{| ConcurrentC [Constraints]}
 C_Success              \& s = s
 Fail_C_Success         \& _ = Fail_C_Success
 Choice_C_Success i a b \& s = Choice_C_Success i (a \& s) (b \& s)
-Choices_C_Success i xs \& s = Choices_C_Success i (map (\& s) xs)
 Guard_C_Success c e    \& s = case s of
   Guard_C_Success d f -> \alert{combine c d e f}
   _                   -> Guard_C_Success c (e \& s)
   where
   \alert{combine c d e f = Guard_C_Success (ConcurrentC [c, d]) (e \& f)}
+\end{haskell}
+\end{frame}
+
+\begin{frame}[fragile]%---------------------------------------------------------
+\frametitle{Extending the Top-Level Search}
+
+Suspended constraints are evaluated once the variable is bound
+
+\begin{haskell}[Top-Level Search with Support for Residuation]
+dfs :: Curry a => \alert{[Constraints] ->} Try a -> IO ()
+\ldots
+dfs suspended (Val x)
+  \alert{| not (null suspended) = putStrLn "Goal suspended!"}
+  | otherwise            = print x
+dfs suspended (Choice i l r) = lookupDecision i >>= follow
+  where
+  follow ChooseLeft  = dfs (try l)
+  follow ChooseRight = dfs (try r)
+  follow NoDecision  = decide i ChooseLeft l >> decide i ChooseRight r \medskip
+  decide i d x       = do setDecision i d
+                          \alert{wakeUp i suspended (try x)}
+                          setDecision i NoDecision
+dfs suspended (Free   i l r) = \comment{same as Choice, but stops if suspended}
 \end{haskell}
 \end{frame}
 
@@ -391,28 +414,6 @@ Guard_C_Success c e    \& s = case s of
 
 \end{frame}
 
-\begin{frame}[fragile]%---------------------------------------------------------
-\frametitle{Extending the Top-Level Search}
-
-Suspended constraints are evaluated once the variable is bound
-
-\begin{haskell}[Top-Level Search with Support for Residuation]
-dfs :: Curry a => \alert{[Constraints] ->} Try a -> IO ()
-\ldots
-dfs suspended (Val x)
-  \alert{| not (null suspended) = putStrLn "Goal suspended!"}
-  | otherwise            = print x
-dfs suspended (Choice i l r) = lookupDecision i >>= follow
-  where
-  follow ChooseLeft  = dfs (try l)
-  follow ChooseRight = dfs (try r)
-  follow NoDecision  = decide i ChooseLeft l >> decide i ChooseRight r \medskip
-  decide i d x       = do setDecision i d
-                          \alert{wakeUp i suspended (try x)}
-                          setDecision i NoDecision
-dfs suspended (Free   i l r) = \comment{same as Choice, but stops if suspended}
-\end{haskell}
-\end{frame}
 
 \begin{frame}[fragile]%---------------------------------------------------------
 \frametitle{Concurrent Objects using Residuation}
@@ -439,6 +440,27 @@ kics2> goal b where b free
 
 \end{frame}
 
+\section{Conclusion}
+
+\begin{frame}[fragile]%---------------------------------------------------------
+\frametitle{Conclusion}
+
+\blocktitle{Status quo}
+\begin{itemize}
+\item Prototype implementation of residuation in KiCS2
+\item Allows for concurrent solving of constraints
+\end{itemize}
+
+\blocktitle{Future Work}
+\begin{itemize}
+\item Improve the management of suspended constraints
+\item Change externally defined functions to use residuation
+\end{itemize}
+
+\end{frame}
+
+\appendix
+
 \begin{frame}[fragile]%---------------------------------------------------------
 \frametitle{Improving Management of Suspended Constraints}
 
@@ -461,25 +483,5 @@ kics2> goal b where b free
 \end{itemize}
 \end{frame}
 
-\section{Conclusion}
-
-\begin{frame}[fragile]%---------------------------------------------------------
-\frametitle{Conclusion}
-
-\blocktitle{Status quo}
-\begin{itemize}
-\item Prototype implementation of residuation in KiCS2
-\item Allows for concurrent solving of constraints
-\end{itemize}
-
-\pause
-
-\blocktitle{Future Work}
-\begin{itemize}
-\item Improve the management of suspended constraints
-\item Change externally defined functions to use residuation
-\end{itemize}
-
-\end{frame}
 
 \end{document}
