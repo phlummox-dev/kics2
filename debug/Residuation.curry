@@ -35,6 +35,29 @@ test12 = (snot x =:= y & snot y =:= x) & y =:= True  where x, y free
 test13 ys = ensureSpine xs =:= ys & xs =:= [True, False, True] where xs free
 
 
+
+partition l | all (not . null) (ensureSpine p) =:= True
+            & concat p =:= l = p
+              where p free
+
+testP = partition [True,False,True]
+
+rev [] []     = success
+rev l  (x:xs) = lx ++ [x] =:= l & rev lx xs where lx free
+
+rev2 [] []     = success
+rev2 l  (x:xs) = lx +!+ [x] =:= l & rev2 lx xs where lx free
+
+xs +!+ ys = case xs of
+  []     -> ys
+  (z:zs) -> z : zs +!+ ys
+
+testR1 | rev [True] ys = ys where ys free
+testR2 | rev ys [True] = ys where ys free
+
+testR3 | rev2 [True] ys = ys where ys free
+testR4 | rev2 ys [True] = ys where ys free
+
 data Nat = Z | S Nat
 
 type Value = Nat

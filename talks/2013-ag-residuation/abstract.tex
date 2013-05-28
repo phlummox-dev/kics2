@@ -1,0 +1,30 @@
+\documentclass{scrartcl}
+
+\title{Implementing Residuation in KiCS2}
+
+\author{%
+Bj{\"o}rn Peem{\"o}ller \\
+Institut f{\"u}r Informatik, CAU Kiel, D-24098 Kiel, Germany \\
+\texttt{bjp@informatik.uni-kiel.de}
+}
+
+\date{}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+Residuation is a well-known technique for functional-logic programming
+languages to delay the evaluation of functions until their arguments are
+sufficiently instatiated.
+However, the KiCS2 Curry compiler currently does not support residuation
+but performs narrowing steps instead due to the internal representation
+of expressions to be evaluated.
+In this talk, we present a slightly extended version of the
+constraint representation that allows the representation
+of suspended computations and their delayed concurrent evaluation.
+\end{abstract}
+
+\end{document}
