@@ -3,7 +3,7 @@
 ---
 --- @author Michael Hanus
 --- @version December 2005
---- adapted by Jan Tikovsky July 2012
+--- modified by Jan Tikovsky July 2012
 -----------------------------------------------------------------------------
 
 import CLPFD

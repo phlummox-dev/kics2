@@ -366,18 +366,22 @@ updateFDVar :: (Constrainable c (FDTerm t), FromDecisionTo c, Store m) => (FDTer
 updateFDVar c@(Const _) = return c
 updateFDVar (FDVar i)   = do a <- lookupValue i
                              return (toCsExpr a)
-
+{-
 -- Bind a curry value to a constraint variable
 -- by constructing guard expressions with binding constraints
 -- using Unifiable.bind
 bindLabelVar :: (Constrainable c (FDTerm t), Unifiable c, NonDet a) => (FDTerm t) -> c -> a -> a
 bindLabelVar (FDVar i) v e   = guardCons defCover (ValConstr i v (bind i v)) e
 bindLabelVar (Const _) _ e   = e
-                                  
+-}                                  
 -- Simple generic fd constraint term type
 data FDTerm a = Const a
               | FDVar ID
  deriving (Eq,Show)
+
+getVarID :: FDTerm a -> Maybe ID
+getVarID (FDVar i) = Just i
+getVarID _         = Nothing
 
 -- representation of lists of fd terms:
 -- ID to identify a specific fd list is necessary for translating
@@ -395,6 +399,9 @@ data SolutionInfo a b = SolInfo [[a]] (FDList b) ID
 -- Solvers of the Monadic-Constraint-Programming-Framework
 data MCPSolver = Gecode | Overton
 
+-- Overton-Solver
+data OvertonSolver = OvertonSolver
+{-
 -- Binds the solutions for a list of constraint variables (= labeling variables)
 -- to their corresponding curry variables by constructing guard expressions
 -- with appropriate binding constraints
@@ -413,6 +420,24 @@ bindLabelVars []     []     e = e
 bindLabelVars []     (_:_)  _ = error "bindLabelVars: List of labeling variables and solutions have different length"
 bindLabelVars (_:_)  []     _ = error "bindLabelVars: List of labeling variables and solutions have different length"
 bindLabelVars (v:vs) (s:ss) e = bindLabelVar v s (bindLabelVars vs ss e)
+-}
+
+bindSolutions :: Unifiable a => [Maybe ID] -> [[a]] -> ID -> [Constraint]
+bindSolutions _   []                   _ = [Unsolvable defFailInfo]
+bindSolutions ids [solution]           _ = bindSolution ids solution
+bindSolutions ids (solution:solutions) i = [ConstraintChoice defCover i binding bindings]
+ where
+  binding  = bindSolution ids solution
+  bindings = bindSolutions ids solutions (leftID i)
+
+bindSolution :: Unifiable a => [Maybe ID] -> [a] -> [Constraint]
+bindSolution ids values
+  | length ids == length values = concat $ zipWith bindValue ids values
+  | otherwise                   = error "bindSolution: List of labeling variables and results have different length."
+
+bindValue :: Unifiable a => Maybe ID -> a -> [Constraint]
+bindValue (Just i) value = bind i value
+bindValue Nothing  value = []
 
 -- ---------------------------------------------------------------------------
 -- Auxiliaries for Show and Read

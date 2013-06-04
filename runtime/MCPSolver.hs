@@ -28,49 +28,27 @@ import Data.Maybe (fromJust)
 import Data.List ((\\))
 
 -- ---------------------------------------------------------------------------
--- WrappableConstraint instance for FDConstraint
--- ---------------------------------------------------------------------------
-
-instance WrappableConstraint FDConstraint where
-  updateVars = updateFDConstr updateFDVar
-
--- ---------------------------------------------------------------------------
 -- ExternalFDSolver instance for MCP Solvers
 -- ---------------------------------------------------------------------------
 
-instance ExternalFDSolver MCPSolver FDConstraint where
+instance ExternalFDSolver MCPSolver where
 
-  newtype SolverModel MCPSolver FDConstraint = ModelWrapper [Model]
+  type ForConstraint MCPSolver = FDConstraint
 
-  -- |Type for storing labeling information for the MCP solvers:
-  -- @labelVars    - labeling variables in original representation
-  -- @domainVars   - list of fd variables, for which a domain was defined
-  --                 necessary to check, whether a domain was defined for the labeling variables
-  -- @mcpLabelVars - labeling variables translated into corresponding MCP representation
-  -- @labelID      - fresh ID, necessary for constructing choices over solutions, when transforming
-  --                 solver solutions into binding constraints
-  -- @strategy     - labeling strategy
-  data LabelInfo MCPSolver FDConstraint = Info { labelVars    :: Maybe (FDList (FDTerm Int))
-                                               , domainVars   :: [FDTerm Int]
-                                               , mcpLabelVars :: Maybe ModelCol
-                                               , labelID      :: Maybe ID
-                                               , strategy     :: Maybe LabelingStrategy
-                                               }
+  type SolverModel MCPSolver = ([Model], MCPLabelInfo)
 
-  newtype Solutions MCPSolver FDConstraint = SolWrapper (SolutionInfo C_Int (FDTerm Int))
+  type Solutions MCPSolver = MCPSolutions
 
   translate Overton fdCs = translateOverton fdCs
   translate Gecode  fdCs = translateGecode fdCs
 
   solveWith = solveWithMCP 
 
-  makeCsSolutions _ (SolWrapper solutions) e = bindSolutions solutions e
+  makeBindings _ (Solutions solutions ids i) = StructConstr $ bindSolutions ids solutions i
 
 
 -- type synonyms for easier access to associated types
-type MCPModel = SolverModel MCPSolver FDConstraint
-type MCPLabelInfo = LabelInfo MCPSolver FDConstraint
-type MCPSolution = Solutions MCPSolver FDConstraint
+type MCPModel = SolverModel MCPSolver
 
 -- ---------------------------------------------------------------------------
 -- Translation to MCP model
@@ -117,11 +95,31 @@ baseTLState = TLState {
 baseLabelInfo :: MCPLabelInfo
 baseLabelInfo = Info {
   labelVars    = Nothing,
+  labelVarIDs  = Nothing,
   domainVars   = [],
   mcpLabelVars = Nothing,
   labelID      = Nothing,
   strategy     = Nothing
 }
+
+-- |Type for storing labeling information for the MCP solvers:
+-- @labelVars    - labeling variables in original representation
+-- @domainVars   - list of fd variables, for which a domain was defined
+--                 necessary to check, whether a domain was defined for the labeling variables
+-- @mcpLabelVars - labeling variables translated into corresponding MCP representation
+-- @labelID      - fresh ID, necessary for constructing choices over solutions, when transforming
+--                 solver solutions into binding constraints
+-- @strategy     - labeling strategy
+data MCPLabelInfo = Info { 
+  labelVars    :: Maybe (FDList (FDTerm Int)),
+  labelVarIDs  :: Maybe [Maybe ID],
+  domainVars   :: [FDTerm Int],
+  mcpLabelVars :: Maybe ModelCol,
+  labelID      :: Maybe ID,
+  strategy     :: Maybe LabelingStrategy
+}
+
+data MCPSolutions = Solutions [[C_Int]] [Maybe ID] ID
 
 -- The Overton and Gecode solvers work on different representations of lists of constraint variables.
 -- Therefore each solver has its own translation function:
@@ -129,19 +127,16 @@ baseLabelInfo = Info {
 -- Translates list of finite domain constraints into a MCP model for the Overton Solver
 -- and collects labeling information if available
 -- using Haskell's state monad
-translateOverton :: [FDConstraint] -> (MCPModel,MCPLabelInfo)
+translateOverton :: [FDConstraint] -> MCPModel
 translateOverton fdCs = let (mcpCs,state) = runState (mapM (translateConstr translateOvertonList) fdCs) baseTLState
-                            info = labelInfo state
-                        in (ModelWrapper mcpCs, info)
+                        in (mcpCs, labelInfo state)
 
 -- Translates list of finite domain constraints into a MCP model for the Gecode Solver
 -- and collects labeling information if available
 -- using Haskell's state monad
-translateGecode :: [FDConstraint] -> (MCPModel,MCPLabelInfo)
+translateGecode :: [FDConstraint] -> MCPModel
 translateGecode fdCs = let (mcpCs,state) = runState (mapM (translateConstr translateGecodeList) fdCs) baseTLState
-                           info = labelInfo state
-                           mcpColCs = additionalCs state
-                       in (ModelWrapper (mcpCs ++ mcpColCs), info)
+                       in ((mcpCs ++ (additionalCs state)), labelInfo state)
 
 
 -- Translates a single finite domain constraint into a specific MCP constraint
@@ -174,17 +169,19 @@ translateConstr tlList (FDDomain vs@(FDList _ ts) l u) = do mcpVs <- tlList vs
                                                  --let domain varList lower upper = forall varList (\var -> var @: (lower,upper))
                                                             put newState
                                                             return $ domain mcpVs mcpL mcpU
-translateConstr tlList (FDLabeling str vs j) = do mcpVs <- tlList vs
-                                                  state <- get
-                                                  let info = labelInfo state
-                                                      newInfo  = info { labelVars    = Just vs
-                                                                      , mcpLabelVars = Just mcpVs
-                                                                      , labelID      = Just j
-                                                                      , strategy     = Just str
-                                                                      }
-                                                      newState = state { labelInfo = newInfo }
-                                                  put newState 
-                                                  return (toBoolExpr True)
+translateConstr tlList (FDLabeling str vs@(FDList _ list) j) = do mcpVs <- tlList vs
+                                                                  state <- get
+                                                                  let ids      = map getVarID list
+                                                                      info     = labelInfo state
+                                                                      newInfo  = info { labelVars    = Just vs
+                                                                                      , labelVarIDs  = Just ids
+                                                                                      , mcpLabelVars = Just mcpVs
+                                                                                      , labelID      = Just j
+                                                                                      , strategy     = Just str
+                                                                                      }
+                                                                      newState = state { labelInfo = newInfo }
+                                                                  put newState 
+                                                                  return (toBoolExpr True)
 
 -- Constraining a MCP collection of variables to a domain
 -- defined by a lower and upper boundary
@@ -271,41 +268,43 @@ type OvertonTree = Tree (FDInstance OvertonFD) ModelCol
 type GecodeTree  = Tree (FDInstance (GecodeWrappedSolver RuntimeGecodeSolver)) ModelCol
 
 -- Calls solve function for specific solver
-solveWithMCP :: MCPSolver -> MCPModel -> MCPLabelInfo -> MCPSolution
-solveWithMCP Overton (ModelWrapper mcpCs) info = solveWithOverton mcpCs info
-solveWithMCP Gecode  (ModelWrapper mcpCs) info = solveWithGecode  mcpCs info
+solveWithMCP :: MCPSolver -> MCPModel -> MCPSolutions
+solveWithMCP Overton (mcpCs,info) = solveWithOverton mcpCs info
+solveWithMCP Gecode  (mcpCs,info) = solveWithGecode  mcpCs info
 
 -- Calls Overton Solver with corresponding model tree and prepare solutions for KiCS2
-solveWithOverton :: [Model] -> MCPLabelInfo -> MCPSolution
+solveWithOverton :: [Model] -> MCPLabelInfo -> MCPSolutions
 solveWithOverton mcpCs info = case maybeLabelVars of 
-  Nothing      -> error "MCPSolver.solveWithOverton: Found no variables for labeling."
+  Nothing    -> error "MCPSolver.solveWithOverton: Found no variables for labeling."
   Just lVars -> 
     if (not (inDomain lVars dVars)) 
       then error "MCPSolver.solveWithOverton: At least for one Labeling variable no domain was specified."
       else let mcpVars   = fromJust (mcpLabelVars info)
+               ids       = fromJust (labelVarIDs info)
                choiceID  = fromJust (labelID info)
                strtgy    = fromJust (strategy info)
                modelTree = toModelTree mcpCs mcpVars
                solutions = snd $ solve dfs it $
                  (modelTree :: OvertonTree) >>= labelWith strtgy
-           in SolWrapper (SolInfo (map (map toCurry) solutions) lVars choiceID)
+           in (Solutions (map (map toCurry) solutions) ids choiceID)
   where maybeLabelVars = labelVars info
         dVars          = domainVars info
 
 -- Calls Gecode Solver with corresponding model tree and prepare solutions for KiCS2
-solveWithGecode :: [Model] -> MCPLabelInfo -> MCPSolution
+solveWithGecode :: [Model] -> MCPLabelInfo -> MCPSolutions
 solveWithGecode mcpCs info = case maybeLabelVars of 
-  Nothing      -> error "MCPSolver.solveWithGecode: Found no variables for labeling."
+  Nothing    -> error "MCPSolver.solveWithGecode: Found no variables for labeling."
   Just lVars -> 
     if (not (inDomain lVars dVars)) 
       then error "MCPSolver.solveWithGecode: At least for one Labeling variable no domain was specified."
       else let mcpVars   = fromJust (mcpLabelVars info)
+               ids       = fromJust (labelVarIDs info)
                choiceID  = fromJust (labelID info)
                strtgy    = fromJust (strategy info)
                modelTree = toModelTree mcpCs mcpVars
                solutions = snd $ solve dfs it $
                  (modelTree :: GecodeTree) >>= labelWith strtgy
-           in SolWrapper (SolInfo (map (map toCurry) solutions) lVars choiceID)
+           in (Solutions (map (map toCurry) solutions) ids choiceID)
   where maybeLabelVars = labelVars info
         dVars          = domainVars info
 

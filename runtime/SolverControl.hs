@@ -11,7 +11,9 @@ import MCPSolver
 
 import ExternalSolver
 
-data (Store m, NonDet a) => Solver m a = forall c . (WrappableConstraint c) => Solver ([c] -> a -> m a)
+import Debug.Trace as DT
+
+data Solver = forall c . (WrappableConstraint c) => Solver ([c] -> Constraints)
 
 -- filter heterogenous wrapped constraint list for constraints of a given type
 filterCs :: WrappableConstraint c => [WrappedConstraint] -> ([c],[WrappedConstraint])
@@ -21,7 +23,7 @@ filterCs (wc:wcs) = let (cs,wcs') = filterCs wcs
                                            Nothing -> (cs,wc:wcs')
 
 -- list of supported constraint solvers
-solvers :: (Store m, NonDet a) => [Solver m a]
+solvers :: [Solver]
 solvers = [Solver runGecode, Solver runOverton]
 --solvers = [Solver runOverton,Solver runGecode]
 
@@ -29,18 +31,28 @@ solvers = [Solver runGecode, Solver runOverton]
 -- supported solvers
 -- if constraints of supported type are found, run the corresponding solver
 -- otherwise try the next solver in the list
-solveAll :: (Store m, NonDet a) => [WrappedConstraint] -> [Solver m a] -> a -> m a
+solveAll :: (Store m, NonDet a) => [WrappedConstraint] -> [Solver] -> a -> m a
 solveAll wcs []                       _ = error $ "SolverControl.solveAll: Not solvable with supported solvers: " ++ show wcs
-solveAll wcs ((Solver solve):solvers) e = case filterCs wcs of ([],[])   -> return $ failCons 0 defFailInfo
-                                                               ([],wcs') -> solveAll wcs' solvers e
-                                                               (cs,[])   -> solve cs e
-                                                               (cs,wcs') -> do e' <- solve cs e
-                                                                               solveAll wcs' solvers e'
+solveAll wcs ((Solver solve):solvers) e = case filterCs wcs of 
+  ([],[])   -> return $ failCons 0 defFailInfo
+  ([],wcs') -> solveAll wcs' solvers e
+  (cs,[])   -> do updatedCs <- mapM updateVars cs
+                  let bindings = solve updatedCs
+                  return $ guardCons defCover bindings e
+  (cs,wcs') -> do updatedCs <- mapM updateVars cs
+                  let bindings = solve updatedCs
+                  e' <- solveAll wcs' solvers e
+                  return $ guardCons defCover bindings e'
 
 -- Run the Gecode-Solver provided by the Monadic-Constraint-Programming-Framework
-runGecode :: (Store m, NonDet a) => [FDConstraint] -> a -> m a
-runGecode = \(cs :: [FDConstraint]) e -> runSolver Gecode cs e
+runGecode :: [FDConstraint] -> Constraints
+runGecode = DT.trace "runGecode" $ \(cs :: [FDConstraint]) -> runSolver Gecode cs
 
 -- Run the Overton-Solver provided by the Monadic-Constraint-Programming-Framework
-runOverton :: (Store m, NonDet a) => [FDConstraint] -> a -> m a
-runOverton = \(cs :: [FDConstraint]) e -> runSolver Overton cs e
+runOverton :: [FDConstraint] -> Constraints
+runOverton = DT.trace "runOverton" $ \(cs :: [FDConstraint]) -> runSolver Overton cs
+
+-- Run the basic Overton-Solver
+-- runBasicOverton :: [FDConstraint] -> Constraints
+-- runBasicOverton = \(cs :: [FDConstraint]) -> runSolver OvertonSolver cs
+
