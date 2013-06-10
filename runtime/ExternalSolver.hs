@@ -12,7 +12,7 @@ import Types
 -- @type variable s - fd constraint solver
 -- @type variable c - wrappable fd constraints, which can be solved by the given solver
 
-class ExternalFDSolver solver where
+class Monad solver => ExternalSolver solver where
   -- instance specific types helping with translating and solving the wrappable constraints:
 
   -- |Type of constraints, which may be solved by the solver
@@ -34,18 +34,20 @@ class ExternalFDSolver solver where
   -- transformed into (constraint) variable bindings
   -- (i.e. by constructing guard expressions with binding constraints
   -- calling bindSolution)
-  runSolver :: solver -> [ForConstraint solver] -> Constraints
-  runSolver solver wcs = let model     = translate solver wcs
-                             solutions = solveWith solver model
-                         in makeBindings solver solutions
+  eval :: [ForConstraint solver] -> solver Constraints
+  eval cs = do model     <- translate cs
+               solutions <- solve model
+               makeBindings solutions
+
+  run :: solver a -> a
 
   -- |Translate given list of wrappable constraints into the modeling language of
   -- a specific solver and collect labeling information
-  translate :: solver -> [ForConstraint solver] -> SolverModel solver
+  translate :: [ForConstraint solver] -> solver (SolverModel solver)
 
   -- |Solve the given solver model using the collected labeling information
-  solveWith :: solver -> SolverModel solver -> Solutions solver
+  solve :: SolverModel solver -> solver (Solutions solver)
 
   -- |Transform solutions provided by a specific solver into bindings for
   -- the occurring constraint variables
-  makeBindings :: solver -> Solutions solver -> Constraints
+  makeBindings :: Solutions solver -> solver Constraints

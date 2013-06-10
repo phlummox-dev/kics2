@@ -396,11 +396,6 @@ data FDList a = FDList ID [a]
 -- - a fresh ID
 data SolutionInfo a b = SolInfo [[a]] (FDList b) ID
 
--- Solvers of the Monadic-Constraint-Programming-Framework
-data MCPSolver = Gecode | Overton
-
--- Overton-Solver
-data OvertonSolver = OvertonSolver
 {-
 -- Binds the solutions for a list of constraint variables (= labeling variables)
 -- to their corresponding curry variables by constructing guard expressions
