@@ -41,32 +41,39 @@ data RelOp
  deriving (Eq,Show)
 
 -- Haskell-Type for LabelingStrategies
-data LabelingStrategy = InOrder
-                      | FirstFail
-                      | MiddleOut
-                      | EndsOut
+data LabelingStrategy
+  = InOrder
+  | FirstFail
+  | MiddleOut
+  | EndsOut
  deriving (Eq,Ord,Show)
 
 -- update all fd terms of a fd constraint with given update function
 updateFDConstr :: Store m => (FDTerm Int -> m (FDTerm Int)) -> FDConstraint -> m FDConstraint
-updateFDConstr update (FDRel relOp t1 t2) = do t1' <- update t1
-                                               t2' <- update t2
-                                               return $ FDRel relOp t1' t2'
-updateFDConstr update (FDArith arithOp t1 t2 r) = do t1' <- update t1
-                                                     t2' <- update t2
-                                                     r'  <- update r
-                                                     return $ FDArith arithOp t1' t2' r'
-updateFDConstr update (FDSum (FDList i vs) r) = do vs' <- mapM update vs
-                                                   r'  <- update r
-                                                   return $ FDSum (FDList i vs') r'
-updateFDConstr update (FDAllDifferent (FDList i vs)) = do vs' <- mapM update vs
-                                                          return $ FDAllDifferent (FDList i vs')
-updateFDConstr update (FDDomain (FDList i vs) l u) = do vs' <- mapM update vs
-                                                        l'  <- update l
-                                                        u'  <- update u
-                                                        return $ FDDomain (FDList i vs') l' u'
-updateFDConstr update (FDLabeling s (FDList i vs) j) = do vs' <- mapM update vs
-                                                          return $ FDLabeling s (FDList i vs') j
+updateFDConstr update (FDRel relOp t1 t2) = do
+  t1' <- update t1
+  t2' <- update t2
+  return $ FDRel relOp t1' t2'
+updateFDConstr update (FDArith arithOp t1 t2 r) = do
+  t1' <- update t1
+  t2' <- update t2
+  r'  <- update r
+  return $ FDArith arithOp t1' t2' r'
+updateFDConstr update (FDSum (FDList i vs) r) = do
+  vs' <- mapM update vs
+  r'  <- update r
+  return $ FDSum (FDList i vs') r'
+updateFDConstr update (FDAllDifferent (FDList i vs)) = do
+  vs' <- mapM update vs
+  return $ FDAllDifferent (FDList i vs')
+updateFDConstr update (FDDomain (FDList i vs) l u) = do
+  vs' <- mapM update vs
+  l'  <- update l
+  u'  <- update u
+  return $ FDDomain (FDList i vs') l' u'
+updateFDConstr update (FDLabeling s (FDList i vs) j) = do
+  vs' <- mapM update vs
+  return $ FDLabeling s (FDList i vs') j
 
 -- ---------------------------------------------------------------------------
 -- SAT Constraint Representation
@@ -75,6 +82,7 @@ updateFDConstr update (FDLabeling s (FDList i vs) j) = do vs' <- mapM update vs
 data BConstraint
   = BNeg (FDTerm Int) (FDTerm Int)
   | BRel Junctor (FDTerm Int) (FDTerm Int) (FDTerm Int)
+  | BLabel (FDTerm Int) ID
  deriving (Eq,Show,Typeable)
 
 data Junctor = Conjunction | Disjunction
@@ -90,6 +98,9 @@ updateBConstr update (BRel junc b1 b2 r) = do
   b2' <- update b2
   r'  <- update r
   return $ BRel junc b1' b2' r'
+updateBConstr update (BLabel b i) = do
+  b' <- update b
+  return $ BLabel b' i
 
 -- ---------------------------------------------------------------------------
 -- WrappableConstraint instances

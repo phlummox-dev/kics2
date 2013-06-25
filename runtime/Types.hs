@@ -417,6 +417,15 @@ bindLabelVars (_:_)  []     _ = error "bindLabelVars: List of labeling variables
 bindLabelVars (v:vs) (s:ss) e = bindLabelVar v s (bindLabelVars vs ss e)
 -}
 
+bindSolutions2 :: Unifiable a => [Maybe ID] -> [[a]] -> ID -> [Constraint]
+bindSolutions2 _   []                   _ = [Unsolvable defFailInfo]
+bindSolutions2 ids [solution]           _ = bindSolution ids solution
+bindSolutions2 ids (solution:solutions) i = [ConstraintChoice defCover i binding bindings]
+ where
+  binding  = bindSolution ids solution
+  bindings = bindSolutions ids solutions (leftID i)
+
+
 bindSolutions :: Unifiable a => [Maybe ID] -> [[a]] -> ID -> [Constraint]
 bindSolutions _   []                   _ = [Unsolvable defFailInfo]
 bindSolutions ids [solution]           _ = bindSolution ids solution

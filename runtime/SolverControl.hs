@@ -3,8 +3,9 @@
 module SolverControl where
 
 import ExternalSolver
-import FDData (FDConstraint)
+import FDData (FDConstraint, BConstraint)
 import MCPSolver (GecodeSolver, OvertonSolver)
+import SatSolver (SatSolver)
 import Types
 
 data Solver = forall c s. (WrappableConstraint c, ExternalSolver s) 
@@ -21,7 +22,7 @@ filterCs (wc:wcs) = let (cs,wcs') = filterCs wcs
 -- list of supported constraint solvers
 solvers :: [Solver]
 --solvers = [Solver gecode, Solver overton]
-solvers = [Solver overton,Solver gecode]
+solvers = [Solver overton, Solver gecode, Solver sat]
 
 -- try to solve all constraints of the heterogenous list of wrappable
 -- constraints by filtering the list for constraints of the supported solvers
@@ -48,6 +49,10 @@ gecode = eval
 -- Run the Overton-Solver provided by the MCP framework
 overton :: [FDConstraint] -> OvertonSolver Constraints
 overton = eval
+
+-- Run the SAT-Solver by Sebastian Fischer
+sat :: [BConstraint] -> SatSolver Constraints
+sat = eval
 
 -- Run the basic Overton-Solver
 -- runBasicOverton :: [FDConstraint] -> Constraints
