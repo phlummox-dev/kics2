@@ -126,6 +126,12 @@ lazyBindOrNarrow :: Unifiable a => ID -> Cover -> ID -> [a] -> [Constraint]
 lazyBindOrNarrow i cd j@(FreeID p s) xs | isCovered cd = [ConstraintChoices cd (NarrowedID p s) (map (lazyBind i) xs)]
                                         | otherwise    = [ i :=: BindTo j ]
 
+-- |Test if given argument is a free variable
+isFree :: NonDet a => a -> Bool
+isFree x = case try x of
+  (Free _ _ _) -> True
+  _            -> False
+
 -- ---------------------------------------------------------------------------
 -- Computation of normal forms
 -- ---------------------------------------------------------------------------
