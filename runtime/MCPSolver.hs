@@ -102,9 +102,9 @@ data MCPState = MCPState {
 --                 when transforming solver solutions into binding constraints
 -- @strategy     - labeling strategy
 data MCPLabelInfo = Info { 
---  labelVars    :: Maybe (FDList (FDTerm Int)),
+--  labelVars    :: Maybe (FDList (Term Int)),
   labelVarIDs  :: [Maybe ID],
---  domainVars   :: [FDTerm Int],
+--  domainVars   :: [Term Int],
   mcpLabelVars :: Maybe ModelCol,
   labelID      :: Maybe ID,
   strategy     :: Maybe LabelingStrategy
@@ -151,7 +151,7 @@ data MCPSolutions = Solutions [[C_Int]] [Maybe ID] ID
 -- @transList - function to translate a list of fd terms to a MCP collection
 --              (Gecode- and Overton-Solver use different representations)
 translateMCP :: (ExternalSolver solver, MonadState MCPState solver) 
-             => (FDList (FDTerm Int) -> solver ModelCol) -> FDConstraint 
+             => (FDList (Term Int) -> solver ModelCol) -> FDConstraint 
              -> solver Model
 translateMCP _ (FDRel op t1 t2) = do
   t1' <- translateTerm t1
@@ -189,18 +189,18 @@ translateMCP transList (FDLabeling strat list@(FDList _ ts) j) = do
 
 -- Translates integer terms to appropriate MCP terms using a state monad
 translateTerm :: (ExternalSolver solver, MonadState MCPState solver) 
-              => FDTerm Int -> solver ModelInt
+              => Term Int -> solver ModelInt
 translateTerm (Const x)   = return (cte x)
-translateTerm v@(FDVar i) = do 
+translateTerm v@(Var i) = do 
   state <- get
   maybe (newVar v) return (Map.lookup (getKey i) (intVarMap state))
 
 -- Creates a new MCP variable for the given constraint variable,
 -- Updates the state by inserting the MCP representation of the variable into
 -- the map and incrementing the varref counter
-newVar :: (ExternalSolver solver, MonadState MCPState solver) => FDTerm Int 
+newVar :: (ExternalSolver solver, MonadState MCPState solver) => Term Int 
        -> solver ModelInt
-newVar (FDVar i) = do
+newVar (Var i) = do
   state <- get
   let varMap = intVarMap state
       varRef = nextIntVarRef state
@@ -211,13 +211,13 @@ newVar (FDVar i) = do
   return nv
 
 -- Translates a list of fd terms to a MCP collection for the Gecode Solver
-translateGecodeList :: FDList (FDTerm Int) -> GecodeSolver ModelCol
+translateGecodeList :: FDList (Term Int) -> GecodeSolver ModelCol
 translateGecodeList list@(FDList i _) = do 
   state <- get
   maybe (newColVar list) return (Map.lookup (getKey i) (colVarMap state))
 
 -- Translates a list of fd terms to a MCP collection for the Overton Solver
-translateOvertonList :: FDList (FDTerm Int) -> OvertonSolver ModelCol
+translateOvertonList :: FDList (Term Int) -> OvertonSolver ModelCol
 translateOvertonList (FDList _ ts) = do
   mcpExprList <- mapM translateTerm ts
   return (list mcpExprList)
@@ -227,7 +227,7 @@ translateOvertonList (FDList _ ts) = do
 -- incrementing the corresponding varref counter,
 -- Creates additional constraints for the collection variable describing its
 -- size and elements (only used for translateGecode)
-newColVar :: FDList (FDTerm Int) -> GecodeSolver ModelCol
+newColVar :: FDList (Term Int) -> GecodeSolver ModelCol
 newColVar (FDList i ts) = do
   ts'   <- mapM translateTerm ts
   state <- get

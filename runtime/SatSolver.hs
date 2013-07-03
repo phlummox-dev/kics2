@@ -73,10 +73,10 @@ translateSAT (f:fs) = do
   translateSAT fs
 
 translateFormula :: BConstraint -> SatSolver (Sat.Boolean,ID)
-translateFormula (BNeg b (FDVar i)) = do
+translateFormula (BNeg b (Var i)) = do
   b' <- translateTerm b
   return (Sat.Not b',i)
-translateFormula (BRel junctor b1 b2 (FDVar i)) = do
+translateFormula (BRel junctor b1 b2 (Var i)) = do
   b1' <- translateTerm b1
   b2' <- translateTerm b2
   let junctor' = translateJunctor junctor
@@ -110,17 +110,17 @@ translateJunctor :: Junctor -> Sat.Boolean -> Sat.Boolean -> Sat.Boolean
 translateJunctor Conjunction = (Sat.:&&:)
 translateJunctor Disjunction = (Sat.:||:)
 
-translateTerm :: FDTerm Int -> SatSolver Sat.Boolean
+translateTerm :: Term Int -> SatSolver Sat.Boolean
 translateTerm (Const 1)   = return Sat.Yes
 translateTerm (Const 0)   = return Sat.No
 translateTerm t@(Const _) = error $
   "SatSolver.translateTerm: Invalid Term: " ++ show t
-translateTerm v@(FDVar i) = do 
+translateTerm v@(Var i) = do 
   state <- get
   maybe (newVar v) return (Map.lookup (getKey i) (varMap state))
 
-newVar :: FDTerm Int -> SatSolver Sat.Boolean
-newVar (FDVar i) = do
+newVar :: Term Int -> SatSolver Sat.Boolean
+newVar (Var i) = do
   state <- get
   let m = varMap state
       varRef = nextVarRef state

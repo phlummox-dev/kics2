@@ -19,12 +19,12 @@ import Data.Typeable
 -- ---------------------------------------------------------------------------
 
 data FDConstraint
-  = FDRel RelOp (FDTerm Int) (FDTerm Int)
-  | FDArith ArithOp (FDTerm Int) (FDTerm Int) (FDTerm Int)
-  | FDSum (FDList (FDTerm Int)) (FDTerm Int)
-  | FDAllDifferent (FDList (FDTerm Int))
-  | FDDomain (FDList (FDTerm Int)) (FDTerm Int) (FDTerm Int)
-  | FDLabeling LabelingStrategy (FDList (FDTerm Int)) ID
+  = FDRel RelOp (Term Int) (Term Int)
+  | FDArith ArithOp (Term Int) (Term Int) (Term Int)
+  | FDSum (FDList (Term Int)) (Term Int)
+  | FDAllDifferent (FDList (Term Int))
+  | FDDomain (FDList (Term Int)) (Term Int) (Term Int)
+  | FDLabeling LabelingStrategy (FDList (Term Int)) ID
  deriving (Eq,Show,Typeable)
 
 data ArithOp 
@@ -49,7 +49,7 @@ data LabelingStrategy
  deriving (Eq,Ord,Show)
 
 -- update all fd terms of a fd constraint with given update function
-updateFDConstr :: Store m => (FDTerm Int -> m (FDTerm Int)) -> FDConstraint -> m FDConstraint
+updateFDConstr :: Store m => (Term Int -> m (Term Int)) -> FDConstraint -> m FDConstraint
 updateFDConstr update (FDRel relOp t1 t2) = do
   t1' <- update t1
   t2' <- update t2
@@ -80,15 +80,15 @@ updateFDConstr update (FDLabeling s (FDList i vs) j) = do
 -- ---------------------------------------------------------------------------
 
 data BConstraint
-  = BNeg (FDTerm Int) (FDTerm Int)
-  | BRel Junctor (FDTerm Int) (FDTerm Int) (FDTerm Int)
-  | BLabel (FDTerm Int) ID
+  = BNeg (Term Int) (Term Int)
+  | BRel Junctor (Term Int) (Term Int) (Term Int)
+  | BLabel (Term Int) ID
  deriving (Eq,Show,Typeable)
 
 data Junctor = Conjunction | Disjunction
  deriving (Eq,Show)
 
-updateBConstr :: Store m => (FDTerm Int -> m (FDTerm Int)) -> BConstraint -> m BConstraint
+updateBConstr :: Store m => (Term Int -> m (Term Int)) -> BConstraint -> m BConstraint
 updateBConstr update (BNeg b r) = do
   b' <- update b
   r' <- update r
@@ -107,7 +107,7 @@ updateBConstr update (BLabel b i) = do
 -- ---------------------------------------------------------------------------
 
 instance WrappableConstraint FDConstraint where
-  updateVars = updateFDConstr updateFDVar
+  updateVars = updateFDConstr updateVar
 
 instance WrappableConstraint BConstraint where
-  updateVars = updateBConstr updateFDVar
+  updateVars = updateBConstr updateVar

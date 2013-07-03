@@ -362,10 +362,10 @@ class Constrainable ctype ttype | ttype -> ctype where
 -- Check whether the curry representation of a fd constraint variable was bound
 -- to another value by using lookupValue
 -- and update the corresponding fd variable if necessary
-updateFDVar :: (Constrainable c (FDTerm t), FromDecisionTo c, Store m) => (FDTerm t) -> m (FDTerm t)
-updateFDVar c@(Const _) = return c
-updateFDVar (FDVar i)   = do a <- lookupValue i
-                             return (toCsExpr a)
+updateVar :: (Constrainable c (Term t), FromDecisionTo c, Store m) => (Term t) -> m (Term t)
+updateVar c@(Const _) = return c
+updateVar (Var i)   = do a <- lookupValue i
+                         return (toCsExpr a)
 {-
 -- Bind a curry value to a constraint variable
 -- by constructing guard expressions with binding constraints
@@ -374,14 +374,14 @@ bindLabelVar :: (Constrainable c (FDTerm t), Unifiable c, NonDet a) => (FDTerm t
 bindLabelVar (FDVar i) v e   = guardCons defCover (ValConstr i v (bind i v)) e
 bindLabelVar (Const _) _ e   = e
 -}                                  
--- Simple generic fd constraint term type
-data FDTerm a = Const a
-              | FDVar ID
+-- Simple generic constraint term type
+data Term a = Const a
+            | Var ID
  deriving (Eq,Show)
 
-getVarID :: FDTerm a -> Maybe ID
-getVarID (FDVar i) = Just i
-getVarID _         = Nothing
+getVarID :: Term a -> Maybe ID
+getVarID (Var i) = Just i
+getVarID _       = Nothing
 
 -- representation of lists of fd terms:
 -- ID to identify a specific fd list is necessary for translating

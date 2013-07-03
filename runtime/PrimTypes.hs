@@ -160,8 +160,8 @@ curryint2primint _ = error "KiCS2 error: Prelude.curryint2primint: no ground ter
 -- Constrainable instances:
 -- ---------------------------------------------------------------------------
 
-instance Constrainable C_Int (FDTerm Int) where
-  toCsExpr (Choices_C_Int _ i@(FreeID _ _) _) = FDVar i
+instance Constrainable C_Int (Term Int) where
+  toCsExpr (Choices_C_Int _ i@(FreeID _ _) _) = Var i
   toCsExpr v                                  = Const (fromCurry v)
 
 -- BinInt
