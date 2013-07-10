@@ -55,6 +55,6 @@ endif
 	echo "    , MonadSearch, PrimTypes, SafeExec"            >> $@
 	echo "  Other-modules:"                                  >> $@
 	echo "      ConstStore, ExternalSolver, ID, MCPSolver"   >> $@
-	echo "    , Search, Solver, SolverControl, Strategies"   >> $@
-	echo "    , Types"                                       >> $@
+	echo "    , SatSolver, Search, Solver, SolverControl"    >> $@
+	echo "    , Strategies, Types"                           >> $@
 	echo "  hs-source-dirs: ., $(IDSUPPLYDIR)"               >> $@

@@ -65,7 +65,8 @@ MAKELOG             = make.log
 export LIBDEPS     = base old-time directory process parallel-tree-search \
                      network time unbounded-delays
 # Dependencies for the kics2 runtime system
-export RUNTIMEDEPS = base containers mtl parallel-tree-search tree-monad
+export RUNTIMEDEPS = base containers incremental-sat-solver monadiccp mtl \
+                     parallel-tree-search tree-monad
 
 
 # Fancy GHC and CABAL configuration
