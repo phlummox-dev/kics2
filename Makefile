@@ -65,7 +65,7 @@ MAKELOG             = make.log
 export LIBDEPS     = base old-time directory process parallel-tree-search \
                      network time unbounded-delays
 # Dependencies for the kics2 runtime system
-export RUNTIMEDEPS = base containers incremental-sat-solver monadiccp mtl \
+export RUNTIMEDEPS = base containers incremental-sat-solver mtl \
                      parallel-tree-search tree-monad
 
 
@@ -101,6 +101,14 @@ export GHC_UNREGISTER = $(GHC-PKG) unregister --$(GHC_PKG_OPT)=$(PKGDB)
 export CABAL_INSTALL  = $(CABAL) install --with-compiler=$(GHC)       \
                         --with-hc-pkg=$(GHC-PKG) --prefix=$(LOCALPKG) \
                         --global --package-db=$(PKGDB) -O2
+
+export GECODE_HOME          = /net/medoc/home/jrt/gecode
+export CABAL_INSTALL_GECODE = $(CABAL_INSTALL) \
+                              --extra-include-dirs=$(GECODE_HOME)/include \
+                              --extra-lib-dirs=$(GECODE_HOME)/lib
+
+MCPTARBALL    = monadiccp-0.7.6.tar.gz
+GECODETARBALL = monadiccp-gecode-0.1.tar.gz
 
 ########################################################################
 # The targets
@@ -160,6 +168,7 @@ $(PKGDB):
 	$(CABAL) update
 	$(CABAL_INSTALL) $(LIBDEPS)
 	$(CABAL_INSTALL) $(RUNTIMEDEPS)
+	$(MAKE) mcp
 
 .PHONY: scripts
 scripts: $(BINDIR)/cleancurry
@@ -204,6 +213,15 @@ cleanall: clean
 .PHONY: maintainer-clean
 maintainer-clean: cleanall
 	rm -rf $(BINDIR)
+
+# install mcp and mcp-gecode
+.PHONY: mcp
+mcp:
+	@echo "Installing mcp"
+	cd mcp && tar xzfv $(MCPTARBALL) && tar xzfv $(GECODETARBALL)
+	cd $(ROOT)/mcp/monadiccp-0.7.6 && $(CABAL_INSTALL)
+	cd $(ROOT)/mcp/monadiccp-gecode-0.1 && $(CABAL_INSTALL_GECODE)
+	@echo "Finished installing mcp"
 
 ##############################################################################
 # Building the compiler itself
