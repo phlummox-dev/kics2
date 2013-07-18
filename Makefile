@@ -62,10 +62,10 @@ MAKELOG             = make.log
 # -------------------------------------------------
 
 # Dependencies for the kics2 libraries
-export LIBDEPS     = base old-time directory process parallel-tree-search \
-                     network time unbounded-delays
+export LIBDEPS     = base directory network old-time parallel-tree-search \
+	             process time unbounded-delays
 # Dependencies for the kics2 runtime system
-export RUNTIMEDEPS = base containers incremental-sat-solver mtl \
+export RUNTIMEDEPS = base containers ghc incremental-sat-solver mtl \
                      parallel-tree-search tree-monad
 
 
@@ -92,6 +92,9 @@ GHC_PKG_OPT = package-db
 else
 GHC_PKG_OPT = package-conf
 endif
+
+# Libraries shipped with GHC
+GHC_LIBS := $(shell $(GHC-PKG) list --global --simple-output --names-only)
 
 # Standard options for compiling target programs with ghc
 export GHC_OPTS       = -no-user-$(GHC_PKG_OPT) -$(GHC_PKG_OPT) $(PKGDB)
@@ -166,8 +169,7 @@ endif
 $(PKGDB):
 	$(GHC-PKG) init $@
 	$(CABAL) update
-	$(CABAL_INSTALL) $(LIBDEPS)
-	$(CABAL_INSTALL) $(RUNTIMEDEPS)
+	$(CABAL_INSTALL) $(filter-out $(GHC_LIBS), $(RUNTIMEDEPS) $(LIBDEPS))
 	$(MAKE) mcp
 
 .PHONY: scripts
