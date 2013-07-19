@@ -4,7 +4,8 @@ module SolverControl where
 
 import ExternalSolver
 import FDData (FDConstraint, BConstraint)
-import MCPSolver (GecodeSolver, OvertonSolver)
+import GecodeSolver (GecodeSolver)
+import OvertonSolver (OvertonSolver)
 import SatSolver (SatSolver)
 import Types
 

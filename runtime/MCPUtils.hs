@@ -1,63 +1,34 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module MCPSolver (GecodeSolver, OvertonSolver) where
+module MCPUtils
+  ( -- Getter for MCPLabelInfo
+    getLabelID
+  , getLabelVarIDs
+  , getMCPLabelVars
+  , getStrategy
+    -- state for translating MCP models
+  , MCPState(..), initial
+  , translateMCP, translateTerm
+  , labelWith, toModelTree, MCPSolutions(..)
+  , makeBindingsMCP
+  ) where
 
 import ExternalSolver
 import FDData (FDConstraint(..), RelOp(..), ArithOp(..), LabelingStrategy(..))
 import PrimTypes (C_Int)
 import Types
 
-import Control.CP.ComposableTransformers as MCP (solve)
 import Control.CP.EnumTerm (assignments, labelling, inOrder, firstFail, middleOut, endsOut, EnumTerm(..))
 import Control.CP.FD.FD (getColItems, FDInstance, FDSolver(..))
-import Control.CP.FD.Gecode.Common (GecodeWrappedSolver)
-import Control.CP.FD.Gecode.Runtime (RuntimeGecodeSolver)
 import Control.CP.FD.Interface (colList)
 import Control.CP.FD.Model (cte, asExpr, asCol, Model, ModelInt, ModelCol, ModelIntTerm(..), ModelColTerm(..), ModelFunctions)
-import Control.CP.FD.OvertonFD.OvertonFD (OvertonFD)
-import Control.CP.FD.OvertonFD.Sugar
-import Control.CP.FD.Solvers (dfs, it)
 import Control.CP.SearchTree (addC, Tree, MonadTree(..))
-import Data.Expr.Sugar ((@=), (@/=), (@<), (@<=), (@+), (@-), (@*), (@:), (@!!), xsum, allDiff, forall, size, list, ToBoolExpr(..))
-
+import Data.Expr.Sugar ((@=), (@/=), (@<), (@<=), (@+), (@-), (@*), (@:), xsum, allDiff, forall, ToBoolExpr(..))
 
 import Control.Monad.State
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
-
--- ---------------------------------------------------------------------------
--- Solver Monads and ExternalSolver instances
--- ---------------------------------------------------------------------------
-
--- the gecode solver monad
-newtype GecodeSolver a = Gecode { gecodeSolver :: State MCPState a }
- deriving (Monad, MonadState MCPState)
-
--- the overton solver monad
-newtype OvertonSolver a = Overton { overtonSolver :: State MCPState a }
- deriving (Monad, MonadState MCPState)
-
-instance ExternalSolver GecodeSolver where
-  type ForConstraint GecodeSolver = FDConstraint
-  type SolverModel   GecodeSolver = [Model]
-  type Solutions     GecodeSolver = MCPSolutions
-
-  translate    = mapM (translateMCP translateGecodeList)
-  solve        = solveWithGecode
-  makeBindings = makeBindingsMCP
-  run          = flip evalState initial . gecodeSolver
-
-instance ExternalSolver OvertonSolver where
-  type ForConstraint OvertonSolver = FDConstraint
-  type SolverModel   OvertonSolver = [Model]
-  type Solutions     OvertonSolver = MCPSolutions
-
-  translate    = mapM (translateMCP translateOvertonList)
-  solve        = solveWithOverton
-  makeBindings = makeBindingsMCP
-  run          = flip evalState initial . overtonSolver
 
 -- ---------------------------------------------------------------------------
 -- Translation to MCP model
@@ -210,45 +181,6 @@ newVar (Var i) = do
             }
   return nv
 
--- Translates a list of fd terms to a MCP collection for the Gecode Solver
-translateGecodeList :: FDList (Term Int) -> GecodeSolver ModelCol
-translateGecodeList list@(FDList i _) = do 
-  state <- get
-  maybe (newColVar list) return (Map.lookup (getKey i) (colVarMap state))
-
--- Translates a list of fd terms to a MCP collection for the Overton Solver
-translateOvertonList :: FDList (Term Int) -> OvertonSolver ModelCol
-translateOvertonList (FDList _ ts) = do
-  mcpExprList <- mapM translateTerm ts
-  return (list mcpExprList)
-
--- Creates a new MCP collection variable for the given list,
--- Updates the state by inserting its MCP representation into the map and
--- incrementing the corresponding varref counter,
--- Creates additional constraints for the collection variable describing its
--- size and elements (only used for translateGecode)
-newColVar :: FDList (Term Int) -> GecodeSolver ModelCol
-newColVar (FDList i ts) = do
-  ts'   <- mapM translateTerm ts
-  state <- get
-  let varMap = colVarMap state
-      varRef = nextColVarRef state
-      nv     = asCol (ModelColVar varRef :: ModelColTerm ModelFunctions)
-      colCs  = additionalCs state
-  put state { nextColVarRef = varRef + 1
-            , colVarMap     = Map.insert (getKey i) nv varMap
-            , additionalCs  = colCs ++ (newColCs nv ts')
-            }
-  return nv
-
--- Creates additional constraints for collection variables describing the size
--- of a collection and its elements (only used for translateGecode)
-newColCs :: ModelCol -> [ModelInt] -> [Model]
-newColCs col ts = (size col @= cte (length ts)) : newColCs' col ts 0
- where
-  newColCs' _   []     _ = []
-  newColCs' col (t:ts) n = ((col @!! n) @= t) : newColCs' col ts (n+1)
-
 -- Translates a relational operator to a corresponding MCP operator
 translateRelOp Equal     = (@=)
 translateRelOp Diff      = (@/=)
@@ -264,15 +196,11 @@ translateArithOp Mult  = (@*)
 -- Solving MCP model
 -- ---------------------------------------------------------------------------
 
-type GecodeTree 
-  = Tree (FDInstance (GecodeWrappedSolver RuntimeGecodeSolver)) ModelCol
-
-type OvertonTree = Tree (FDInstance OvertonFD) ModelCol
-
 -- Transform a list of MCP constraints into a monadic MCP model tree
 toModelTree :: FDSolver s => [Model] -> ModelCol 
             -> Tree (FDInstance s) ModelCol
-toModelTree model mcpLabelVars = mapM_ (\m -> addC (Left m)) model >> return mcpLabelVars
+toModelTree model mcpLabelVars = 
+  mapM_ (\m -> addC (Left m)) model >> return mcpLabelVars
 
 -- select corresponding MCP labeling function for given labeling strategy
 matchStrategy :: EnumTerm s t => LabelingStrategy -> [t] -> s [t]
@@ -282,38 +210,20 @@ matchStrategy EndsOut   = endsOut
 matchStrategy _         = inOrder
 
 -- Label MCP collection with given strategy
-labelWith :: (FDSolver s, MonadTree m, TreeSolver m ~ FDInstance s, EnumTerm s (FDIntTerm s)) => LabelingStrategy -> ModelCol -> m [TermBaseType s (FDIntTerm s)]
+labelWith :: (FDSolver s, MonadTree m, TreeSolver m ~ FDInstance s, 
+              EnumTerm s (FDIntTerm s)) => LabelingStrategy -> ModelCol 
+                                        -> m [TermBaseType s (FDIntTerm s)]
 labelWith strat col = label $ do
   lst <- getColItems col maxBound
   return $ do
     lsti <- colList col $ length lst
     labelling (matchStrategy strat) lsti
     assignments lsti
-  
-solveWithGecode :: [Model] -> GecodeSolver MCPSolutions
-solveWithGecode model = do
-  state <- get
-  let info = labelInfo state
-  case (labelVarIDs info) of 
-    []  -> error "MCPSolver.solveWithGecode: Found no variables for labeling."
-    ids -> do let addCs     = additionalCs state
-                  modelTree = toModelTree (model ++ addCs) (getMCPLabelVars info)
-                  solutions = snd $ MCP.solve dfs it $ 
-                    (modelTree :: GecodeTree) >>= labelWith (getStrategy info)
-                  cints     = map (map toCurry) solutions
-              return $ Solutions cints ids (getLabelID info)
 
-solveWithOverton :: [Model] -> OvertonSolver MCPSolutions
-solveWithOverton model = do
-  state <- get
-  let info = labelInfo state
-  case (labelVarIDs info) of
-    []  -> error "MCPSolver.solveWithOverton: Found no variables for labeling."
-    ids -> do let modelTree = toModelTree model (getMCPLabelVars info)
-                  solutions = snd $ MCP.solve dfs it $
-                    (modelTree :: OvertonTree) >>= labelWith (getStrategy info)
-                  cints     = map (map toCurry) solutions
-              return $ Solutions cints ids (getLabelID info)
+-- ---------------------------------------------------------------------------
+-- Binding solutions
+-- ---------------------------------------------------------------------------
 
 makeBindingsMCP :: ExternalSolver solver => MCPSolutions -> solver Constraints
-makeBindingsMCP (Solutions solutions ids j) = return $ StructConstr $ bindSolutions ids solutions j
+makeBindingsMCP (Solutions solutions ids j) =
+  return $ StructConstr $ bindSolutions ids solutions j
