@@ -17,13 +17,12 @@ space     := $(empty) $(empty)
 # a b c -> a, b, c
 comma_sep  = $(subst $(space),$(comma)$(space),$(1))
 # runtime dependencies as comma separated list
-RUNTIMEDEPS       += monadiccp monadiccp-gecode
 CABAL_RUNTIMEDEPS  = $(call comma_sep,$(RUNTIMEDEPS))
 
 
 .PHONY: install
 install: $(CABAL_FILE)
-	$(CABAL_INSTALL)
+	$(CABAL_INSTALL_GECODE)
 
 .PHONY: unregister
 unregister:
@@ -47,6 +46,12 @@ endif
 	echo "Build-Type:     Simple"                            >> $@
 	echo "Cabal-Version:  >= 1.9.2"                          >> $@
 	echo ""                                                  >> $@
+	echo "Flag Gecode"                                       >> $@
+	echo "  Description:  Include Gecode Solver for finite"  >> $@
+	echo "                domain constraints. Requires a"    >> $@
+	echo "                working Gecode 3.1 installation"   >> $@
+	echo "  Default:      False"                             >> $@
+	echo ""                                                  >> $@
 	echo "Library"                                           >> $@
 	echo "  Build-Depends: $(CABAL_RUNTIMEDEPS)"             >> $@
 	echo "  Exposed-modules:"                                >> $@
@@ -54,7 +59,11 @@ endif
 	echo "    , IDSupply, Installation, MonadList"           >> $@
 	echo "    , MonadSearch, PrimTypes, SafeExec"            >> $@
 	echo "  Other-modules:"                                  >> $@
-	echo "      ConstStore, ExternalSolver, ID, MCPSolver"   >> $@
-	echo "    , SatSolver, Search, Solver, SolverControl"    >> $@
-	echo "    , Strategies, Types"                           >> $@
+	echo "      ConstStore, ExternalSolver, ID, MCPUtils"    >> $@
+	echo "    , OvertonSolver, SatSolver, Search, Solver"    >> $@
+	echo "    , SolverControl, Strategies, Types"            >> $@
 	echo "  hs-source-dirs: ., $(IDSUPPLYDIR)"               >> $@
+	echo "  if flag(gecode)"                                 >> $@
+	echo "      Build-Depends: monadiccp-gecode"             >> $@
+	echo "      Other-modules: GecodeSolver"                 >> $@
+	echo "      CPP-Options:   -DGECODE"                     >> $@

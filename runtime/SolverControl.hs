@@ -1,13 +1,17 @@
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE CPP #-}
 
 module SolverControl where
 
 import ExternalSolver
 import FDData (FDConstraint, BConstraint)
-import GecodeSolver (GecodeSolver)
 import OvertonSolver (OvertonSolver)
 import SatSolver (SatSolver)
 import Types
+
+#ifdef GECODE
+import GecodeSolver (GecodeSolver)
+#endif
 
 data Solver = forall c s. (WrappableConstraint c, ExternalSolver s) 
   => Solver ([c] -> s Constraints)
@@ -22,8 +26,11 @@ filterCs (wc:wcs) = let (cs,wcs') = filterCs wcs
 
 -- list of supported constraint solvers
 solvers :: [Solver]
---solvers = [Solver gecode, Solver overton]
-solvers = [Solver overton, Solver gecode, Solver sat]
+#ifdef GECODE
+solvers = [Solver gecode, Solver overton, Solver sat]
+#else
+solvers = [Solver overton, Solver sat]
+#endif
 
 -- try to solve all constraints of the heterogenous list of wrappable
 -- constraints by filtering the list for constraints of the supported solvers
@@ -43,9 +50,11 @@ solveAll wcs ((Solver solver):solvers) e = case filterCs wcs of
                   e' <- solveAll wcs' solvers e
                   return $ guardCons defCover bindings e'
 
+#ifdef GECODE
 -- Run the Gecode-Solver provided by the MCP framework
 gecode :: [FDConstraint] -> GecodeSolver Constraints
 gecode = eval
+#endif
 
 -- Run the Overton-Solver provided by the MCP framework
 overton :: [FDConstraint] -> OvertonSolver Constraints
@@ -54,7 +63,3 @@ overton = eval
 -- Run the SAT-Solver by Sebastian Fischer
 sat :: [BConstraint] -> SatSolver Constraints
 sat = eval
-
--- Run the basic Overton-Solver
--- runBasicOverton :: [FDConstraint] -> Constraints
--- runBasicOverton = \(cs :: [FDConstraint]) -> runSolver OvertonSolver cs

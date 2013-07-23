@@ -6,7 +6,7 @@
 # ----------------------------------------
 
 # Is this a global installation (with restricted flexibility)(yes/no)?
-GLOBALINSTALL   = no
+GLOBALINSTALL   = yes
 # The major version number
 MAJORVERSION    = 0
 # The minor version number
@@ -37,6 +37,9 @@ export LOCALBIN = $(BINDIR)/.local
 export LOCALPKG = $(ROOT)/pkg
 # The path to the package database
 export PKGDB    = $(LOCALPKG)/kics2.conf.d
+# The path to the Gecode 3.1.0 installation 
+# (only needed for solving FD constraints with Gecode)
+export GECODE   =
 
 # Special files and binaries used in this this installation
 # ---------------------------------------------------------
@@ -65,8 +68,8 @@ MAKELOG             = make.log
 export LIBDEPS     = base directory network old-time parallel-tree-search \
 	             process time unbounded-delays
 # Dependencies for the kics2 runtime system
-export RUNTIMEDEPS = base containers ghc incremental-sat-solver mtl \
-                     parallel-tree-search tree-monad
+export RUNTIMEDEPS = base containers ghc incremental-sat-solver monadiccp \
+                     mtl parallel-tree-search tree-monad
 
 
 # Fancy GHC and CABAL configuration
@@ -105,13 +108,13 @@ export CABAL_INSTALL  = $(CABAL) install --with-compiler=$(GHC)       \
                         --with-hc-pkg=$(GHC-PKG) --prefix=$(LOCALPKG) \
                         --global --package-db=$(PKGDB) -O2
 
-export GECODE_HOME          = /net/medoc/home/jrt/gecode
-export CABAL_INSTALL_GECODE = $(CABAL_INSTALL) \
-                              --extra-include-dirs=$(GECODE_HOME)/include \
-                              --extra-lib-dirs=$(GECODE_HOME)/lib
-
-MCPTARBALL    = monadiccp-0.7.6.tar.gz
-GECODETARBALL = monadiccp-gecode-0.1.tar.gz
+# cabal install instruction for the installation of the gecode solver backend
+export CABAL_INSTALL_GECODE  = $(CABAL_INSTALL)
+ifdef GECODE
+CABAL_INSTALL_GECODE += --flags=Gecode --extra-include-dirs=$(GECODE)/include \
+                        --extra-lib-dirs=$(GECODE)/lib
+RUNTIMEDEPS          += monadiccp-gecode
+endif
 
 ########################################################################
 # The targets
@@ -169,8 +172,7 @@ endif
 $(PKGDB):
 	$(GHC-PKG) init $@
 	$(CABAL) update
-	$(CABAL_INSTALL) $(filter-out $(GHC_LIBS), $(RUNTIMEDEPS) $(LIBDEPS))
-	$(MAKE) mcp
+	$(CABAL_INSTALL_GECODE) $(filter-out $(GHC_LIBS), $(RUNTIMEDEPS) $(LIBDEPS))
 
 .PHONY: scripts
 scripts: $(BINDIR)/cleancurry
@@ -215,15 +217,6 @@ cleanall: clean
 .PHONY: maintainer-clean
 maintainer-clean: cleanall
 	rm -rf $(BINDIR)
-
-# install mcp and mcp-gecode
-.PHONY: mcp
-mcp:
-	@echo "Installing mcp"
-	cd mcp && tar xzfv $(MCPTARBALL) && tar xzfv $(GECODETARBALL)
-	cd $(ROOT)/mcp/monadiccp-0.7.6 && $(CABAL_INSTALL)
-	cd $(ROOT)/mcp/monadiccp-gecode-0.1 && $(CABAL_INSTALL_GECODE)
-	@echo "Finished installing mcp"
 
 ##############################################################################
 # Building the compiler itself
@@ -438,7 +431,7 @@ BOOTLOG = boot.log
 bootstrapwithlogging:
 	@rm -f ${BOOTLOG}
 	@echo "Bootstrapping started at `date`" > ${BOOTLOG}
-	${MAKE} bootstrap 2>&1 | tee -a ../${BOOTLOG}
+	${MAKE} bootstrap 2>&1 | tee -a ${BOOTLOG}
 	@echo "Bootstrapping finished at `date`" >> ${BOOTLOG}
 	@echo "Bootstrap process logged in file ${BOOTLOG}"
 
