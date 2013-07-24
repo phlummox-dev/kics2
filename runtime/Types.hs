@@ -348,13 +348,13 @@ instance (ConvertCurryHaskell ca ha, ConvertCurryHaskell cb hb)
 
 class Generable a => FromDecisionTo a where
   -- |Convert a decision into the original value for the given ID 
-  fromDecision :: Store m => ID -> (Decision,ID) -> m a
+  fromDecision :: Store m => ID -> Decision -> m a
 
 -- Lookup the decision made for the given ID and convert back
 -- into the original type
 lookupValue :: (Store m,FromDecisionTo a) => ID -> m a
-lookupValue i = do decId <- lookupDecisionID i
-                   fromDecision i decId
+lookupValue i = do (dec,j) <- lookupDecisionID i
+                   fromDecision j dec
 
 -- ---------------------------------------------------------------------------
 -- Conversion of Curry data types into constraint term representations
@@ -570,11 +570,11 @@ instance Coverable C_Success where
   cover (Guard_C_Success cd cs x)    = Guard_C_Success (incCover cd) cs (cover x)
 
 instance FromDecisionTo C_Success where
-  fromDecision _ ((ChooseN 0 0),_) = return C_Success
-  fromDecision _ (NoDecision,j) = return (generate (supply j))
-  fromDecision i (ChooseLeft,_) = error ("Prelude.Success.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
-  fromDecision i (ChooseRight,_) = error ("Prelude.Success.fromDecision: ChooseRight decision for free ID: " ++ (show i))
-  fromDecision _ ((LazyBind _),_) = error "Prelude.Success.fromDecision: No rule for LazyBind decision yet"
+  fromDecision _ (ChooseN 0 0) = return C_Success
+  fromDecision i NoDecision    = return (generate (supply i))
+  fromDecision i ChooseLeft    = error ("Prelude.Success.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision i ChooseRight   = error ("Prelude.Success.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _ (LazyBind _)  = error "Prelude.Success.fromDecision: No rule for LazyBind decision yet"
 -- END GENERATED FROM PrimTypes.curry
 
 -- ---------------------------------------------------------------------------

@@ -813,26 +813,26 @@ fromDecisionConsRule hoResult funcName lookupValueArgs (num, (FC.Cons qn _ _ tex
   where
     isHoCons = lookupFM hoResult qn == Just HO
     carity = length texps
-    rulePattern i = [PVar (1, i), tuplePat [PComb (basics "ChooseN") [PLit (Intc num), (PLit . Intc) carity], PVar (2, "_") ]]
-    returnExpr n = applyF (pre "return") [applyF n $ map (\i -> Var (i, 'x':show i)) [3 ..carity + 2]]
+    rulePattern i = [PVar (1, i), PComb (basics "ChooseN") [PLit (Intc num), (PLit . Intc) carity]]
+    returnExpr n = applyF (pre "return") [applyF n $ map (\i -> Var (i, 'x':show i)) [2 ..carity + 1]]
     rule name | carity == 0 = (funcName, simpleRule (rulePattern "_") (returnExpr name))
               | otherwise   = (funcName,
       simpleRule (rulePattern "i")
         (DoExpr $ (zipWith SPat 
-          (map (\i -> PVar (i, 'x':show i)) [3 ..carity + 2])
+          (map (\i -> PVar (i, 'x':show i)) [2 ..carity + 1])
           (map lookupValueArgs (mkIdList carity (Var (1, "i"))))) ++
             [SExpr (returnExpr name)]))
 
 fromDecisionNoDecisionRule :: QName -> (QName,Rule)
 fromDecisionNoDecisionRule funcName = (funcName,
   simpleRule
-    [PVar (1, "_"), tuplePat [PComb (basics "NoDecision") [], PVar (2, "j")]]
-      (applyF (pre "return") [applyF (basics "generate") [applyF (basics "supply") [Var (2, "j")]]]))
+    [PVar (1, "i"), PComb (basics "NoDecision") []]
+      (applyF (pre "return") [applyF (basics "generate") [applyF (basics "supply") [Var (2, "i")]]]))
 
 fromDecisionChooseLeftRightRule :: QName -> QName -> String -> (QName,Rule)
 fromDecisionChooseLeftRightRule qf funcName leftRight = (funcName,
   simpleRule
-    [PVar (1, "i"), tuplePat [PComb (basics leftRight) [], PVar (2, "_")]]
+    [PVar (1, "i"), PComb (basics leftRight) []]
       ( applyF (pre "error")
         [ applyF (pre "++")
           [ string2ac (showQName (unRenameQName qf) ++ '.' : snd funcName
@@ -845,7 +845,7 @@ fromDecisionChooseLeftRightRule qf funcName leftRight = (funcName,
 fromDecisionLazyBindRule :: QName -> QName -> (QName,Rule)
 fromDecisionLazyBindRule qf funcName = (funcName,
   simpleRule
-    [PVar (1, "_"), tuplePat [PComb (basics "LazyBind") [PVar (2, "_")], PVar (3, "_")]]
+    [PVar (1, "_"), PComb (basics "LazyBind") [PVar (2, "_")]]
       ( applyF (pre "error")
         [ string2ac (showQName (unRenameQName qf) ++ '.' : snd funcName
                                   ++ ": No rule for LazyBind decision yet")

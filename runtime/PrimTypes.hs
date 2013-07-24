@@ -107,14 +107,14 @@ instance Coverable C_Int where
   cover (Guard_C_Int cd cs x)   = Guard_C_Int (incCover cd) cs (cover x)
 
 instance FromDecisionTo C_Int where
-  fromDecision i ((ChooseN 0 1),_) = 
+  fromDecision i (ChooseN 0 1) = 
     do
      x3 <- lookupValue (leftID i)
      return (C_CurryInt x3)
-  fromDecision _ (NoDecision,j) = return (generate (supply j))
-  fromDecision i (ChooseLeft,_) = error ("Prelude.Int.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
-  fromDecision i (ChooseRight,_) = error ("Prelude.Int.fromDecision: ChooseRight decision for free ID: " ++ (show i))
-  fromDecision _ ((LazyBind _),_) = error "Prelude.Int.fromDecision: No rule for LazyBind decision yet"
+  fromDecision i NoDecision   = return (generate (supply i))
+  fromDecision i ChooseLeft   = error ("Prelude.Int.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision i ChooseRight  = error ("Prelude.Int.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _ (LazyBind _) = error "Prelude.Int.fromDecision: No rule for LazyBind decision yet"
 
 instance ConvertCurryHaskell C_Int Int where
   toCurry (I# i) = C_Int i
@@ -271,19 +271,19 @@ instance Coverable BinInt where
   cover (Guard_BinInt cd cs x)   = Guard_BinInt (incCover cd) cs (cover x)
 
 instance FromDecisionTo BinInt where
-  fromDecision i ((ChooseN 0 1),_) = 
+  fromDecision i (ChooseN 0 1) = 
     do
      x3 <- lookupValue (leftID i)
      return (Neg x3)
-  fromDecision _ ((ChooseN 1 0),_) = return Zero
-  fromDecision i ((ChooseN 2 1),_) = 
+  fromDecision _ (ChooseN 1 0) = return Zero
+  fromDecision i (ChooseN 2 1) = 
     do
      x3 <- lookupValue (leftID i)
      return (Pos x3)
-  fromDecision _ (NoDecision,j) = return (generate (supply j))
-  fromDecision i (ChooseLeft,_) = error ("Prelude.BinInt.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
-  fromDecision i (ChooseRight,_) = error ("Prelude.BinInt.fromDecision: ChooseRight decision for free ID: " ++ (show i))
-  fromDecision _ ((LazyBind _),_) = error "Prelude.BinInt.fromDecision: No rule for LazyBind decision yet"
+  fromDecision i NoDecision   = return (generate (supply i))
+  fromDecision i ChooseLeft   = error ("Prelude.BinInt.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision i ChooseRight  = error ("Prelude.BinInt.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _ (LazyBind _) = error "Prelude.BinInt.fromDecision: No rule for LazyBind decision yet"
 -- Nats
 
 data Nat
@@ -391,19 +391,19 @@ instance Coverable Nat where
   cover (Guard_Nat cd c e)    = Guard_Nat (incCover cd) c (cover e)
 
 instance FromDecisionTo Nat where
-  fromDecision _ ((ChooseN 0 0),_) = return IHi
-  fromDecision i ((ChooseN 1 1),_) = 
+  fromDecision _ (ChooseN 0 0) = return IHi
+  fromDecision i (ChooseN 1 1) = 
     do
      x3 <- lookupValue (leftID i)
      return (O x3)
-  fromDecision i ((ChooseN 2 1),_) = 
+  fromDecision i (ChooseN 2 1) = 
     do
      x3 <- lookupValue (leftID i)
      return (I x3)
-  fromDecision _ (NoDecision,j) = return (generate (supply j))
-  fromDecision i (ChooseLeft,_) = error ("Prelude.Nat.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
-  fromDecision i (ChooseRight,_) = error ("Prelude.Nat.fromDecision: ChooseRight decision for free ID: " ++ (show i))
-  fromDecision _ ((LazyBind _),_) = error "Prelude.Nat.fromDecision: No rule for LazyBind decision yet"
+  fromDecision i NoDecision   = return (generate (supply i))
+  fromDecision i ChooseLeft   = error ("Prelude.Nat.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision i ChooseRight  = error ("Prelude.Nat.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _ (LazyBind _) = error "Prelude.Nat.fromDecision: No rule for LazyBind decision yet"
 -- Higher Order Funcs
 
 -- BEGIN GENERATED FROM PrimTypes.curry
