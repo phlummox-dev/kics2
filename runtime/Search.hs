@@ -129,13 +129,16 @@ getNormalForm goal = do
 -- search normalized expression for Guards containing wrapped constraints and collect these constraints in one Guard
 searchForWrappedCs :: NormalForm a => [WrappedConstraint] -> a -> a
 searchForWrappedCs wcs = match searchChoice searchNarrowed searchFree failCons searchGuard searchVal
-  where searchChoice cd i x1 x2            = choiceCons cd i (searchForWrappedCs wcs x1) (searchForWrappedCs wcs x2)
-        searchNarrowed cd i xs             = choicesCons cd i (map (searchForWrappedCs wcs) xs)
-        searchFree cd i xs                 = constrain $ choicesCons cd i xs
-	searchGuard _ (WrappedConstr wc) e = searchForWrappedCs (wc++wcs) e 
-        searchGuard cd c e                 = guardCons cd c (searchForWrappedCs wcs e)
-        searchVal v                        = constrain v
-        constrain x                        = if null wcs then x else guardCons defCover (WrappedConstr (reverse wcs)) x
+  where
+  searchChoice cd i x1 x2            = choiceCons cd i (searchForWrappedCs wcs x1) (searchForWrappedCs wcs x2)
+  searchNarrowed cd i xs             = choicesCons cd i (map (searchForWrappedCs wcs) xs)
+  searchFree cd i xs                 = constrain $ choicesCons cd i xs
+  searchGuard _ (WrappedConstr wc) e = searchForWrappedCs (wc++wcs) e 
+  searchGuard cd c e                 = guardCons cd c (searchForWrappedCs wcs e)
+  searchVal v                        = constrain v
+  constrain x | null wcs  = x
+              | otherwise = guardCons defCover (WrappedConstr (reverse wcs)) x
+
 {-
 -- original implementation
 getNormalForm :: NormalForm a => NonDetExpr a -> IO a

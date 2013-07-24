@@ -6,7 +6,7 @@
 # ----------------------------------------
 
 # Is this a global installation (with restricted flexibility)(yes/no)?
-GLOBALINSTALL   = yes
+GLOBALINSTALL   = no
 # The major version number
 MAJORVERSION    = 0
 # The minor version number
@@ -37,9 +37,9 @@ export LOCALBIN = $(BINDIR)/.local
 export LOCALPKG = $(ROOT)/pkg
 # The path to the package database
 export PKGDB    = $(LOCALPKG)/kics2.conf.d
-# The path to the Gecode 3.1.0 installation 
-# (only needed for solving FD constraints with Gecode)
-export GECODE   =
+# The path to a local Gecode 3.1.0 installation 
+# (needed for usage of the gecode solver backend for fd constraints)
+export GECODE   = $(HOME)/gecode
 
 # Special files and binaries used in this this installation
 # ---------------------------------------------------------
@@ -108,12 +108,15 @@ export CABAL_INSTALL  = $(CABAL) install --with-compiler=$(GHC)       \
                         --with-hc-pkg=$(GHC-PKG) --prefix=$(LOCALPKG) \
                         --global --package-db=$(PKGDB) -O2
 
-# cabal install instruction for the installation of the gecode solver backend
+# Adapting cabal install instruction, runtime dependencies and ghc options
+# in case of installing the gecode solver backend for fd constraints
+# (local gecode installation needed)
 export CABAL_INSTALL_GECODE  = $(CABAL_INSTALL)
 ifdef GECODE
 CABAL_INSTALL_GECODE += --flags=Gecode --extra-include-dirs=$(GECODE)/include \
                         --extra-lib-dirs=$(GECODE)/lib
 RUNTIMEDEPS          += monadiccp-gecode
+GHC_OPTS             += -cpp -DGECODE
 endif
 
 ########################################################################
