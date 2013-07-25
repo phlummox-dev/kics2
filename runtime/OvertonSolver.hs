@@ -57,10 +57,10 @@ solveWithOverton :: [Model] -> OvertonSolver MCPSolutions
 solveWithOverton model = do
   state <- get
   let info = labelInfo state
-  case (getLabelVarIDs info) of
-    []  -> error "MCPSolver.solveWithOverton: Found no variables for labeling."
-    ids -> do let modelTree = toModelTree model (getMCPLabelVars info)
-                  solutions = snd $ MCP.solve dfs it $
+  if (isNotLabelled info) 
+    then error "MCPSolver.solveWithOverton: Found no variables for labeling."
+    else do let modelTree = toModelTree model (getMCPLabelVars info)
+                solutions = snd $ MCP.solve dfs it $ 
                     (modelTree :: OvertonTree) >>= labelWith (getStrategy info)
-                  cints     = map (map toCurry) solutions
-              return $ Solutions cints ids (getLabelID info)
+                cints     = map (map toCurry) solutions
+            return $ Solutions cints (getLabelVarIDs info) (getLabelID info)

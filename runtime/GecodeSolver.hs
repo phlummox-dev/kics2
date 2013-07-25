@@ -86,11 +86,11 @@ solveWithGecode :: [Model] -> GecodeSolver MCPSolutions
 solveWithGecode model = do
   state <- get
   let info = labelInfo state
-  case (getLabelVarIDs info) of 
-    []  -> error "MCPSolver.solveWithGecode: Found no variables for labeling."
-    ids -> do let addCs     = additionalCs state
-                  modelTree = toModelTree (model ++ addCs) (getMCPLabelVars info)
-                  solutions = snd $ MCP.solve dfs it $ 
+  if (isNotLabelled info) 
+    then error "MCPSolver.solveWithGecode: Found no variables for labeling."
+    else do let addCs     = additionalCs state
+                modelTree = toModelTree (model ++ addCs) (getMCPLabelVars info)
+                solutions = snd $ MCP.solve dfs it $ 
                     (modelTree :: GecodeTree) >>= labelWith (getStrategy info)
-                  cints     = map (map toCurry) solutions
-              return $ Solutions cints ids (getLabelID info)
+                cints     = map (map toCurry) solutions
+            return $ Solutions cints (getLabelVarIDs info) (getLabelID info)

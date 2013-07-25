@@ -6,7 +6,7 @@
 # ----------------------------------------
 
 # Is this a global installation (with restricted flexibility)(yes/no)?
-GLOBALINSTALL   = no
+GLOBALINSTALL   = yes
 # The major version number
 MAJORVERSION    = 0
 # The minor version number
@@ -39,7 +39,7 @@ export LOCALPKG = $(ROOT)/pkg
 export PKGDB    = $(LOCALPKG)/kics2.conf.d
 # The path to a local Gecode 3.1.0 installation 
 # (needed for usage of the gecode solver backend for fd constraints)
-export GECODE   = $(HOME)/gecode
+export GECODE   =
 
 # Special files and binaries used in this this installation
 # ---------------------------------------------------------

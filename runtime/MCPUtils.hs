@@ -7,6 +7,7 @@ module MCPUtils
   , getLabelVarIDs
   , getMCPLabelVars
   , getStrategy
+  , isNotLabelled
     -- state for translating MCP models
   , MCPState(..), initial
   , translateMCP, translateTerm
@@ -28,7 +29,8 @@ import Data.Expr.Sugar ((@=), (@/=), (@<), (@<=), (@+), (@-), (@*), (@:), xsum, 
 
 import Control.Monad.State
 import qualified Data.Map as Map
-import Data.Maybe (fromJust)
+import Data.List ((\\))
+import Data.Maybe (fromJust, catMaybes)
 
 -- ---------------------------------------------------------------------------
 -- Translation to MCP model
@@ -63,22 +65,24 @@ data MCPState = MCPState {
 }
 
 -- |Type for storing labeling information for the MCP solvers:
--- @labelVars    - labeling variables in original representation
--- @domainVars   - list of fd variables, for which a domain was defined
+-- @labelVarIDs  - IDs of the labeling variables
+-- @domainVarIDs - IDs of the fd variables, for which a domain was defined
 --                 necessary to check, whether a domain was defined for
---                 the labeling variables
+--                 all labeling variables
 -- @mcpLabelVars - labeling variables translated into corresponding MCP
 --                 representation
 -- @labelID      - fresh ID, necessary for constructing choices over solutions,
 --                 when transforming solver solutions into binding constraints
 -- @strategy     - labeling strategy
+-- @notLabelled  - flag that shows whether a labeling constraint was found
+--                 during the translation of the model
 data MCPLabelInfo = Info { 
---  labelVars    :: Maybe (FDList (Term Int)),
   labelVarIDs  :: [Maybe ID],
---  domainVars   :: [Term Int],
+  domainVarIDs :: [Maybe ID],
   mcpLabelVars :: Maybe ModelCol,
   labelID      :: Maybe ID,
-  strategy     :: Maybe LabelingStrategy
+  strategy     :: Maybe LabelingStrategy,
+  notLabelled  :: Bool
 }
 
 -- Initial state
@@ -95,12 +99,12 @@ initial = MCPState {
 -- Initial (empty) labeling information
 emptyLabelInfo :: MCPLabelInfo
 emptyLabelInfo = Info {
---  labelVars    = Nothing,
   labelVarIDs  = [],
---  domainVars   = [],
+  domainVarIDs = [],
   mcpLabelVars = Nothing,
   labelID      = Nothing,
-  strategy     = Nothing
+  strategy     = Nothing,
+  notLabelled  = True
 }
 
 -- getter functions for labeling information
@@ -115,6 +119,9 @@ getLabelID = fromJust . labelID
 
 getStrategy :: MCPLabelInfo -> LabelingStrategy
 getStrategy = fromJust . strategy
+
+isNotLabelled :: MCPLabelInfo -> Bool
+isNotLabelled = notLabelled
 
 data MCPSolutions = Solutions [[C_Int]] [Maybe ID] ID
 
@@ -142,7 +149,11 @@ translateMCP transList (FDSum list result) = do
 translateMCP transList (FDAllDifferent list) = do
   list' <- transList list
   return $ allDiff list'
-translateMCP transList (FDDomain list lower upper) = do
+translateMCP transList (FDDomain list@(FDList _ ts) lower upper) = do
+  state  <- get
+  let info   = labelInfo state 
+      domIDs = domainVarIDs info
+  put state { labelInfo = info { domainVarIDs = domIDs ++ (map getVarID ts) } }
   list'  <- transList list
   lower' <- translateTerm lower
   upper' <- translateTerm upper
@@ -150,13 +161,19 @@ translateMCP transList (FDDomain list lower upper) = do
 translateMCP transList (FDLabeling strat list@(FDList _ ts) j) = do
   list' <- transList list
   state <- get
-  let info = Info { labelVarIDs  = map getVarID ts
+  let domIDs      = domainVarIDs (labelInfo state)
+      labelIDs    = map getVarID ts
+      allInDomain = null $ (catMaybes labelIDs) \\ (catMaybes domIDs)
+      info = Info { labelVarIDs  = labelIDs
+                  , domainVarIDs = domIDs
                   , mcpLabelVars = Just list'
                   , labelID      = Just j
                   , strategy     = Just strat
+                  , notLabelled  = False
                   }
   put state { labelInfo = info }
-  return $ toBoolExpr True
+  if allInDomain then return $ toBoolExpr True
+                 else error "MCPUtils.translateMCP: At least for one labeling variable no domain was specified."
 
 -- Translates integer terms to appropriate MCP terms using a state monad
 translateTerm :: (ExternalSolver solver, MonadState MCPState solver) 
