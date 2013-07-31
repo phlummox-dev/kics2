@@ -9,11 +9,12 @@
 
 import CLPFD
 
-seven11 :: [Int] -> Success
-seven11 l = l =:= [a,b,c,d] &
-            domain l 0 711 &
-            a <=# b & b <=# c & c <=# d &
-            a +# b +# c +# d =# 711 &
-            (a *# b) *# (c *# d) =# 711000000 &
-            labeling l
- where a,b,c,d free
+seven11 :: [Int]
+seven11 = let l,a,b,c,d free in
+  ( l =:= [a,b,c,d] &
+    domain l 0 711 &
+    a <=# b & b <=# c & c <=# d &
+    a +# b +# c +# d =# 711 &
+    (a *# b) *# (c *# d) =# 711000000 &
+    labeling l
+  ) &> l

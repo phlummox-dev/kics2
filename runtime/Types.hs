@@ -364,14 +364,17 @@ lookupValue i = do (dec,j) <- lookupDecisionID i
 class Constrainable ctype ttype | ttype -> ctype where
   -- |Convert a curry type into a constrainable term representation
   toCsExpr :: ctype -> ttype
+  -- |Update a constrainable term by looking for possible bindings
+  --  in the decision store
+  updateTerm :: Store m => ttype -> m ttype
 
 -- Check whether the curry representation of a fd constraint variable was bound
 -- to another value by using lookupValue
 -- and update the corresponding fd variable if necessary
-updateVar :: (Constrainable c (Term t), FromDecisionTo c, Store m) => (Term t) -> m (Term t)
-updateVar c@(Const _) = return c
-updateVar (Var i)   = do a <- lookupValue i
-                         return (toCsExpr a)
+-- updateVar :: (Constrainable c (Term t), FromDecisionTo c, Store m) => (Term t) -> m (Term t)
+-- updateVar c@(Const _) = return c
+-- updateVar (Var i)   = do a <- lookupValue i
+--                         return (toCsExpr a)
 {-
 -- Bind a curry value to a constraint variable
 -- by constructing guard expressions with binding constraints
@@ -409,15 +412,6 @@ bindLabelVars []     (_:_)  _ = error "bindLabelVars: List of labeling variables
 bindLabelVars (_:_)  []     _ = error "bindLabelVars: List of labeling variables and solutions have different length"
 bindLabelVars (v:vs) (s:ss) e = bindLabelVar v s (bindLabelVars vs ss e)
 -}
-
-bindSolutions2 :: Unifiable a => [Maybe ID] -> [[a]] -> ID -> [Constraint]
-bindSolutions2 _   []                   _ = [Unsolvable defFailInfo]
-bindSolutions2 ids [solution]           _ = bindSolution ids solution
-bindSolutions2 ids (solution:solutions) i = [ConstraintChoice defCover i binding bindings]
- where
-  binding  = bindSolution ids solution
-  bindings = bindSolutions ids solutions (leftID i)
-
 
 bindSolutions :: Unifiable a => [Maybe ID] -> [[a]] -> ID -> [Constraint]
 bindSolutions _   []                   _ = [Unsolvable defFailInfo]

@@ -164,6 +164,10 @@ instance Constrainable C_Int (Term Int) where
   toCsExpr (Choices_C_Int _ i@(FreeID _ _) _) = Var i
   toCsExpr v                                  = Const (fromCurry v)
 
+  updateTerm (Var i) = do a <- lookupValue i
+                          return (toCsExpr a)
+  updateTerm c       = return c
+
 -- BinInt
 
 data BinInt

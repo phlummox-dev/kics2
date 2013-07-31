@@ -11,14 +11,15 @@ import List
 
 -- Solving a Su Doku puzzle represented as a matrix of numbers (possibly free
 -- variables):
-sudoku :: [String] -> [[Int]] -> Success
-sudoku m l =
- l =:= readSudoku m &
- domain (concat l) 1 9 &                         -- define domain of all digits
- foldr1 (&) (map allDifferent l)  &             -- all rows contain different digits
- foldr1 (&) (map allDifferent (transpose l))  & -- all columns have different digits
- foldr1 (&) (map allDifferent (squaresOfNine l)) & -- all 3x3 squares are different
- labeling (concat l)
+sudoku :: [String] -> [[Int]]
+sudoku m = let l free in
+  ( l =:= readSudoku m &
+    domain (concat l) 1 9 &                         -- define domain of all digits
+    foldr1 (&) (map allDifferent l)  &             -- all rows contain different digits
+    foldr1 (&) (map allDifferent (transpose l))  & -- all columns have different digits
+    foldr1 (&) (map allDifferent (squaresOfNine l)) & -- all 3x3 squares are different
+    labeling (concat l)
+  ) &> l
 
 -- translate a matrix into a list of small 3x3 squares
 squaresOfNine :: [[a]] -> [[a]]

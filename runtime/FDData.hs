@@ -107,7 +107,7 @@ updateBConstr update (BLabel b i) = do
 -- ---------------------------------------------------------------------------
 
 instance WrappableConstraint FDConstraint where
-  updateVars = updateFDConstr updateVar
+  updateVars = updateFDConstr updateTerm
 
 instance WrappableConstraint BConstraint where
-  updateVars = updateBConstr updateVar
+  updateVars = updateBConstr updateTerm
