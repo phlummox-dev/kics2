@@ -352,7 +352,7 @@ class Generable a => FromDecisionTo a where
 
 -- Lookup the decision made for the given ID and convert back
 -- into the original type
-lookupValue :: (Store m,FromDecisionTo a) => ID -> m a
+lookupValue :: (Store m, FromDecisionTo a) => ID -> m a
 lookupValue i = do (dec,j) <- lookupDecisionID i
                    fromDecision j dec
 
@@ -388,19 +388,6 @@ data Term a = Const a
 getVarID :: Term a -> Maybe ID
 getVarID (Var i) = Just i
 getVarID _       = Nothing
-
--- representation of lists of fd terms:
--- ID to identify a specific fd list is necessary for translating
--- fd lists into mcp collections for the Gecode solver
-data FDList a = FDList ID [a]
- deriving (Eq,Show)
-
--- Information for binding constraint solver solutions to their
--- corresponding curry variables
--- - a list of solutions (one solution = list of values)
--- - a list of constraint variables (i.e. the labeling variables)
--- - a fresh ID
-data SolutionInfo a b = SolInfo [[a]] (FDList b) ID
 
 {-
 -- Binds the solutions for a list of constraint variables (= labeling variables)

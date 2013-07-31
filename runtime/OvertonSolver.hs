@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module OvertonSolver (OvertonSolver) where
 
@@ -32,20 +33,10 @@ instance ExternalSolver OvertonSolver where
   type SolverModel   OvertonSolver = [Model]
   type Solutions     OvertonSolver = MCPSolutions
 
-  translate    = mapM (translateMCP translateOvertonList)
+  translate    = mapM translateMCP
   solve        = solveWithOverton
   makeBindings = makeBindingsMCP
   run          = flip evalState initial . overtonSolver
-
--- ---------------------------------------------------------------------------
--- Translation to MCP model
--- ---------------------------------------------------------------------------
-
--- Translates a list of fd terms to a MCP collection for the Overton Solver
-translateOvertonList :: FDList (Term Int) -> OvertonSolver ModelCol
-translateOvertonList (FDList _ ts) = do
-  mcpExprList <- mapM translateTerm ts
-  return (list mcpExprList)
 
 -- ---------------------------------------------------------------------------
 -- Solving MCP model

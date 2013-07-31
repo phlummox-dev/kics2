@@ -25,7 +25,7 @@ import Control.CP.FD.FD (getColItems, FDInstance, FDSolver(..))
 import Control.CP.FD.Interface (colList)
 import Control.CP.FD.Model (cte, asExpr, asCol, Model, ModelInt, ModelCol, ModelIntTerm(..), ModelColTerm(..), ModelFunctions)
 import Control.CP.SearchTree (addC, Tree, MonadTree(..))
-import Data.Expr.Sugar ((@=), (@/=), (@<), (@<=), (@+), (@-), (@*), (@:), xsum, allDiff, forall, ToBoolExpr(..))
+import Data.Expr.Sugar ((@=), (@/=), (@<), (@<=), (@+), (@-), (@*), (@:), xsum, allDiff, forall, list, ToBoolExpr(..))
 
 import Control.Monad.State
 import qualified Data.Map as Map
@@ -41,26 +41,15 @@ import Data.Maybe (fromJust, catMaybes)
 -- @value - MCP representation of constraint variable with ID i 
 type IntVarMap = Map.Map Integer ModelInt
 
--- Stores MCP representation of lists of constraint variables
--- @key   - Integer value provided by (getKey i) (i :: ID)
--- @value - MCP representation of list of constraint variables with ID i 
-type ColVarMap = Map.Map Integer ModelCol
-
 -- Translation state for Haskell's state monad
 -- @intVarMap     - Table of already translated constraint variables
 -- @colVarMap     - Table of already translated lists of constraint variables
 --                  (only used for translateGecode)
 -- @nextIntVarRef - Next variable reference
--- @nextColVarRef - Next list variable reference (only used GecodeSolver)
--- @additionalCs  - additional constraints for MCP collections 
---                  (only used for GecodeSolver)
 -- @labelInfo     - labeling information
 data MCPState = MCPState { 
   intVarMap     :: IntVarMap,
-  colVarMap     :: ColVarMap,
   nextIntVarRef :: Int,
-  nextColVarRef :: Int,
-  additionalCs  :: [Model],
   labelInfo     :: MCPLabelInfo
 }
 
@@ -89,10 +78,7 @@ data MCPLabelInfo = Info {
 initial :: MCPState
 initial = MCPState { 
   intVarMap     = Map.empty,
-  colVarMap     = Map.empty,
   nextIntVarRef = 0,
-  nextColVarRef = 0,
-  additionalCs  = [],
   labelInfo     = emptyLabelInfo
 }
 
@@ -126,43 +112,40 @@ isNotLabelled = notLabelled
 data MCPSolutions = Solutions [[C_Int]] [Maybe ID] ID
 
 -- Translates FDConstraints to MCP constraints
--- @transList - function to translate a list of fd terms to a MCP collection
---              (Gecode- and Overton-Solver use different representations)
 translateMCP :: (ExternalSolver solver, MonadState MCPState solver) 
-             => (FDList (Term Int) -> solver ModelCol) -> FDConstraint 
-             -> solver Model
-translateMCP _ (FDRel op t1 t2) = do
+             => FDConstraint -> solver Model
+translateMCP (FDRel op t1 t2) = do
   t1' <- translateTerm t1
   t2' <- translateTerm t2
   let op' = translateRelOp op
   return $ op' t1' t2'
-translateMCP _ (FDArith op t1 t2 result) = do
+translateMCP (FDArith op t1 t2 result) = do
   t1'     <- translateTerm t1
   t2'     <- translateTerm t2
   result' <- translateTerm result
   let op' = translateArithOp op
   return $ op' t1' t2' @= result'
-translateMCP transList (FDSum list result) = do
-  list'   <- transList list
+translateMCP (FDSum list result) = do
+  list'   <- translateList list
   result' <- translateTerm result
   return $ xsum list' @= result'
-translateMCP transList (FDAllDifferent list) = do
-  list' <- transList list
+translateMCP (FDAllDifferent list) = do
+  list' <- translateList list
   return $ allDiff list'
-translateMCP transList (FDDomain list@(FDList _ ts) lower upper) = do
+translateMCP (FDDomain list lower upper) = do
   state  <- get
   let info   = labelInfo state 
       domIDs = domainVarIDs info
-  put state { labelInfo = info { domainVarIDs = domIDs ++ (map getVarID ts) } }
-  list'  <- transList list
+  put state { labelInfo = info { domainVarIDs = domIDs ++ (map getVarID list) } }
+  list'  <- translateList list
   lower' <- translateTerm lower
   upper' <- translateTerm upper
   return $ forall list' (\v -> v @: (lower',upper'))
-translateMCP transList (FDLabeling strat list@(FDList _ ts) j) = do
-  list' <- transList list
+translateMCP (FDLabeling strat list j) = do
+  list' <- translateList list
   state <- get
   let domIDs      = domainVarIDs (labelInfo state)
-      labelIDs    = map getVarID ts
+      labelIDs    = map getVarID list
       allInDomain = null $ (catMaybes labelIDs) \\ (catMaybes domIDs)
       info = Info { labelVarIDs  = labelIDs
                   , domainVarIDs = domIDs
@@ -178,7 +161,7 @@ translateMCP transList (FDLabeling strat list@(FDList _ ts) j) = do
 -- Translates integer terms to appropriate MCP terms using a state monad
 translateTerm :: (ExternalSolver solver, MonadState MCPState solver) 
               => Term Int -> solver ModelInt
-translateTerm (Const x)   = return (cte x)
+translateTerm (Const x) = return (cte x)
 translateTerm v@(Var i) = do 
   state <- get
   maybe (newVar v) return (Map.lookup (getKey i) (intVarMap state))
@@ -197,6 +180,13 @@ newVar (Var i) = do
             , intVarMap = Map.insert (getKey i) nv varMap
             }
   return nv
+
+-- Translates list of fd terms to a MCP collection
+translateList :: (ExternalSolver solver, MonadState MCPState solver)
+              => [Term Int] -> solver ModelCol
+translateList vs = do
+  vs' <- mapM translateTerm vs
+  return $ list vs'
 
 -- Translates a relational operator to a corresponding MCP operator
 translateRelOp Equal     = (@=)

@@ -21,10 +21,10 @@ import Data.Typeable
 data FDConstraint
   = FDRel RelOp (Term Int) (Term Int)
   | FDArith ArithOp (Term Int) (Term Int) (Term Int)
-  | FDSum (FDList (Term Int)) (Term Int)
-  | FDAllDifferent (FDList (Term Int))
-  | FDDomain (FDList (Term Int)) (Term Int) (Term Int)
-  | FDLabeling LabelingStrategy (FDList (Term Int)) ID
+  | FDSum [Term Int] (Term Int)
+  | FDAllDifferent [Term Int]
+  | FDDomain [Term Int] (Term Int) (Term Int)
+  | FDLabeling LabelingStrategy [Term Int] ID
  deriving (Eq,Show,Typeable)
 
 data ArithOp 
@@ -59,21 +59,21 @@ updateFDConstr update (FDArith arithOp t1 t2 r) = do
   t2' <- update t2
   r'  <- update r
   return $ FDArith arithOp t1' t2' r'
-updateFDConstr update (FDSum (FDList i vs) r) = do
+updateFDConstr update (FDSum vs r) = do
   vs' <- mapM update vs
   r'  <- update r
-  return $ FDSum (FDList i vs') r'
-updateFDConstr update (FDAllDifferent (FDList i vs)) = do
+  return $ FDSum vs' r'
+updateFDConstr update (FDAllDifferent vs) = do
   vs' <- mapM update vs
-  return $ FDAllDifferent (FDList i vs')
-updateFDConstr update (FDDomain (FDList i vs) l u) = do
+  return $ FDAllDifferent vs'
+updateFDConstr update (FDDomain vs l u) = do
   vs' <- mapM update vs
   l'  <- update l
   u'  <- update u
-  return $ FDDomain (FDList i vs') l' u'
-updateFDConstr update (FDLabeling s (FDList i vs) j) = do
+  return $ FDDomain vs' l' u'
+updateFDConstr update (FDLabeling s vs j) = do
   vs' <- mapM update vs
-  return $ FDLabeling s (FDList i vs') j
+  return $ FDLabeling s vs' j
 
 -- ---------------------------------------------------------------------------
 -- SAT Constraint Representation
