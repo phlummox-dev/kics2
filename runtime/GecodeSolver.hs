@@ -12,13 +12,11 @@ import Control.CP.ComposableTransformers as MCP (solve)
 import Control.CP.FD.FD (FDInstance)
 import Control.CP.FD.Gecode.Common (GecodeWrappedSolver)
 import Control.CP.FD.Gecode.Runtime (RuntimeGecodeSolver)
-import Control.CP.FD.Model (asCol, cte, Model, ModelInt, ModelCol, ModelColTerm(..), ModelFunctions)
+import Control.CP.FD.Model (Model, ModelCol)
 import Control.CP.FD.Solvers (dfs, it)
 import Control.CP.SearchTree (Tree)
-import Data.Expr.Sugar ((@=), (@!!), size)
 
 import Control.Monad.State
-import qualified Data.Map as Map
 
 -- ---------------------------------------------------------------------------
 -- Solver Monads and ExternalSolver instances

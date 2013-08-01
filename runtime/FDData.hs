@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
---module FDData (ArithOp (..), FDConstraint (..), RelOp (..), LabelingStrategy (..), updateFDConstr) where
 module FDData ( ArithOp (..)
               , FDConstraint (..)
               , RelOp (..)

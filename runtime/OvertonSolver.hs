@@ -1,6 +1,5 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleContexts #-}
 
 module OvertonSolver (OvertonSolver) where
 
@@ -16,7 +15,6 @@ import Control.CP.FD.OvertonFD.OvertonFD (OvertonFD)
 import Control.CP.FD.OvertonFD.Sugar
 import Control.CP.FD.Solvers (dfs, it)
 import Control.CP.SearchTree (Tree)
-import Data.Expr.Sugar (list)
 
 import Control.Monad.State
 

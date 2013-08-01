@@ -3,7 +3,7 @@
 -- in Haskell
 -- ---------------------------------------------------------------------------
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE MultiParamTypeClasses, Rank2Types, FunctionalDependencies, FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses, Rank2Types, FunctionalDependencies #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Types
