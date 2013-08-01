@@ -198,7 +198,7 @@ class NonDet a => Generable a where
 -- ---------------------------------------------------------------------------
 
 -- Class for data that supports unification
-class (NormalForm a, Coverable a) => Unifiable a where
+class (NormalForm a, Generable a, Coverable a) => Unifiable a where
   -- |Unification on constructor-rooted terms
   (=.=)    :: a -> a -> ConstStore -> C_Success
   -- |Lazy unification on constructor-rooted terms,
@@ -208,6 +208,8 @@ class (NormalForm a, Coverable a) => Unifiable a where
   bind     :: ID -> a -> [Constraint]
   -- |Lazily bind a free variable to a value
   lazyBind :: ID -> a -> [Constraint]
+  -- |Convert a decision into the original value for the given ID 
+  fromDecision :: Store m => ID -> Decision -> m a
 
 -- |Unification on general terms
 (=:=) :: Unifiable a => a -> a -> ConstStore -> C_Success
@@ -329,6 +331,12 @@ constrain cd i v = guardCons cd (ValConstr i v (bind i v)) C_Success
            then unifyWith cs' (narrows cs' cd j id ys)
            else guardCons cd (StructConstr [j :=: LazyBind (lazyBind j vx)]) C_Success)
 
+-- Lookup the decision made for the given ID and convert back
+-- into the original type
+lookupValue :: (Store m, Unifiable a) => ID -> m a
+lookupValue i = do (dec,j) <- lookupDecisionID i
+                   fromDecision j dec
+
 -- ---------------------------------------------------------------------------
 -- Conversion between Curry and Haskell data types
 -- ---------------------------------------------------------------------------
@@ -343,20 +351,6 @@ instance (ConvertCurryHaskell ca ha, ConvertCurryHaskell cb hb)
   toCurry   f = toCurry   . f . fromCurry
 
 -- ---------------------------------------------------------------------------
--- Class for reconstructing values from decisions
--- ---------------------------------------------------------------------------
-
-class Generable a => FromDecisionTo a where
-  -- |Convert a decision into the original value for the given ID 
-  fromDecision :: Store m => ID -> Decision -> m a
-
--- Lookup the decision made for the given ID and convert back
--- into the original type
-lookupValue :: (Store m, FromDecisionTo a) => ID -> m a
-lookupValue i = do (dec,j) <- lookupDecisionID i
-                   fromDecision j dec
-
--- ---------------------------------------------------------------------------
 -- Conversion of Curry data types into constraint term representations
 -- ---------------------------------------------------------------------------
 
@@ -368,51 +362,19 @@ class Constrainable ctype ttype | ttype -> ctype where
   --  in the decision store
   updateTerm :: Store m => ttype -> m ttype
 
--- Check whether the curry representation of a fd constraint variable was bound
--- to another value by using lookupValue
--- and update the corresponding fd variable if necessary
--- updateVar :: (Constrainable c (Term t), FromDecisionTo c, Store m) => (Term t) -> m (Term t)
--- updateVar c@(Const _) = return c
--- updateVar (Var i)   = do a <- lookupValue i
---                         return (toCsExpr a)
-{-
--- Bind a curry value to a constraint variable
--- by constructing guard expressions with binding constraints
--- using Unifiable.bind
-bindLabelVar :: (Constrainable c (FDTerm t), Unifiable c, NonDet a) => (FDTerm t) -> c -> a -> a
-bindLabelVar (FDVar i) v e   = guardCons defCover (ValConstr i v (bind i v)) e
-bindLabelVar (Const _) _ e   = e
--}                                  
 -- Simple generic constraint term type
 data Term a = Const a
             | Var ID
  deriving (Eq,Show)
 
+-- Get the ID of a constraint variable
 getVarID :: Term a -> Maybe ID
 getVarID (Var i) = Just i
 getVarID _       = Nothing
 
-{-
--- Binds the solutions for a list of constraint variables (= labeling variables)
--- to their corresponding curry variables by constructing guard expressions
--- with appropriate binding constraints
--- if there are no solutions, return Fail
-bindSolutions :: (Constrainable c (FDTerm t), Unifiable c, NonDet a) => SolutionInfo c (FDTerm t) -> a -> a
-bindSolutions (SolInfo [] _ _) _ = failCons 0 defFailInfo
-bindSolutions (SolInfo [sol] (FDList _ lVars) _) e = bindLabelVars lVars sol e
-bindSolutions (SolInfo (sol:sols) (FDList i lVars) choiceID) e = choiceCons defCover choiceID solution solutions
-  where solution  = bindLabelVars lVars sol e
-        solutions = bindSolutions (SolInfo sols (FDList i lVars) (leftID choiceID)) e
-
--- Bind each value of a solution to its corresponding constraint variable in the
--- list of the labeling variables
-bindLabelVars :: (Constrainable c (FDTerm t), Unifiable c, NonDet a) => [FDTerm t] -> [c] -> a -> a
-bindLabelVars []     []     e = e
-bindLabelVars []     (_:_)  _ = error "bindLabelVars: List of labeling variables and solutions have different length"
-bindLabelVars (_:_)  []     _ = error "bindLabelVars: List of labeling variables and solutions have different length"
-bindLabelVars (v:vs) (s:ss) e = bindLabelVar v s (bindLabelVars vs ss e)
--}
-
+-- Bind free variables corresponding to a list of constraint variables (= labeling variables)
+-- to all solutions found by a constraint solver by constructing appropriate binding constraints
+-- if there are no solutions, return Unsolvable
 bindSolutions :: Unifiable a => [Maybe ID] -> [[a]] -> ID -> [Constraint]
 bindSolutions _   []                   _ = [Unsolvable defFailInfo]
 bindSolutions ids [solution]           _ = bindSolution ids solution
@@ -421,14 +383,16 @@ bindSolutions ids (solution:solutions) i = [ConstraintChoice defCover i binding 
   binding  = bindSolution ids solution
   bindings = bindSolutions ids solutions (leftID i)
 
+-- Bind a list of free variables to one solution
 bindSolution :: Unifiable a => [Maybe ID] -> [a] -> [Constraint]
 bindSolution ids values
   | length ids == length values = concat $ zipWith bindValue ids values
   | otherwise                   = error "bindSolution: List of labeling variables and results have different length."
 
+-- bind a free variable to value or skip value (value was known before)
 bindValue :: Unifiable a => Maybe ID -> a -> [Constraint]
 bindValue (Just i) value = bind i value
-bindValue Nothing  value = []
+bindValue Nothing  _     = []
 
 -- ---------------------------------------------------------------------------
 -- Auxiliaries for Show and Read
@@ -541,6 +505,11 @@ instance Unifiable C_Success where
   lazyBind _ (Choices_C_Success cd i@(ChoiceID _) _) = internalError ("Prelude.Success.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _ (Fail_C_Success cd info) = [Unsolvable info]
   lazyBind i (Guard_C_Success cd cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind i e)))]
+  fromDecision _ (ChooseN 0 0) = return C_Success
+  fromDecision i NoDecision    = return (generate (supply i))
+  fromDecision i ChooseLeft    = error ("Prelude.Success.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision i ChooseRight   = error ("Prelude.Success.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _ (LazyBind _)  = error "Prelude.Success.fromDecision: No rule for LazyBind decision yet"
 
 
 instance Coverable C_Success where
@@ -549,13 +518,6 @@ instance Coverable C_Success where
   cover (Choices_C_Success cd i xs)  = Choices_C_Success (incCover cd) i (map cover xs)
   cover (Fail_C_Success cd info)  = Fail_C_Success (incCover cd) info
   cover (Guard_C_Success cd cs x)    = Guard_C_Success (incCover cd) cs (cover x)
-
-instance FromDecisionTo C_Success where
-  fromDecision _ (ChooseN 0 0) = return C_Success
-  fromDecision i NoDecision    = return (generate (supply i))
-  fromDecision i ChooseLeft    = error ("Prelude.Success.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
-  fromDecision i ChooseRight   = error ("Prelude.Success.fromDecision: ChooseRight decision for free ID: " ++ (show i))
-  fromDecision _ (LazyBind _)  = error "Prelude.Success.fromDecision: No rule for LazyBind decision yet"
 -- END GENERATED FROM PrimTypes.curry
 
 -- ---------------------------------------------------------------------------
@@ -590,9 +552,7 @@ instance NonDet b => Unifiable (a -> b) where
   (=.<=)   = internalError "(=.<=) for function is undefined"
   bind     = internalError "bind for function is undefined"
   lazyBind = internalError "lazyBind for function is undefined"
+  fromDecision _ _ = error "fromDecision for function is undefined"
 
 instance Coverable (a -> b) where
   cover f = f
-
-instance NonDet b => FromDecisionTo (a -> b) where
-  fromDecision _ _ = error "fromDecision for function is undefined"

@@ -97,16 +97,6 @@ instance Unifiable C_Int where
   lazyBind _ c@(Choices_C_Int cd i@(ChoiceID _) _) = error ("Prelude.Int.lazyBind: Choices with ChoiceID: " ++ (show c))
   lazyBind _ (Fail_C_Int cd info) = [Unsolvable info]
   lazyBind i (Guard_C_Int cd cs e) = getConstrList cs ++ [(i :=: (LazyBind (lazyBind i e)))]
-
-instance Coverable C_Int where
-  cover x@(C_Int _)             = x
-  cover (C_CurryInt x)          = C_CurryInt (cover x)
-  cover (Choice_C_Int cd i x y) = Choice_C_Int (incCover cd) i (cover x) (cover y)
-  cover (Choices_C_Int cd i xs) = Choices_C_Int (incCover cd) i (map cover xs)
-  cover (Fail_C_Int cd info)    = Fail_C_Int (incCover cd) info
-  cover (Guard_C_Int cd cs x)   = Guard_C_Int (incCover cd) cs (cover x)
-
-instance FromDecisionTo C_Int where
   fromDecision i (ChooseN 0 1) = 
     do
      x3 <- lookupValue (leftID i)
@@ -115,6 +105,14 @@ instance FromDecisionTo C_Int where
   fromDecision i ChooseLeft   = error ("Prelude.Int.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
   fromDecision i ChooseRight  = error ("Prelude.Int.fromDecision: ChooseRight decision for free ID: " ++ (show i))
   fromDecision _ (LazyBind _) = error "Prelude.Int.fromDecision: No rule for LazyBind decision yet"
+
+instance Coverable C_Int where
+  cover x@(C_Int _)             = x
+  cover (C_CurryInt x)          = C_CurryInt (cover x)
+  cover (Choice_C_Int cd i x y) = Choice_C_Int (incCover cd) i (cover x) (cover y)
+  cover (Choices_C_Int cd i xs) = Choices_C_Int (incCover cd) i (map cover xs)
+  cover (Fail_C_Int cd info)    = Fail_C_Int (incCover cd) info
+  cover (Guard_C_Int cd cs x)   = Guard_C_Int (incCover cd) cs (cover x)
 
 instance ConvertCurryHaskell C_Int Int where
   toCurry (I# i) = C_Int i
@@ -264,17 +262,6 @@ instance Unifiable BinInt where
   lazyBind _ (Choices_BinInt _ i@(ChoiceID _) _) = internalError ("Prelude.BinInt.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _ (Fail_BinInt _ info) = [Unsolvable info]
   lazyBind i (Guard_BinInt _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind i e)))]
-
-instance Coverable BinInt where
-  cover (Neg x)                  = Neg (cover x)
-  cover z@Zero                   = z
-  cover (Pos x)                  = Pos (cover x)
-  cover (Choice_BinInt cd i x y) = Choice_BinInt (incCover cd) i (cover x) (cover y)
-  cover (Choices_BinInt cd i xs) = Choices_BinInt(incCover cd) i (map cover xs)
-  cover (Fail_BinInt cd info)    = Fail_BinInt (incCover cd) info
-  cover (Guard_BinInt cd cs x)   = Guard_BinInt (incCover cd) cs (cover x)
-
-instance FromDecisionTo BinInt where
   fromDecision i (ChooseN 0 1) = 
     do
      x3 <- lookupValue (leftID i)
@@ -288,6 +275,16 @@ instance FromDecisionTo BinInt where
   fromDecision i ChooseLeft   = error ("Prelude.BinInt.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
   fromDecision i ChooseRight  = error ("Prelude.BinInt.fromDecision: ChooseRight decision for free ID: " ++ (show i))
   fromDecision _ (LazyBind _) = error "Prelude.BinInt.fromDecision: No rule for LazyBind decision yet"
+
+instance Coverable BinInt where
+  cover (Neg x)                  = Neg (cover x)
+  cover z@Zero                   = z
+  cover (Pos x)                  = Pos (cover x)
+  cover (Choice_BinInt cd i x y) = Choice_BinInt (incCover cd) i (cover x) (cover y)
+  cover (Choices_BinInt cd i xs) = Choices_BinInt(incCover cd) i (map cover xs)
+  cover (Fail_BinInt cd info)    = Fail_BinInt (incCover cd) info
+  cover (Guard_BinInt cd cs x)   = Guard_BinInt (incCover cd) cs (cover x)
+
 -- Nats
 
 data Nat
@@ -384,17 +381,6 @@ instance Unifiable Nat where
   lazyBind _ (Choices_Nat _ i@(ChoiceID _) _) = internalError ("Prelude.Nat.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _ (Fail_Nat _ info) = [Unsolvable info]
   lazyBind i (Guard_Nat _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind i e)))]
-
-instance Coverable Nat where
-  cover n@IHi = n
-  cover (O x)              = O (cover x)
-  cover (I x)              = I (cover x)
-  cover (Choice_Nat cd i x y) = Choice_Nat (incCover cd) i (cover x) (cover y)
-  cover (Choices_Nat cd i xs) = Choices_Nat (incCover cd) i (map cover xs)
-  cover (Fail_Nat cd info) = Fail_Nat (incCover cd) info
-  cover (Guard_Nat cd c e)    = Guard_Nat (incCover cd) c (cover e)
-
-instance FromDecisionTo Nat where
   fromDecision _ (ChooseN 0 0) = return IHi
   fromDecision i (ChooseN 1 1) = 
     do
@@ -408,6 +394,16 @@ instance FromDecisionTo Nat where
   fromDecision i ChooseLeft   = error ("Prelude.Nat.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
   fromDecision i ChooseRight  = error ("Prelude.Nat.fromDecision: ChooseRight decision for free ID: " ++ (show i))
   fromDecision _ (LazyBind _) = error "Prelude.Nat.fromDecision: No rule for LazyBind decision yet"
+
+instance Coverable Nat where
+  cover n@IHi = n
+  cover (O x)              = O (cover x)
+  cover (I x)              = I (cover x)
+  cover (Choice_Nat cd i x y) = Choice_Nat (incCover cd) i (cover x) (cover y)
+  cover (Choices_Nat cd i xs) = Choices_Nat (incCover cd) i (map cover xs)
+  cover (Fail_Nat cd info) = Fail_Nat (incCover cd) info
+  cover (Guard_Nat cd c e)    = Guard_Nat (incCover cd) c (cover e)
+
 -- Higher Order Funcs
 
 -- BEGIN GENERATED FROM PrimTypes.curry
@@ -473,6 +469,7 @@ instance (Unifiable t0,Unifiable t1) => Unifiable (Func t0 t1) where
   lazyBind _ (Choices_Func _ i _) = internalError ("Prelude.Func.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _ (Fail_Func _ info) = [Unsolvable info]
   lazyBind i (Guard_Func _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind i e)))]
+  fromDecision _ _ = error "ERROR: No fromDecision for Func"   
 
 instance Coverable (Func t0 t1) where
   cover f@(Func _)             = f
@@ -481,8 +478,6 @@ instance Coverable (Func t0 t1) where
   cover (Fail_Func cd info)    = Fail_Func (incCover cd) info
   cover (Guard_Func cd cs f)   = Guard_Func (incCover cd) cs (cover f)   
 
-instance FromDecisionTo (Func t0 t1) where
-  fromDecision _ _ = error "ERROR: No fromDecision for Func"   
 -- END GENERATED FROM PrimTypes.curry
 
 -- BEGIN GENERATED FROM PrimTypes.curry
@@ -548,6 +543,7 @@ instance Unifiable t0 => Unifiable (C_IO t0) where
   lazyBind _ (Choices_C_IO _ i@(ChoiceID _) _) = internalError ("Prelude.IO.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _ (Fail_C_IO cd info) = [Unsolvable info]
   lazyBind i (Guard_C_IO _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind i e)))]
+  fromDecision _ _ = error "ERROR: No fromDecision for C_IO"
 
 instance Coverable (C_IO t0) where
   cover io@(C_IO _)         = io
@@ -556,8 +552,6 @@ instance Coverable (C_IO t0) where
   cover (Fail_C_IO cd info) = Fail_C_IO (incCover cd) info
   cover (Guard_C_IO cd cs cio) = Guard_C_IO (incCover cd) cs (cover cio)
 
-instance FromDecisionTo (C_IO t0) where
-  fromDecision _ _ = error "ERROR: No fromDecision for C_IO"
 -- END GENERATED FROM PrimTypes.curry
 
 instance ConvertCurryHaskell ca ha => ConvertCurryHaskell (C_IO ca) (IO ha)
@@ -633,6 +627,7 @@ instance Unifiable (PrimData t0) where
   lazyBind _ (Choices_PrimData _ i@(ChoiceID _) _) = internalError ("Prelude.PrimData.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _ (Fail_PrimData _ info) = [Unsolvable info]
   lazyBind i (Guard_PrimData _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind i e)))]
+  fromDecision _ _ = error "ERROR: No fromDecision for PrimData"
 
 instance Coverable (PrimData a) where
   cover p@(PrimData _)             = p
@@ -641,8 +636,6 @@ instance Coverable (PrimData a) where
   cover (Fail_PrimData cd info)    = Fail_PrimData (incCover cd) info
   cover (Guard_PrimData cd cs x)   = Guard_PrimData (incCover cd) cs (cover x)
 
-instance FromDecisionTo (PrimData a) where
-  fromDecision _ _ = error "ERROR: No fromDecision for PrimData"
 -- END GENERATED FROM PrimTypes.curry
 
 instance ConvertCurryHaskell (PrimData a) a where -- needs FlexibleInstances
