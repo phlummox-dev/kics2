@@ -12,7 +12,6 @@ import qualified Data.Boolean.SatSolver as Sat (newSatSolver, assertTrue, lookup
 
 import Control.Monad.State (evalState, get, put, State, MonadState)
 import qualified Data.Map as Map (empty, insert, lookup, Map)
-import Data.Maybe (catMaybes)
 
 -- ---------------------------------------------------------------------------
 -- Solver Monad and ExternalSolver instance
@@ -44,11 +43,13 @@ type VarMap = Map.Map Integer Sat.Boolean
 -- @nextVarRef - Next variable reference
 -- @labelID    - fresh ID, necessary for constructing choices over solutions,
 --               when transforming solver solutions into binding constraints
+-- @satVars    - list of boolean variables which shall be tested for satisfiability
 data SatState = SatState {
   vars       :: [Maybe ID],
   varMap     :: VarMap,
   nextVarRef :: Int,
-  labelID    :: Maybe ID
+  labelID    :: Maybe ID,
+  satVars    :: [Sat.Boolean]
 }
 
 -- Initial state
@@ -57,41 +58,24 @@ initial = SatState {
   vars       = [],
   varMap     = Map.empty,
   nextVarRef = 0,
-  labelID    = Nothing
+  labelID    = Nothing,
+  satVars    = []
 }
 
 translateSAT :: [BConstraint] -> SatSolver Sat.Boolean
-translateSAT [] = return Sat.No
-translateSAT [BLabel b i] = do
+translateSAT cs = do
+  mapM_ translateFormulas cs
   state <- get
-  put state { labelID = Just i }
-  translateTerm b
-translateSAT (f:fs) = do
-  (boolean,i) <- translateFormula f
-  state <- get
-  put state { varMap = Map.insert (getKey i) boolean (varMap state) }
-  translateSAT fs
+  return $ getFormula (satVars state)
 
-translateFormula :: BConstraint -> SatSolver (Sat.Boolean,ID)
-translateFormula (BNeg b (Var i)) = do
-  b' <- translateTerm b
-  return (Sat.Not b',i)
-translateFormula (BRel junctor b1 b2 (Var i)) = do
-  b1' <- translateTerm b1
-  b2' <- translateTerm b2
-  let junctor' = translateJunctor junctor
-      boolean  = junctor' b1' b2'
-  return (boolean,i)
-    
-{-
-translateSAT :: BConstraint -> SatSolver Sat.Boolean
-translateSAT (BNeg b (FDVar i)) = do
+translateFormulas :: BConstraint -> SatSolver Sat.Boolean
+translateFormulas (BNeg b (Var i)) = do
   b'    <- translateTerm b
   state <- get
   let boolean = Sat.Not b'
   put state { varMap = Map.insert (getKey i) boolean (varMap state) }
   return $ boolean
-translateSAT (BRel junctor b1 b2 (FDVar i)) = do
+translateFormulas (BRel junctor b1 b2 (Var i)) = do
   b1'   <- translateTerm b1
   b2'   <- translateTerm b2
   state <- get
@@ -99,12 +83,19 @@ translateSAT (BRel junctor b1 b2 (FDVar i)) = do
       boolean  = junctor' b1' b2'
   put state { varMap = Map.insert (getKey i) boolean (varMap state) }
   return $ boolean
-translateSAT (BLabel b i) = do
+translateFormulas (BLabel b i) = do
   b' <- translateTerm b
   state <- get
-  put state { labelID = Just i }
+  let svars = satVars state
+  put state { labelID   = Just i
+            , satVars = b' : svars
+            }
   return b'
--}
+
+getFormula :: [Sat.Boolean] -> Sat.Boolean
+getFormula [] = Sat.No
+getFormula fs = foldl1 (Sat.:&&:) fs
+
 
 translateJunctor :: Junctor -> Sat.Boolean -> Sat.Boolean -> Sat.Boolean
 translateJunctor Conjunction = (Sat.:&&:)
@@ -137,27 +128,21 @@ newVar (Var i) = do
 
 data SatSolutions = Solutions [[C_Int]] [Maybe ID] ID
 
--- TODO: improve code
 solveSAT :: Sat.Boolean -> SatSolver SatSolutions
 solveSAT formula = do
   state <- get
   case (labelID state) of
     Nothing -> error "Usage: To test the satisfiability of a formula: CLPB> satisfied <formula>."
-    Just i  -> 
-      do let initSolver = Sat.assertTrue formula Sat.newSatSolver >>= Sat.solve
-             ids = (vars state)
-             bvars = catMaybes $ map (flip Map.lookup (varMap state) . getKey) (catMaybes ids)
-             solutions = map (\s -> map (flip lookupBooleanVar s) bvars) initSolver
-             ints = concatMap boolsAsInts solutions
-             cints = map (map toCurry) ints
-         return $ Solutions cints ids i
+    Just i  -> do
+      let initSolver = Sat.assertTrue formula Sat.newSatSolver >>= Sat.solve
+          varRefs = [0..((nextVarRef state) - 1)]
+          solutions = map (\s -> map (flip Sat.lookupVar s) varRefs) initSolver
+          ints = concatMap boolsAsInts solutions
+          cints = map (map toCurry) ints
+      return $ Solutions cints (vars state) i
 
 makeBindingsSAT :: ExternalSolver solver => SatSolutions -> solver Constraints
 makeBindingsSAT (Solutions solutions ids j) = return $ StructConstr $ bindSolutions ids solutions j
-
-lookupBooleanVar :: Sat.Boolean -> Sat.SatSolver -> Maybe Bool
-lookupBooleanVar (Sat.Var i) = Sat.lookupVar i
-lookupBooleanVar b = error $ "SatSolver.lookupBooleanVar: Given argument is not a boolean variable: " ++ (show b)
 
 boolAsInt :: Bool -> Int
 boolAsInt False = 0
