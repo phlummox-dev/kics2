@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 
-module ExternalSolver where
+module Solver.ExternalSolver where
 
 import Types
 

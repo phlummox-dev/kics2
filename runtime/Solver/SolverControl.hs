@@ -1,16 +1,16 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE CPP #-}
 
-module SolverControl where
+module Solver.SolverControl where
 
-import ExternalSolver
-import FDData (FDConstraint, BConstraint)
-import OvertonSolver (OvertonSolver)
-import SatSolver (SatSolver)
+import Solver.Constraints (FDConstraint, BConstraint)
+import Solver.ExternalSolver
+import Solver.OvertonSolver (OvertonSolver)
+import Solver.SatSolver (SatSolver)
 import Types
 
 #ifdef GECODE
-import GecodeSolver (GecodeSolver)
+import Solver.GecodeSolver (GecodeSolver)
 #endif
 
 data Solver = forall c s. (WrappableConstraint c, ExternalSolver s) 

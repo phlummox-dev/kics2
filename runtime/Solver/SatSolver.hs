@@ -1,11 +1,11 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module SatSolver (SatSolver) where
+module Solver.SatSolver (SatSolver) where
 
-import ExternalSolver
-import FDData (BConstraint(..), Junctor(..))
 import PrimTypes (C_Int)
+import Solver.ExternalSolver
+import Solver.Constraints (BConstraint(..), Junctor(..))
 import Types
 
 import qualified Data.Boolean.SatSolver as Sat (newSatSolver, assertTrue, lookupVar, solve, Boolean(..), SatSolver)

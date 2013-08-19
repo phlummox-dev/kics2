@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module FDData ( ArithOp (..)
+module Solver.Constraints ( ArithOp (..)
               , FDConstraint (..)
               , RelOp (..)
               , LabelingStrategy (..)
@@ -9,8 +9,9 @@ module FDData ( ArithOp (..)
               , updateFDConstr, updateBConstr
               ) where
 
-import Types
 import PrimTypes
+import Types
+
 import Data.Typeable
 
 -- ---------------------------------------------------------------------------

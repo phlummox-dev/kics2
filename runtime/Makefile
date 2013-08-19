@@ -55,15 +55,17 @@ endif
 	echo "Library"                                           >> $@
 	echo "  Build-Depends: $(CABAL_RUNTIMEDEPS)"             >> $@
 	echo "  Exposed-modules:"                                >> $@
-	echo "      Basics, CurryException, Debug, FDData"       >> $@
-	echo "    , IDSupply, Installation, MonadList"           >> $@
-	echo "    , MonadSearch, PrimTypes, SafeExec"            >> $@
+	echo "      Basics, CurryException, Debug, IDSupply"     >> $@
+	echo "    , Installation, MonadList, MonadSearch"        >> $@
+	echo "    , PrimTypes, SafeExec, Solver.Constraints"     >> $@
 	echo "  Other-modules:"                                  >> $@
-	echo "      ConstStore, ExternalSolver, ID, MCPUtils"    >> $@
-	echo "    , OvertonSolver, SatSolver, Search, Solver"    >> $@
-	echo "    , SolverControl, Strategies, Types"            >> $@
+	echo "      ConstStore, ID, Search"                      >> $@
+	echo "    , Solver.EquationSolver"                       >> $@
+	echo "    , Solver.ExternalSolver, Solver.MCPUtils"      >> $@
+	echo "    , Solver.OvertonSolver, Solver.SatSolver"      >> $@
+	echo "    , Solver.SolverControl, Strategies, Types"     >> $@
 	echo "  hs-source-dirs: ., $(IDSUPPLYDIR)"               >> $@
 	echo "  if flag(gecode)"                                 >> $@
 	echo "      Build-Depends: monadiccp-gecode"             >> $@
-	echo "      Other-modules: GecodeSolver"                 >> $@
+	echo "      Other-modules: Solver.GecodeSolver"          >> $@
 	echo "      CPP-Options:   -DGECODE"                     >> $@

@@ -11,11 +11,11 @@ import Debug
 import CurryException
 import PrimTypes -- for C_IO
 import MonadList
-import Solver
 import Strategies
 import Types
 import MonadSearch
-import SolverControl -- for solving wrapped constraints
+import Solver.EquationSolver
+import Solver.SolverControl -- for solving wrapped constraints
 
 
 -- ---------------------------------------------------------------------------

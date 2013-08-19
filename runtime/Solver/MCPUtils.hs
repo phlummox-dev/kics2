@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module MCPUtils
+module Solver.MCPUtils
   ( -- Getter for MCPLabelInfo
     getLabelID
   , getLabelVarIDs
@@ -15,9 +15,9 @@ module MCPUtils
   , makeBindingsMCP
   ) where
 
-import ExternalSolver
-import FDData (FDConstraint(..), RelOp(..), ArithOp(..), LabelingStrategy(..))
 import PrimTypes (C_Int)
+import Solver.Constraints (FDConstraint(..), RelOp(..), ArithOp(..), LabelingStrategy(..))
+import Solver.ExternalSolver
 import Types
 
 import Control.CP.EnumTerm (assignments, labelling, inOrder, firstFail, middleOut, endsOut, EnumTerm(..))
@@ -28,8 +28,8 @@ import Control.CP.SearchTree (addC, Tree, MonadTree(..))
 import Data.Expr.Sugar ((@=), (@/=), (@<), (@<=), (@+), (@-), (@*), (@:), xsum, allDiff, forall, list, ToBoolExpr(..))
 
 import Control.Monad.State
-import qualified Data.Map as Map
 import Data.List ((\\))
+import qualified Data.Map as Map
 import Data.Maybe (fromJust, catMaybes)
 
 -- ---------------------------------------------------------------------------

@@ -1,55 +1,56 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module OvertonSolver (OvertonSolver) where
+module Solver.GecodeSolver (GecodeSolver) where
 
-import ExternalSolver
-import FDData (FDConstraint)
-import MCPUtils
+import Solver.Constraints (FDConstraint)
+import Solver.ExternalSolver
+import Solver.MCPUtils
 import Types
 
 import Control.CP.ComposableTransformers as MCP (solve)
 import Control.CP.FD.FD (FDInstance)
+import Control.CP.FD.Gecode.Common (GecodeWrappedSolver)
+import Control.CP.FD.Gecode.Runtime (RuntimeGecodeSolver)
 import Control.CP.FD.Model (Model, ModelCol)
-import Control.CP.FD.OvertonFD.OvertonFD (OvertonFD)
-import Control.CP.FD.OvertonFD.Sugar
 import Control.CP.FD.Solvers (dfs, it)
 import Control.CP.SearchTree (Tree)
 
 import Control.Monad.State
 
 -- ---------------------------------------------------------------------------
--- Solver Monad and ExternalSolver instance
+-- Solver Monads and ExternalSolver instances
 -- ---------------------------------------------------------------------------
 
--- the overton solver monad
-newtype OvertonSolver a = Overton { overtonSolver :: State MCPState a }
+-- the gecode solver monad
+newtype GecodeSolver a = Gecode { gecodeSolver :: State MCPState a }
  deriving (Monad, MonadState MCPState)
 
-instance ExternalSolver OvertonSolver where
-  type ForConstraint OvertonSolver = FDConstraint
-  type SolverModel   OvertonSolver = [Model]
-  type Solutions     OvertonSolver = MCPSolutions
+instance ExternalSolver GecodeSolver where
+  type ForConstraint GecodeSolver = FDConstraint
+  type SolverModel   GecodeSolver = [Model]
+  type Solutions     GecodeSolver = MCPSolutions
 
   translate    = mapM translateMCP
-  solve        = solveWithOverton
+  solve        = solveWithGecode
   makeBindings = makeBindingsMCP
-  run          = flip evalState initial . overtonSolver
+  run          = flip evalState initial . gecodeSolver
 
 -- ---------------------------------------------------------------------------
 -- Solving MCP model
 -- ---------------------------------------------------------------------------
 
-type OvertonTree = Tree (FDInstance OvertonFD) ModelCol
+type GecodeTree 
+  = Tree (FDInstance (GecodeWrappedSolver RuntimeGecodeSolver)) ModelCol
 
-solveWithOverton :: [Model] -> OvertonSolver MCPSolutions
-solveWithOverton model = do
+solveWithGecode :: [Model] -> GecodeSolver MCPSolutions
+solveWithGecode model = do
   state <- get
   let info = labelInfo state
   if (isNotLabelled info) 
-    then error "MCPSolver.solveWithOverton: Found no variables for labeling."
+    then error "MCPSolver.solveWithGecode: Found no variables for labeling."
     else do let modelTree = toModelTree model (getMCPLabelVars info)
                 solutions = snd $ MCP.solve dfs it $ 
-                    (modelTree :: OvertonTree) >>= labelWith (getStrategy info)
+                    (modelTree :: GecodeTree) >>= labelWith (getStrategy info)
                 cints     = map (map toCurry) solutions
             return $ Solutions cints (getLabelVarIDs info) (getLabelID info)
