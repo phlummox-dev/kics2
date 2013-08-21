@@ -8,6 +8,7 @@ import Debug
 import Types
 
 -- Curry_Int
+-- BEGIN GENERATED FROM PrimTypes.curry
 data C_Int
      = C_Int Int#
      | C_CurryInt BinInt
@@ -22,7 +23,7 @@ instance Show C_Int where
   showsPrec d (Guard_C_Int cd c e) = showsGuard d cd c e
   showsPrec _ (Fail_C_Int _ _) = showChar '!'
   showsPrec d (C_Int x1) = shows (I# x1)
-  showsPrec d (C_CurryInt x1) = case (const $## x1) emptyCs of
+  showsPrec d (C_CurryInt x1) = case ((\x _ _ -> x) $## x1) (error "Show C_Int: nesting depth used") emptyCs of
     Choice_BinInt _ _ _ _ -> shows x1
     Choices_BinInt _ _ _  -> shows x1
     Fail_BinInt _ _       -> shows x1
@@ -51,52 +52,52 @@ instance NonDet C_Int where
   match _ _ _ _ _ f x = f x
 
 instance Generable C_Int where
-  generate s = Choices_C_Int defCover (freeID [1] s) [C_CurryInt (generate (leftSupply s))]
+  generate s cd = Choices_C_Int cd (freeID [1] s) [C_CurryInt (generate (leftSupply s) cd)]
 
 instance NormalForm C_Int where
-  ($!!) cont x@(C_Int _) cs = cont x cs
-  ($!!) cont (C_CurryInt x1) cs = ((\y1 -> cont (C_CurryInt y1)) $!! x1) cs
-  ($!!) cont (Choice_C_Int cd i x y) cs = nfChoice cont cd i x y cs
-  ($!!) cont (Choices_C_Int cd i xs) cs = nfChoices cont cd i xs cs
-  ($!!) cont (Guard_C_Int cd c x) cs = guardCons cd c ((cont $!! x) (addCs c cs))
-  ($!!) _ (Fail_C_Int cd info) _ = failCons cd info
-  ($##) cont x@(C_Int _) cs = cont x cs
-  ($##) cont (C_CurryInt x1) cs = ((\y1 -> cont (C_CurryInt y1)) $## x1) cs
-  ($##) cont (Choice_C_Int cd i x y) cs = gnfChoice cont cd i x y cs
-  ($##) cont (Choices_C_Int cd i xs) cs = gnfChoices cont cd i xs cs
-  ($##) cont (Guard_C_Int cd c x) cs = guardCons cd c ((cont $## x) (addCs c cs))
-  ($##) _ (Fail_C_Int cd info) _ = failCons cd info
+  ($!!) cont x@(C_Int _) cd cs = cont x cd cs
+  ($!!) cont (C_CurryInt x1) cd cs = ((\y1 -> cont (C_CurryInt y1)) $!! x1) cd cs
+  ($!!) cont (Choice_C_Int d i x y) cd cs = nfChoice cont d i x y cd cs
+  ($!!) cont (Choices_C_Int d i xs) cd cs = nfChoices cont d i xs cd cs
+  ($!!) cont (Guard_C_Int d c x) cd cs = guardCons d c ((cont $!! x) cd $! (addCs c cs))
+  ($!!) _ (Fail_C_Int cd info) _ _ = failCons cd info
+  ($##) cont x@(C_Int _) cd cs = cont x cd cs
+  ($##) cont (C_CurryInt x1) cd cs = ((\y1 -> cont (C_CurryInt y1)) $## x1) cd cs
+  ($##) cont (Choice_C_Int d i x y) cd cs = gnfChoice cont d i x y cd cs
+  ($##) cont (Choices_C_Int d i xs) cd cs = gnfChoices cont d i xs cd cs
+  ($##) cont (Guard_C_Int d c x) cd cs = guardCons d c ((cont $## x) cd $! (addCs c cs))
+  ($##) _ (Fail_C_Int d info) _ _ = failCons d info
   searchNF search cont x@(C_Int _) = cont x
   searchNF search cont (C_CurryInt x1) = search (\y1 -> cont (C_CurryInt y1)) x1
   searchNF _ _ x = error ("Prelude.Int.searchNF: no constructor: " ++ (show x))
 
 instance Unifiable C_Int where
-  (=.=) (C_Int      x1) (C_Int      y1) _ = if (x1 ==# y1) then C_Success else Fail_C_Success defCover defFailInfo
-  (=.=) (C_Int      x1) (C_CurryInt y1) cs = ((primint2curryint x1) =:= y1) cs
-  (=.=) (C_CurryInt x1) (C_Int      y1) cs = (x1 =:= (primint2curryint y1)) cs
-  (=.=) (C_CurryInt x1) (C_CurryInt y1) cs = (x1 =:= y1) cs
-  (=.=) _ _ _ = Fail_C_Success defCover defFailInfo
-  (=.<=) (C_Int      x1) (C_Int      y1) _ = if (x1 ==# y1) then C_Success else Fail_C_Success defCover defFailInfo
-  (=.<=) (C_Int      x1) (C_CurryInt y1) cs = ((primint2curryint x1) =:<= y1) cs
-  (=.<=) (C_CurryInt x1) (C_Int      y1) cs = (x1 =:<= (primint2curryint y1)) cs
-  (=.<=) (C_CurryInt x1) (C_CurryInt y1) cs = (x1 =:<= y1) cs
-  (=.<=) _ _ _= Fail_C_Success defCover defFailInfo
-  bind i (C_Int      x2) = (i :=: ChooseN 0 1) : bind (leftID i) (primint2curryint x2)
-  bind i (C_CurryInt x2) = (i :=: ChooseN 0 1) : bind (leftID i) x2
-  bind i (Choice_C_Int cd j l r) = [(ConstraintChoice cd j (bind i l) (bind i r))]
-  bind i (Choices_C_Int cd j@(FreeID _ _) xs) = bindOrNarrow i cd j xs
-  bind i (Choices_C_Int cd j@(NarrowedID _ _) xs) = [(ConstraintChoices cd j (map (bind i) xs))]
-  bind _ c@(Choices_C_Int cd i@(ChoiceID _) _) = error ("Prelude.Int.bind: Choices with ChoiceID: " ++ (show c))
-  bind _ (Fail_C_Int cd info) = [Unsolvable info]
-  bind i (Guard_C_Int cd cs e) = getConstrList cs ++ (bind i e)
-  lazyBind i (C_Int      x2) = [i :=: ChooseN 0 1, leftID i :=: LazyBind (lazyBind (leftID i) (primint2curryint x2))]
-  lazyBind i (C_CurryInt x2) = [i :=: ChooseN 0 1, leftID i :=: LazyBind (lazyBind (leftID i) x2)]
-  lazyBind i (Choice_C_Int cd j l r) = [(ConstraintChoice cd j (lazyBind i l) (lazyBind i r))]
-  lazyBind i (Choices_C_Int cd j@(FreeID _ _) xs) = lazyBindOrNarrow i cd j xs
-  lazyBind i (Choices_C_Int cd j@(NarrowedID _ _) xs) = [(ConstraintChoices cd j (map (lazyBind i) xs))]
-  lazyBind _ c@(Choices_C_Int cd i@(ChoiceID _) _) = error ("Prelude.Int.lazyBind: Choices with ChoiceID: " ++ (show c))
-  lazyBind _ (Fail_C_Int cd info) = [Unsolvable info]
-  lazyBind i (Guard_C_Int cd cs e) = getConstrList cs ++ [(i :=: (LazyBind (lazyBind i e)))]
+  (=.=) (C_Int      x1) (C_Int      y1) cd _  = if (x1 ==# y1) then C_Success else Fail_C_Success cd defFailInfo
+  (=.=) (C_Int      x1) (C_CurryInt y1) cd cs = ((primint2curryint x1) =:= y1) cd cs
+  (=.=) (C_CurryInt x1) (C_Int      y1) cd cs = (x1 =:= (primint2curryint y1)) cd cs
+  (=.=) (C_CurryInt x1) (C_CurryInt y1) cd cs = (x1 =:= y1) cd cs
+  (=.=) _               _               cd _  = Fail_C_Success cd defFailInfo
+  (=.<=) (C_Int      x1) (C_Int      y1) cd _ = if (x1 ==# y1) then C_Success else Fail_C_Success cd defFailInfo
+  (=.<=) (C_Int      x1) (C_CurryInt y1) cd cs = ((primint2curryint x1) =:<= y1) cd cs
+  (=.<=) (C_CurryInt x1) (C_Int      y1) cd cs = (x1 =:<= (primint2curryint y1)) cd cs
+  (=.<=) (C_CurryInt x1) (C_CurryInt y1) cd cs = (x1 =:<= y1) cd cs
+  (=.<=) _ _ cd _= Fail_C_Success cd defFailInfo
+  bind cd i (C_Int      x2) = (i :=: ChooseN 0 1) : bind cd (leftID i) (primint2curryint x2)
+  bind cd i (C_CurryInt x2) = (i :=: ChooseN 0 1) : bind cd (leftID i) x2
+  bind cd i (Choice_C_Int d j l r) = [(ConstraintChoice d j (bind cd i l) (bind cd i r))]
+  bind cd i (Choices_C_Int d j@(FreeID _ _) xs) = bindOrNarrow cd i d j xs
+  bind cd i (Choices_C_Int d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (bind cd i) xs))]
+  bind _  _ c@(Choices_C_Int _ i@(ChoiceID _) _) = error ("Prelude.Int.bind: Choices with ChoiceID: " ++ (show c))
+  bind _ _ (Fail_C_Int _ info) = [Unsolvable info]
+  bind cd  i (Guard_C_Int _ cs e) = getConstrList cs ++ (bind cd i e)
+  lazyBind cd i (C_Int      x2) = [i :=: ChooseN 0 1, leftID i :=: LazyBind (lazyBind cd (leftID i) (primint2curryint x2))]
+  lazyBind cd i (C_CurryInt x2) = [i :=: ChooseN 0 1, leftID i :=: LazyBind (lazyBind cd (leftID i) x2)]
+  lazyBind cd i (Choice_C_Int d j l r) = [(ConstraintChoice d j (lazyBind cd i l) (lazyBind cd i r))]
+  lazyBind cd i (Choices_C_Int d j@(FreeID _ _) xs) = lazyBindOrNarrow cd i d j xs
+  lazyBind cd i (Choices_C_Int d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (lazyBind cd i) xs))]
+  lazyBind _  _ c@(Choices_C_Int _ i@(ChoiceID _) _) = error ("Prelude.Int.lazyBind: Choices with ChoiceID: " ++ (show c))
+  lazyBind _  _ (Fail_C_Int _ info) = [Unsolvable info]
+  lazyBind cd i (Guard_C_Int _ cs e) = getConstrList cs ++ [(i :=: (LazyBind (lazyBind cd i e)))]
   fromDecision i (ChooseN 0 1) = 
     do
      x3 <- lookupValue (leftID i)
@@ -105,14 +106,7 @@ instance Unifiable C_Int where
   fromDecision i ChooseLeft   = error ("Prelude.Int.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
   fromDecision i ChooseRight  = error ("Prelude.Int.fromDecision: ChooseRight decision for free ID: " ++ (show i))
   fromDecision _ (LazyBind _) = error "Prelude.Int.fromDecision: No rule for LazyBind decision yet"
-
-instance Coverable C_Int where
-  cover x@(C_Int _)             = x
-  cover (C_CurryInt x)          = C_CurryInt (cover x)
-  cover (Choice_C_Int cd i x y) = Choice_C_Int (incCover cd) i (cover x) (cover y)
-  cover (Choices_C_Int cd i xs) = Choices_C_Int (incCover cd) i (map cover xs)
-  cover (Fail_C_Int cd info)    = Fail_C_Int (incCover cd) info
-  cover (Guard_C_Int cd cs x)   = Guard_C_Int (incCover cd) cs (cover x)
+-- END GENERATED FROM PrimTypes.curry
 
 instance ConvertCurryHaskell C_Int Int where
   toCurry (I# i) = C_Int i
