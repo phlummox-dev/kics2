@@ -32,6 +32,7 @@ unregister:
 clean:
 	rm -rf *.hi *.o
 	rm -f $(CABAL_FILE)
+	cd Solver && rm -rf *.hi *.o
 
 $(CABAL_FILE): ../Makefile Makefile
 ifndef VERSION

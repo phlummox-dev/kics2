@@ -1,6 +1,8 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Solver.Constraints ( ArithOp (..)
+module Solver.Constraints (
+                narrowIfFree, narrowIfFree2
+              , ArithOp (..)
               , FDConstraint (..)
               , RelOp (..)
               , LabelingStrategy (..)
@@ -13,6 +15,22 @@ import PrimTypes
 import Types
 
 import Data.Typeable
+
+-- Converts a free variable in a narrowed variable if its cover depth is smaller than
+-- the depth of its environment
+-- @param contFree: continuation in case given argument is a free variable
+-- @param contVal: continuation in case given argument is a value in HNF
+narrowIfFree :: (NonDet a, NonDet b) => a -> (a -> Cover ->  ConstStore -> b) -> (a -> Cover -> ConstStore -> b) -> Cover -> ConstStore -> b
+narrowIfFree x contFree contVal cd cs = case try x of
+  (Narrowed cdi i xs) -> choicesCons cdi i (map (\x' -> narrowIfFree x' contFree contVal cd cs) xs)
+  (Free cdi i xs)     -> lookupCs cs i (\xval -> contVal xval cd cs)
+                           (if cdi < cd then (narrowIfFree (narrows cs cdi i id xs) contFree contVal cd cs)
+                                        else contFree x cd cs)
+  (Val vx)            -> contVal vx cd cs
+
+-- Like narrowIfFree, but converts both given arguments
+narrowIfFree2 :: (NonDet a, NonDet b, NonDet c) => a -> b -> (a -> b -> Cover -> ConstStore -> c) -> (a -> b -> Cover -> ConstStore -> c) -> Cover -> ConstStore -> c
+narrowIfFree2 x y contFree contVal cd cs = narrowIfFree x (\x' cd' cs' -> narrowIfFree y (contFree x') (contFree x') cd' cs') (\x'' cd'' cs'' -> narrowIfFree y (contFree x'') (contVal x'') cd'' cs'') cd cs
 
 -- ---------------------------------------------------------------------------
 -- Finite Domain Constraint Representation
@@ -107,7 +125,7 @@ updateBConstr update (BLabel b i) = do
 -- ---------------------------------------------------------------------------
 
 instance WrappableConstraint FDConstraint where
-  updateVars = updateFDConstr updateTerm
+  updateVars cd = updateFDConstr (updateTerm cd)
 
 instance WrappableConstraint BConstraint where
-  updateVars = updateBConstr updateTerm
+  updateVars cd = updateBConstr (updateTerm cd)

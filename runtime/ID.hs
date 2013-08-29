@@ -105,8 +105,8 @@ class (Typeable c, Show c) => WrappableConstraint c where
   unwrapCs :: WrappedConstraint -> Maybe c
   unwrapCs (CWrapper c) = cast c
   -- |Update constraints regarding constraint variable bindings introduced by (=:=)
-  updateVars :: Store m => c -> m c
-  updateVars = return
+  updateVars :: Store m => Cover -> c -> m c
+  updateVars _ = return
 
 -- heterogenous type, which is used to wrap up different constraint types
 -- implementing the WrappableConstraint type class in the single type

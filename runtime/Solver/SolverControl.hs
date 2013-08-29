@@ -14,7 +14,7 @@ import Solver.GecodeSolver (GecodeSolver)
 #endif
 
 data Solver = forall c s. (WrappableConstraint c, ExternalSolver s) 
-  => Solver ([c] -> s Constraints)
+  => Solver (Cover -> [c] -> s Constraints)
 
 -- filter heterogenous wrapped constraint list for constraints of a given type
 filterCs :: WrappableConstraint c => [WrappedConstraint] 
@@ -36,30 +36,30 @@ solvers = [Solver overton, Solver sat]
 -- constraints by filtering the list for constraints of the supported solvers
 -- if constraints of supported type are found, run the corresponding solver
 -- otherwise try the next solver in the list
-solveAll :: (Store m, NonDet a) => [WrappedConstraint] -> [Solver] -> a -> m a
-solveAll wcs []                        _ = error $ 
+solveAll :: (Store m, NonDet a) => Cover -> [WrappedConstraint] -> [Solver] -> a -> m a
+solveAll _  wcs []                        _ = error $ 
   "SolverControl.solveAll: Not solvable with supported solvers: " ++ show wcs
-solveAll wcs ((Solver solver):solvers) e = case filterCs wcs of 
-  ([],[])   -> return $ failCons 0 defFailInfo
-  ([],wcs') -> solveAll wcs' solvers e
-  (cs,[])   -> do updatedCs <- mapM updateVars cs
-                  let bindings = run $ solver updatedCs
-                  return $ guardCons defCover bindings e
-  (cs,wcs') -> do updatedCs <- mapM updateVars cs
-                  let bindings = run $ solver updatedCs
-                  e' <- solveAll wcs' solvers e
-                  return $ guardCons defCover bindings e'
+solveAll cd wcs ((Solver solver):solvers) e = case filterCs wcs of 
+  ([],[])   -> return $ failCons cd defFailInfo
+  ([],wcs') -> solveAll cd wcs' solvers e
+  (cs,[])   -> do updatedCs <- mapM (updateVars cd) cs
+                  let bindings = run $ solver cd updatedCs
+                  return $ guardCons cd bindings e
+  (cs,wcs') -> do updatedCs <- mapM (updateVars cd) cs
+                  let bindings = run $ solver cd updatedCs
+                  e' <- solveAll cd wcs' solvers e
+                  return $ guardCons cd bindings e'
 
 #ifdef GECODE
 -- Run the Gecode-Solver provided by the MCP framework
-gecode :: [FDConstraint] -> GecodeSolver Constraints
+gecode :: Cover -> [FDConstraint] -> GecodeSolver Constraints
 gecode = eval
 #endif
 
 -- Run the Overton-Solver provided by the MCP framework
-overton :: [FDConstraint] -> OvertonSolver Constraints
+overton :: Cover -> [FDConstraint] -> OvertonSolver Constraints
 overton = eval
 
 -- Run the SAT-Solver by Sebastian Fischer
-sat :: [BConstraint] -> SatSolver Constraints
+sat :: Cover -> [BConstraint] -> SatSolver Constraints
 sat = eval

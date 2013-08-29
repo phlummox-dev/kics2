@@ -98,14 +98,14 @@ instance Unifiable C_Int where
   lazyBind _  _ c@(Choices_C_Int _ i@(ChoiceID _) _) = error ("Prelude.Int.lazyBind: Choices with ChoiceID: " ++ (show c))
   lazyBind _  _ (Fail_C_Int _ info) = [Unsolvable info]
   lazyBind cd i (Guard_C_Int _ cs e) = getConstrList cs ++ [(i :=: (LazyBind (lazyBind cd i e)))]
-  fromDecision i (ChooseN 0 1) = 
+  fromDecision cd i (ChooseN 0 1) = 
     do
-     x3 <- lookupValue (leftID i)
+     x3 <- lookupValue cd (leftID i)
      return (C_CurryInt x3)
-  fromDecision i NoDecision   = return (generate (supply i))
-  fromDecision i ChooseLeft   = error ("Prelude.Int.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
-  fromDecision i ChooseRight  = error ("Prelude.Int.fromDecision: ChooseRight decision for free ID: " ++ (show i))
-  fromDecision _ (LazyBind _) = error "Prelude.Int.fromDecision: No rule for LazyBind decision yet"
+  fromDecision cd i NoDecision   = return (generate (supply i) cd)
+  fromDecision _  i ChooseLeft   = error ("Prelude.Int.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision _  i ChooseRight  = error ("Prelude.Int.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _  _ (LazyBind _) = error "Prelude.Int.fromDecision: No rule for LazyBind decision yet"
 -- END GENERATED FROM PrimTypes.curry
 
 instance ConvertCurryHaskell C_Int Int where
@@ -156,9 +156,9 @@ instance Constrainable C_Int (Term Int) where
   toCsExpr (Choices_C_Int _ i@(FreeID _ _) _) = Var i
   toCsExpr v                                  = Const (fromCurry v)
 
-  updateTerm (Var i) = do a <- lookupValue i
-                          return (toCsExpr a)
-  updateTerm c       = return c
+  updateTerm cd (Var i) = do a <- lookupValue cd i
+                             return (toCsExpr a)
+  updateTerm _  c       = return c
 
 -- BinInt
 
@@ -256,19 +256,19 @@ instance Unifiable BinInt where
   lazyBind _  _ (Choices_BinInt _ i@(ChoiceID _) _) = internalError ("Prelude.BinInt.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _  _ (Fail_BinInt _ info) = [Unsolvable info]
   lazyBind cd i (Guard_BinInt _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
-  fromDecision i (ChooseN 0 1) = 
+  fromDecision cd i (ChooseN 0 1) = 
     do
-     x3 <- lookupValue (leftID i)
+     x3 <- lookupValue cd (leftID i)
      return (Neg x3)
-  fromDecision _ (ChooseN 1 0) = return Zero
-  fromDecision i (ChooseN 2 1) = 
+  fromDecision _  _ (ChooseN 1 0) = return Zero
+  fromDecision cd i (ChooseN 2 1) = 
     do
-     x3 <- lookupValue (leftID i)
+     x3 <- lookupValue cd (leftID i)
      return (Pos x3)
-  fromDecision i NoDecision   = return (generate (supply i))
-  fromDecision i ChooseLeft   = error ("Prelude.BinInt.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
-  fromDecision i ChooseRight  = error ("Prelude.BinInt.fromDecision: ChooseRight decision for free ID: " ++ (show i))
-  fromDecision _ (LazyBind _) = error "Prelude.BinInt.fromDecision: No rule for LazyBind decision yet"
+  fromDecision cd i NoDecision   = return (generate (supply i) cd)
+  fromDecision _  i ChooseLeft   = error ("Prelude.BinInt.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision _  i ChooseRight  = error ("Prelude.BinInt.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _  _ (LazyBind _) = error "Prelude.BinInt.fromDecision: No rule for LazyBind decision yet"
 
 -- Nats
 
@@ -366,19 +366,19 @@ instance Unifiable Nat where
   lazyBind _  _ (Choices_Nat _ i@(ChoiceID _) _) = internalError ("Prelude.Nat.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _  _ (Fail_Nat _ info) = [Unsolvable info]
   lazyBind cd i (Guard_Nat _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
-  fromDecision _ (ChooseN 0 0) = return IHi
-  fromDecision i (ChooseN 1 1) = 
+  fromDecision _  _ (ChooseN 0 0) = return IHi
+  fromDecision cd i (ChooseN 1 1) = 
     do
-     x3 <- lookupValue (leftID i)
+     x3 <- lookupValue cd (leftID i)
      return (O x3)
-  fromDecision i (ChooseN 2 1) = 
+  fromDecision cd i (ChooseN 2 1) = 
     do
-     x3 <- lookupValue (leftID i)
+     x3 <- lookupValue cd (leftID i)
      return (I x3)
-  fromDecision i NoDecision   = return (generate (supply i))
-  fromDecision i ChooseLeft   = error ("Prelude.Nat.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
-  fromDecision i ChooseRight  = error ("Prelude.Nat.fromDecision: ChooseRight decision for free ID: " ++ (show i))
-  fromDecision _ (LazyBind _) = error "Prelude.Nat.fromDecision: No rule for LazyBind decision yet"
+  fromDecision cd i NoDecision   = return (generate (supply i) cd)
+  fromDecision _  i ChooseLeft   = error ("Prelude.Nat.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision _  i ChooseRight  = error ("Prelude.Nat.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _  _ (LazyBind _) = error "Prelude.Nat.fromDecision: No rule for LazyBind decision yet"
 
 -- Higher Order Funcs
 
@@ -445,7 +445,7 @@ instance (Unifiable t0,Unifiable t1) => Unifiable (Func t0 t1) where
   lazyBind _  _ (Choices_Func _ i _) = internalError ("Prelude.Func.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _ _ (Fail_Func _ info) = [Unsolvable info]
   lazyBind cd i (Guard_Func _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]  
-  fromDecision _ _ = error "ERROR: No fromDecision for Func"   
+  fromDecision _ _ _ = error "ERROR: No fromDecision for Func"   
 -- END GENERATED FROM PrimTypes.curry
 
 -- BEGIN GENERATED FROM PrimTypes.curry
@@ -511,7 +511,7 @@ instance Unifiable t0 => Unifiable (C_IO t0) where
   lazyBind _  _ (Choices_C_IO _ i@(ChoiceID _) _) = internalError ("Prelude.IO.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _  _ (Fail_C_IO cd info) = [Unsolvable info]
   lazyBind cd i (Guard_C_IO _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
-  fromDecision _ _ = error "ERROR: No fromDecision for C_IO"
+  fromDecision _ _ _ = error "ERROR: No fromDecision for C_IO"
 -- END GENERATED FROM PrimTypes.curry
 
 instance ConvertCurryHaskell ca ha => ConvertCurryHaskell (C_IO ca) (IO ha)
@@ -587,7 +587,7 @@ instance Unifiable (PrimData t0) where
   lazyBind _  _ (Choices_PrimData _ i@(ChoiceID _) _) = internalError ("Prelude.PrimData.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _  _ (Fail_PrimData _ info) = [Unsolvable info]
   lazyBind cd i (Guard_PrimData _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
-  fromDecision _ _ = error "ERROR: No fromDecision for PrimData"
+  fromDecision _ _ _ = error "ERROR: No fromDecision for PrimData"
 
 
 -- END GENERATED FROM PrimTypes.curry

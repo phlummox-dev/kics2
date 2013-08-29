@@ -17,7 +17,6 @@ import MonadSearch
 import Solver.EquationSolver
 import Solver.SolverControl -- for solving wrapped constraints
 
-
 -- ---------------------------------------------------------------------------
 -- Search combinators for top-level search in the IO monad
 -- ---------------------------------------------------------------------------
@@ -123,21 +122,21 @@ type NonDetExpr a = IDSupply -> Cover -> ConstStore -> a
 getNormalForm :: NormalForm a => NonDetExpr a -> IO a
 getNormalForm goal = do
   s <- initSupply
-  let normalForm = ((\x _ _ -> x) $!! goal s initCover emptyCs) initCover emptyCs
-  return $ searchForWrappedCs [] normalForm
+  let nf = ((\x _ _ -> x) $!! goal s initCover emptyCs) initCover emptyCs
+  return (searchForWrappedCs Map.empty nf)
 
 -- search normalized expression for Guards containing wrapped constraints and collect these constraints in one Guard
-searchForWrappedCs :: NormalForm a => [WrappedConstraint] -> a -> a
-searchForWrappedCs wcs = match searchChoice searchNarrowed searchFree failCons searchGuard searchVal
+searchForWrappedCs :: NormalForm a => Map.Map Cover [WrappedConstraint] -> a -> a
+searchForWrappedCs wcMap = match searchChoice searchNarrowed searchFree failCons searchGuard searchVal
   where
-  searchChoice cd i x1 x2            = choiceCons cd i (searchForWrappedCs wcs x1) (searchForWrappedCs wcs x2)
-  searchNarrowed cd i xs             = choicesCons cd i (map (searchForWrappedCs wcs) xs)
-  searchFree cd i xs                 = constrain $ choicesCons cd i xs
-  searchGuard _ (WrappedConstr wc) e = searchForWrappedCs (wc++wcs) e 
-  searchGuard cd c e                 = guardCons cd c (searchForWrappedCs wcs e)
+  searchChoice d i x1 x2             = choiceCons d i (searchForWrappedCs wcMap x1) (searchForWrappedCs wcMap x2)
+  searchNarrowed d i xs              = choicesCons d i (map (searchForWrappedCs wcMap) xs)
+  searchFree d i xs                  = constrain $ choicesCons d i xs
+  searchGuard d (WrappedConstr wc) e = searchForWrappedCs (Map.insertWith (++) d wc wcMap) e
+  searchGuard d c e                  = guardCons d c (searchForWrappedCs wcMap e)
   searchVal v                        = constrain v
-  constrain x | null wcs  = x
-              | otherwise = guardCons defCover (WrappedConstr (reverse wcs)) x
+  constrain v | Map.null wcMap = v
+              | otherwise      = Map.foldrWithKey (\d wcs e -> mkGuardExt d (reverse wcs) e) v wcMap
 
 {-
 -- original implementation
@@ -279,8 +278,9 @@ printValsDFS backTrack cont goal = do
     follow c           = error $ "Search.prNarrowed: Bad choice " ++ show c
   prNarrowed _ i _ = error $ "Search.prNarrowed: Bad narrowed ID " ++ show i
 
-  prGuard _ (WrappedConstr wcs) e = solveAll wcs solvers e >>= \e' -> if backTrack then printValsDFS True  cont e'
-                                                                                   else printValsDFS False cont e'
+  prGuard _ (WrappedConstr wcs) e = 
+    solveAll initCover wcs solvers e >>= \e' -> if backTrack then printValsDFS True  cont e'
+                                                             else printValsDFS False cont e'
   prGuard _ cs e = solve initCover cs e >>= \mbSltn -> case mbSltn of
     Nothing                      -> return ()
     Just (reset, e') | backTrack -> printValsDFS True  cont e' >> reset
@@ -365,7 +365,7 @@ searchDFS act goal = do
       follow c             = error $ "Search.dfsNarrowed: Bad choice " ++ show c
     dfsNarrowed _ i _ = error $ "Search.dfsNarrowed: Bad narrowed ID " ++ show i
 
-    dfsGuard _ (WrappedConstr wcs) e = solveAll wcs solvers e >>= dfs cont 
+    dfsGuard _ (WrappedConstr wcs) e = solveAll initCover wcs solvers e >>= dfs cont 
     dfsGuard _ cs e = solve initCover cs e >>= \mbSltn -> case mbSltn of
       Nothing          -> mnil
       Just (reset, e') -> dfs cont e' |< reset
@@ -440,6 +440,7 @@ searchBFS act goal = do
       follow (NoDecision , j) = reset >> (cont (choicesCons initCover j zs) +++ (next cont xs ys))
       follow c                = error $ "Search.bfsFree: Bad choice " ++ show c
 
+    bfsGuard _ (WrappedConstr wcs) e = solveAll initCover wcs solvers e >>= bfs cont xs ys set reset
     bfsGuard _ cs e = set >> solve initCover cs e >>= \mbSltn -> case mbSltn of
       Nothing            -> reset >> next cont xs ys
       Just (newReset, a) -> bfs cont xs ys set (newReset >> reset) a
@@ -536,7 +537,7 @@ startIDS olddepth newdepth act goal = do
       follow c             = error $ "Search.idsNarrowed: Bad choice " ++ show c
     idsNarrowed _ i _ = error $ "Search.idsNarrowed: Bad narrowed ID " ++ show i
 
-    idsGuard _ (WrappedConstr wcs) e = solveAll wcs solvers e >>= ids n cont 
+    idsGuard _ (WrappedConstr wcs) e = solveAll initCover wcs solvers e >>= ids n cont 
     idsGuard _ cs e = solve initCover cs e >>= \mbSltn -> case mbSltn of
       Nothing          -> mnil
       Just (reset, e') -> ids n cont e' |< reset
@@ -580,8 +581,7 @@ computeWithPar goal = getNormalForm goal >>= fromList . parSearch . searchMSearc
 
  -- |Collect results of a non-deterministic computation in a monadic structure
 encapsulatedSearch :: (MonadSearch m, NormalForm a) => a -> Cover -> ConstStore -> m a
---encapsulatedSearch x cd store = searchMSearch cd $ ((\y _ _ -> y) $!! x) cd store
-encapsulatedSearch x cd store = searchMSearch cd $ (searchForWrappedCs []) $ ((\y _ _ -> y) $!! x) cd store
+encapsulatedSearch x cd store = searchMSearch cd $ searchForWrappedCs Map.empty $ ((\y _ _ -> y) $!! x) cd store
 
 -- ---------------------------------------------------------------------------
 -- Generic search using MonadPlus instances for the result
@@ -642,7 +642,7 @@ searchMSearch' cd cont x = match smpChoice smpNarrowed smpFree smpFail smpGuard 
 
   smpGuard d cs@(WrappedConstr wcs) e
    | isCovered d = constrainMSearch d cs (searchMSearch' cd cont e)
-   | otherwise   = solveAll wcs solvers e >>= searchMSearch' cd cont
+   | otherwise   = solveAll cd wcs solvers e >>= searchMSearch' cd cont
   smpGuard d cs e 
    | isCovered d = constrainMSearch d cs (searchMSearch' cd cont e)
    | otherwise   = solve cd cs e >>= maybe (szero d defFailInfo) (searchMSearch' cd cont . snd)

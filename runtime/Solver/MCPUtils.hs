@@ -231,6 +231,6 @@ labelWith strat col = label $ do
 -- Binding solutions
 -- ---------------------------------------------------------------------------
 
-makeBindingsMCP :: ExternalSolver solver => MCPSolutions -> solver Constraints
-makeBindingsMCP (Solutions solutions ids j) =
-  return $ StructConstr $ bindSolutions ids solutions j
+makeBindingsMCP :: ExternalSolver solver => Cover -> MCPSolutions -> solver Constraints
+makeBindingsMCP cd (Solutions solutions ids j) =
+  return $ StructConstr $ bindSolutions cd ids solutions j

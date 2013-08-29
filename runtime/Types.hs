@@ -209,7 +209,7 @@ class (NormalForm a, Generable a) => Unifiable a where
   -- |Lazily bind a free variable to a value
   lazyBind :: Cover -> ID -> a -> [Constraint]
   -- |Convert a decision into the original value for the given ID 
-  fromDecision :: Store m => ID -> Decision -> m a
+  fromDecision :: Store m => Cover -> ID -> Decision -> m a
 
 -- |Unification on general terms
 (=:=) :: Unifiable a => a -> a -> Cover -> ConstStore -> C_Success
@@ -333,9 +333,9 @@ constrain cd i v = guardCons cd (ValConstr i v (bind cd i v)) C_Success
 
 -- Lookup the decision made for the given ID and convert back
 -- into the original type
-lookupValue :: (Store m, Unifiable a) => ID -> m a
-lookupValue i = do (dec,j) <- lookupDecisionID i
-                   fromDecision j dec
+lookupValue :: (Store m, Unifiable a) => Cover -> ID -> m a
+lookupValue cd i = do (dec,j) <- lookupDecisionID i
+                      fromDecision cd j dec
 
 -- ---------------------------------------------------------------------------
 -- Conversion between Curry and Haskell data types
@@ -360,7 +360,7 @@ class Constrainable ctype ttype | ttype -> ctype where
   toCsExpr :: ctype -> ttype
   -- |Update a constrainable term by looking for possible bindings
   --  in the decision store
-  updateTerm :: Store m => ttype -> m ttype
+  updateTerm :: Store m => Cover -> ttype -> m ttype
 
 -- Simple generic constraint term type
 data Term a = Const a
@@ -375,24 +375,28 @@ getVarID _       = Nothing
 -- Bind free variables corresponding to a list of constraint variables (= labeling variables)
 -- to all solutions found by a constraint solver by constructing appropriate binding constraints
 -- if there are no solutions, return Unsolvable
-bindSolutions :: Unifiable a => [Maybe ID] -> [[a]] -> ID -> [Constraint]
-bindSolutions _   []                   _ = [Unsolvable defFailInfo]
-bindSolutions ids [solution]           _ = bindSolution ids solution
-bindSolutions ids (solution:solutions) i = [ConstraintChoice defCover i binding bindings]
+bindSolutions :: Unifiable a => Cover -> [Maybe ID] -> [[a]] -> ID -> [Constraint]
+bindSolutions _  _   []                   _ = [Unsolvable defFailInfo]
+bindSolutions cd ids [solution]           _ = bindSolution cd ids solution
+bindSolutions cd ids (solution:solutions) i = [ConstraintChoice cd i binding bindings]
  where
-  binding  = bindSolution ids solution
-  bindings = bindSolutions ids solutions (leftID i)
+  binding  = bindSolution cd ids solution
+  bindings = bindSolutions cd ids solutions (leftID i)
 
 -- Bind a list of free variables to one solution
-bindSolution :: Unifiable a => [Maybe ID] -> [a] -> [Constraint]
-bindSolution ids values
-  | length ids == length values = concat $ zipWith bindValue ids values
+bindSolution :: Unifiable a => Cover -> [Maybe ID] -> [a] -> [Constraint]
+bindSolution cd ids values
+  | length ids == length values = concat $ zipWith (bindValue cd) ids values
   | otherwise                   = error "bindSolution: List of labeling variables and results have different length."
 
 -- bind a free variable to value or skip value (value was known before)
-bindValue :: Unifiable a => Maybe ID -> a -> [Constraint]
-bindValue (Just i) value = bind i value
-bindValue Nothing  _     = []
+bindValue :: Unifiable a => Cover -> Maybe ID -> a -> [Constraint]
+bindValue cd (Just i) value = bind cd i value
+bindValue _  Nothing  _     = []
+
+-- constructor function for guarded expression with wrapped constraints
+mkGuardExt :: NonDet a => Cover -> [WrappedConstraint] -> a -> a
+mkGuardExt cd c e = guardCons cd (WrappedConstr c) e
 
 -- ---------------------------------------------------------------------------
 -- Auxiliaries for Show and Read
@@ -505,11 +509,11 @@ instance Unifiable C_Success where
   lazyBind _  _ (Choices_C_Success _ i@(ChoiceID _) _) = internalError ("Prelude.Success.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _  _(Fail_C_Success _ info) = [Unsolvable info]
   lazyBind cd i (Guard_C_Success d cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
-  fromDecision _ (ChooseN 0 0) = return C_Success
-  fromDecision i NoDecision    = return (generate (supply i))
-  fromDecision i ChooseLeft    = error ("Prelude.Success.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
-  fromDecision i ChooseRight   = error ("Prelude.Success.fromDecision: ChooseRight decision for free ID: " ++ (show i))
-  fromDecision _ (LazyBind _)  = error "Prelude.Success.fromDecision: No rule for LazyBind decision yet"
+  fromDecision _  _ (ChooseN 0 0) = return C_Success
+  fromDecision cd i NoDecision    = return (generate (supply i) cd)
+  fromDecision _  i ChooseLeft    = error ("Prelude.Success.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision _  i ChooseRight   = error ("Prelude.Success.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _  _ (LazyBind _)  = error "Prelude.Success.fromDecision: No rule for LazyBind decision yet"
 
 -- END GENERATED FROM PrimTypes.curry
 
@@ -545,4 +549,4 @@ instance NonDet b => Unifiable (a -> b) where
   (=.<=)   = internalError "(=.<=) for function is undefined"
   bind     = internalError "bind for function is undefined"
   lazyBind = internalError "lazyBind for function is undefined"
-  fromDecision _ _ = error "fromDecision for function is undefined"
+  fromDecision _ _ _ = error "fromDecision for function is undefined"

@@ -302,13 +302,17 @@ endif
 	echo 'ghcExec :: String' >> $@
 	echo 'ghcExec = "\"$(GHC)\""' >> $@
 	echo "" >> $@
+ifeq ($(GLOBALINSTALL),yes)
 	echo 'ghcOptions :: String' >> $@
 	echo 'ghcOptions = "$(subst ",\",$(GHC_OPTS)) -package kics2-runtime -package kics2-libraries"' >> $@
 	echo "" >> $@
 	echo 'installGlobal :: Bool' >> $@
-ifeq ($(GLOBALINSTALL),yes)
 	echo 'installGlobal = True' >> $@
 else
+	echo 'ghcOptions :: String' >> $@
+	echo 'ghcOptions = "$(subst ",\",$(GHC_OPTS))"' >> $@
+	echo "" >> $@
+	echo 'installGlobal :: Bool' >> $@
 	echo 'installGlobal = False' >> $@
 endif
 

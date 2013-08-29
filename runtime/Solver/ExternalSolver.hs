@@ -34,10 +34,10 @@ class Monad solver => ExternalSolver solver where
   -- transformed into (constraint) variable bindings
   -- (i.e. by constructing guard expressions with binding constraints
   -- calling bindSolution)
-  eval :: [ForConstraint solver] -> solver Constraints
-  eval cs = do model     <- translate cs
-               solutions <- solve model
-               makeBindings solutions
+  eval :: Cover -> [ForConstraint solver] -> solver Constraints
+  eval cd cs = do model     <- translate cs
+                  solutions <- solve model
+                  makeBindings cd solutions
 
   run :: solver a -> a
 
@@ -50,4 +50,4 @@ class Monad solver => ExternalSolver solver where
 
   -- |Transform solutions provided by a specific solver into bindings for
   -- the occurring constraint variables
-  makeBindings :: Solutions solver -> solver Constraints
+  makeBindings :: Cover -> Solutions solver -> solver Constraints

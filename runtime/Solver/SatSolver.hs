@@ -141,8 +141,8 @@ solveSAT formula = do
           cints = map (map toCurry) ints
       return $ Solutions cints (vars state) i
 
-makeBindingsSAT :: ExternalSolver solver => SatSolutions -> solver Constraints
-makeBindingsSAT (Solutions solutions ids j) = return $ StructConstr $ bindSolutions ids solutions j
+makeBindingsSAT :: ExternalSolver solver => Cover -> SatSolutions -> solver Constraints
+makeBindingsSAT cd (Solutions solutions ids j) = return $ StructConstr $ bindSolutions cd ids solutions j
 
 boolAsInt :: Bool -> Int
 boolAsInt False = 0
