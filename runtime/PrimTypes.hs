@@ -101,7 +101,9 @@ instance Unifiable C_Int where
   fromDecision cd i (ChooseN 0 1) = 
     do
      x3 <- lookupValue cd (leftID i)
-     return (C_CurryInt x3)
+     if (isFree x3)
+         then (return (generate (supply i) cd))
+         else (return (C_CurryInt x3))
   fromDecision cd i NoDecision   = return (generate (supply i) cd)
   fromDecision _  i ChooseLeft   = error ("Prelude.Int.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
   fromDecision _  i ChooseRight  = error ("Prelude.Int.fromDecision: ChooseRight decision for free ID: " ++ (show i))
@@ -259,12 +261,16 @@ instance Unifiable BinInt where
   fromDecision cd i (ChooseN 0 1) = 
     do
      x3 <- lookupValue cd (leftID i)
-     return (Neg x3)
+     if (isFree x3)
+         then (return (generate (supply i) cd))
+         else (return (Neg x3))
   fromDecision _  _ (ChooseN 1 0) = return Zero
   fromDecision cd i (ChooseN 2 1) = 
     do
      x3 <- lookupValue cd (leftID i)
-     return (Pos x3)
+     if (isFree x3)
+         then (return (generate (supply i) cd))
+         else (return (Pos x3))
   fromDecision cd i NoDecision   = return (generate (supply i) cd)
   fromDecision _  i ChooseLeft   = error ("Prelude.BinInt.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
   fromDecision _  i ChooseRight  = error ("Prelude.BinInt.fromDecision: ChooseRight decision for free ID: " ++ (show i))
@@ -370,11 +376,15 @@ instance Unifiable Nat where
   fromDecision cd i (ChooseN 1 1) = 
     do
      x3 <- lookupValue cd (leftID i)
-     return (O x3)
+     if (isFree x3)
+         then (return (generate (supply i) cd))
+         else (return (O x3))
   fromDecision cd i (ChooseN 2 1) = 
     do
      x3 <- lookupValue cd (leftID i)
-     return (I x3)
+     if (isFree x3)
+         then (return (generate (supply i) cd))
+         else (return (I x3))
   fromDecision cd i NoDecision   = return (generate (supply i) cd)
   fromDecision _  i ChooseLeft   = error ("Prelude.Nat.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
   fromDecision _  i ChooseRight  = error ("Prelude.Nat.fromDecision: ChooseRight decision for free ID: " ++ (show i))

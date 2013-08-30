@@ -654,14 +654,20 @@ fromDecisionConsRule hoResult funcName lookupValueArgs (num, (FC.Cons qn _ _ tex
     isHoCons = lookupFM hoResult qn == Just HO
     carity = length texps
     rulePattern cd i = [PVar (1, cd), PVar (2, i), PComb (basics "ChooseN") [PLit (Intc num), (PLit . Intc) carity]]
-    returnExpr n = applyF (pre "return") [applyF n $ map (\i -> Var (i, 'x':show i)) [2 ..carity + 1]]
+    vars = map (\i -> Var (i, 'x':show i)) [2 ..carity + 1]
+    returnExpr n = applyF (pre "return") [applyF n vars]
+    ifThenElse n = IfThenElse (foldr1 (\e1 e2 -> applyF (pre "||") [e1, e2]) (map (\e -> applyF (basics "isFree") [e]) vars))
+--(foldr (\elem bool -> applyF (pre "||") [(applyF (basics "isFree") [elem]), bool]) (Symbol (pre "False")) vars)
+                                (applyF (pre "return") [applyF (basics "generate") [applyF (basics "supply") [Var (2, "i")], Var (1, "cd")]])
+                                  (returnExpr n)
     rule name | carity == 0 = (funcName, simpleRule (rulePattern "_" "_") (returnExpr name))
               | otherwise   = (funcName,
       simpleRule (rulePattern "cd" "i")
         (DoExpr $ (zipWith SPat 
           (map (\i -> PVar (i, 'x':show i)) [2 ..carity + 1])
           (zipWith lookupValueArgs (repeat (Var (1, "cd"))) (mkIdList carity (Var (2, "i"))))) ++
-            [SExpr (returnExpr name)]))
+            [SExpr (ifThenElse name)]))
+--            [SExpr (returnExpr name)]))
 
 fromDecisionNoDecisionRule :: QName -> (QName,Rule)
 fromDecisionNoDecisionRule funcName = (funcName,
