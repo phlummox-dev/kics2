@@ -11,7 +11,9 @@ module Solver.MCPUtils
     -- state for translating MCP models
   , MCPState(..), initial
   , translateMCP, translateTerm
+  , allDifferent
   , labelWith, toModelTree, MCPSolutions(..)
+  , mkSolution
   , makeBindingsMCP
   ) where
 
@@ -23,9 +25,10 @@ import Types
 import Control.CP.EnumTerm (assignments, labelling, inOrder, firstFail, middleOut, endsOut, EnumTerm(..))
 import Control.CP.FD.FD (getColItems, FDInstance, FDSolver(..))
 import Control.CP.FD.Interface (colList)
-import Control.CP.FD.Model (cte, asExpr, asCol, Model, ModelInt, ModelCol, ModelIntTerm(..), ModelColTerm(..), ModelFunctions)
-import Control.CP.SearchTree (addC, Tree, MonadTree(..))
-import Data.Expr.Sugar ((@=), (@/=), (@<), (@<=), (@+), (@-), (@*), (@:), xsum, allDiff, forall, list, ToBoolExpr(..))
+import Control.CP.FD.Model (asExpr, asCol, Model, ModelInt, ModelCol, ModelIntTerm(..), ModelColTerm(..), ModelFunctions)
+import Control.CP.SearchTree (true, Tree, MonadTree(..))
+import Data.Expr.Sugar ((@=), (@/=), (@<), (@<=), (@+), (@-), (@*), (@:), xsum, allDiff, forall, list, size, ToBoolExpr(..))
+import Data.Expr.Data (ColExpr (ColList), BoolExpr (BoolConst))
 
 import Control.Monad.State
 import Data.List ((\\))
@@ -125,13 +128,24 @@ translateMCP (FDArith op t1 t2 result) = do
   result' <- translateTerm result
   let op' = translateArithOp op
   return $ op' t1' t2' @= result'
+--translateMCP (FDSum list result) = do
+--  list'   <- translateList list
+--  result' <- translateTerm result
+--  return $ xsum list' @= result'
+--translateMCP (FDAllDifferent list) = do
+--  list' <- translateList list
+--  return $ allDiff list'
+
+-- workaround for Gecode and Overton Solver
+-- which both cannot handle constraints with constant collections
 translateMCP (FDSum list result) = do
-  list'   <- translateList list
-  result' <- translateTerm result
-  return $ xsum list' @= result'
+  l@(ColList list') <- translateList list
+  result'           <- translateTerm result
+  if any isVar list then return $ xsum l @= result'
+                    else return $ (sum list') @= result'
 translateMCP (FDAllDifferent list) = do
-  list' <- translateList list
-  return $ allDiff list'
+  if any isVar list then translateList list >>= (return . allDiff) 
+                    else return $ toBoolExpr $ allDifferent list
 translateMCP (FDDomain list lower upper) = do
   state  <- get
   let info   = labelInfo state 
@@ -161,7 +175,7 @@ translateMCP (FDLabeling strat list j) = do
 -- Translates integer terms to appropriate MCP terms using a state monad
 translateTerm :: (ExternalSolver solver, MonadState MCPState solver) 
               => Term Int -> solver ModelInt
-translateTerm (Const x) = return (cte x)
+translateTerm (Const x) = return (asExpr x)
 translateTerm v@(Var i) = do 
   state <- get
   maybe (newVar v) return (Map.lookup (getKey i) (intVarMap state))
@@ -199,15 +213,23 @@ translateArithOp Plus  = (@+)
 translateArithOp Minus = (@-)
 translateArithOp Mult  = (@*)
 
+-- Checks whether all elements of the given list are different
+allDifferent :: Eq a => [a] -> Bool
+allDifferent [] = True
+allDifferent (v:vs) = all (v/=) vs && allDifferent vs
+
 -- ---------------------------------------------------------------------------
 -- Solving MCP model
 -- ---------------------------------------------------------------------------
 
 -- Transform a list of MCP constraints into a monadic MCP model tree
-toModelTree :: FDSolver s => [Model] -> ModelCol 
+toModelTree :: FDSolver s => ModelCol -> [Model] 
             -> Tree (FDInstance s) ModelCol
-toModelTree model mcpLabelVars = 
-  mapM_ (\m -> addC (Left m)) model >> return mcpLabelVars
+toModelTree = foldM buildTree --mcpLabelVars model
+ where
+  buildTree t (BoolConst True)  = return t
+  buildTree _ (BoolConst False) = false
+  buildTree t c                 = (Left c) `addTo` (return t)
 
 -- select corresponding MCP labeling function for given labeling strategy
 matchStrategy :: EnumTerm s t => LabelingStrategy -> [t] -> s [t]
@@ -220,16 +242,22 @@ matchStrategy _         = inOrder
 labelWith :: (FDSolver s, MonadTree m, TreeSolver m ~ FDInstance s, 
               EnumTerm s (FDIntTerm s)) => LabelingStrategy -> ModelCol 
                                         -> m [TermBaseType s (FDIntTerm s)]
-labelWith strat col = label $ do
-  lst <- getColItems col maxBound
+labelWith strat (ColList l) = label $ do
   return $ do
-    lsti <- colList col $ length lst
-    labelling (matchStrategy strat) lsti
-    assignments lsti
+    labelling (matchStrategy strat) l
+    assignments l
 
 -- ---------------------------------------------------------------------------
 -- Binding solutions
 -- ---------------------------------------------------------------------------
+
+mkSolution :: (ExternalSolver solver, MonadState MCPState solver, Integral a) 
+           => [[a]] -> solver MCPSolutions
+mkSolution xss = do state <- get
+                    let cxss = map (map (toCurry . toInteger)) xss
+                        ids  = getLabelVarIDs (labelInfo state)
+                        i    = getLabelID (labelInfo state)
+                    return $ Solutions cxss ids i
 
 makeBindingsMCP :: ExternalSolver solver => Cover -> MCPSolutions -> solver Constraints
 makeBindingsMCP cd (Solutions solutions ids j) =

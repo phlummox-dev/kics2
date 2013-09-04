@@ -657,7 +657,6 @@ fromDecisionConsRule hoResult funcName lookupValueArgs (num, (FC.Cons qn _ _ tex
     vars = map (\i -> Var (i, 'x':show i)) [2 ..carity + 1]
     returnExpr n = applyF (pre "return") [applyF n vars]
     ifThenElse n = IfThenElse (foldr1 (\e1 e2 -> applyF (pre "||") [e1, e2]) (map (\e -> applyF (basics "isFree") [e]) vars))
---(foldr (\elem bool -> applyF (pre "||") [(applyF (basics "isFree") [elem]), bool]) (Symbol (pre "False")) vars)
                                 (applyF (pre "return") [applyF (basics "generate") [applyF (basics "supply") [Var (2, "i")], Var (1, "cd")]])
                                   (returnExpr n)
     rule name | carity == 0 = (funcName, simpleRule (rulePattern "_" "_") (returnExpr name))
@@ -667,7 +666,6 @@ fromDecisionConsRule hoResult funcName lookupValueArgs (num, (FC.Cons qn _ _ tex
           (map (\i -> PVar (i, 'x':show i)) [2 ..carity + 1])
           (zipWith lookupValueArgs (repeat (Var (1, "cd"))) (mkIdList carity (Var (2, "i"))))) ++
             [SExpr (ifThenElse name)]))
---            [SExpr (returnExpr name)]))
 
 fromDecisionNoDecisionRule :: QName -> (QName,Rule)
 fromDecisionNoDecisionRule funcName = (funcName,

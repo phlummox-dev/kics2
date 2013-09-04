@@ -14,7 +14,8 @@ import Control.CP.FD.Model (Model, ModelCol)
 import Control.CP.FD.OvertonFD.OvertonFD (OvertonFD)
 import Control.CP.FD.OvertonFD.Sugar
 import Control.CP.FD.Solvers (dfs, it)
-import Control.CP.SearchTree (Tree)
+import Control.CP.SearchTree (Tree (Return))
+import Data.Expr.Data (ColExpr (ColList))
 
 import Control.Monad.State
 
@@ -48,8 +49,7 @@ solveWithOverton model = do
   let info = labelInfo state
   if (isNotLabelled info) 
     then error "MCPSolver.solveWithOverton: Found no variables for labeling."
-    else do let modelTree = toModelTree model (getMCPLabelVars info)
-                solutions = snd $ MCP.solve dfs it $ 
+    else do case (toModelTree (getMCPLabelVars info) model) of 
+              (Return (ColList col)) -> mkSolution [col]
+              modelTree              -> mkSolution $ snd $ MCP.solve dfs it $               
                     (modelTree :: OvertonTree) >>= labelWith (getStrategy info)
-                cints     = map (map toCurry) solutions
-            return $ Solutions cints (getLabelVarIDs info) (getLabelID info)

@@ -367,6 +367,10 @@ data Term a = Const a
             | Var ID
  deriving (Eq,Show)
 
+isVar :: Term a -> Bool
+isVar (Var _) = True
+isVar _       = False
+
 -- Get the ID of a constraint variable
 getVarID :: Term a -> Maybe ID
 getVarID (Var i) = Just i
