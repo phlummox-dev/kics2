@@ -9,6 +9,7 @@ module Solver.Constraints (
               , BConstraint (..)
               , Junctor (..)
               , updateFDConstr, updateBConstr
+              , allDifferent
               ) where
 
 import PrimTypes
@@ -92,6 +93,11 @@ updateFDConstr update (FDDomain vs l u) = do
 updateFDConstr update (FDLabeling s vs j) = do
   vs' <- mapM update vs
   return $ FDLabeling s vs' j
+
+-- Checks whether all elements of the given list are different
+allDifferent :: Eq a => [a] -> Bool
+allDifferent [] = True
+allDifferent (v:vs) = all (v/=) vs && allDifferent vs
 
 -- ---------------------------------------------------------------------------
 -- SAT Constraint Representation

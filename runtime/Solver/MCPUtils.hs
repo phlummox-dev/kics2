@@ -11,14 +11,13 @@ module Solver.MCPUtils
     -- state for translating MCP models
   , MCPState(..), initial
   , translateMCP, translateTerm
-  , allDifferent
   , labelWith, toModelTree, MCPSolutions(..)
   , mkSolution
   , makeBindingsMCP
   ) where
 
 import PrimTypes (C_Int)
-import Solver.Constraints (FDConstraint(..), RelOp(..), ArithOp(..), LabelingStrategy(..))
+import Solver.Constraints (allDifferent, FDConstraint(..), RelOp(..), ArithOp(..), LabelingStrategy(..))
 import Solver.ExternalSolver
 import Types
 
@@ -212,11 +211,6 @@ translateRelOp LessEqual = (@<=)
 translateArithOp Plus  = (@+)
 translateArithOp Minus = (@-)
 translateArithOp Mult  = (@*)
-
--- Checks whether all elements of the given list are different
-allDifferent :: Eq a => [a] -> Bool
-allDifferent [] = True
-allDifferent (v:vs) = all (v/=) vs && allDifferent vs
 
 -- ---------------------------------------------------------------------------
 -- Solving MCP model
