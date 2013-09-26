@@ -352,7 +352,8 @@ showStatement opts (SLet localdecls) = case localdecls of
 
 showPattern :: Options -> Pattern -> String
 showPattern _    (PVar (_,name))  = showIdentifier name
-showPattern opts (PLit lit)       = showLitPattern opts lit
+showPattern _ (PLit lit)       = showLiteral lit
+showPattern opts (PULit lit)       = showLitPattern opts lit
 showPattern opts (PComb qname []) = showSymbol opts qname
 showPattern opts (PComb qname@(mod,_) (p:ps))
   | mod == prelude   = showPreludeCons opts (PComb qname (p:ps))
@@ -576,8 +577,9 @@ isClosedStringPattern (PVar _)  = False
 isClosedStringPattern (PAs _ _) = False
 
 isCharPattern p = case p of
-  PLit (Charc _) -> True
-  _              -> False
+  PLit (Charc _)  -> True
+  PULit (Charc _) -> True
+  _               -> False
 
 isAsPattern p = case p of
     PAs _ _ -> True

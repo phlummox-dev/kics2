@@ -3,7 +3,7 @@
 -- in Haskell
 -- ---------------------------------------------------------------------------
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE MultiParamTypeClasses, Rank2Types #-}
+{-# LANGUAGE MultiParamTypeClasses, Rank2Types, FunctionalDependencies #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Types
@@ -126,6 +126,12 @@ lazyBindOrNarrow :: Unifiable a => Cover -> ID -> Cover -> ID -> [a] -> [Constra
 lazyBindOrNarrow cd i d j@(FreeID p s) xs | d < cd = [ConstraintChoices cd (NarrowedID p s) (map (lazyBind cd i) xs)]
 					  | otherwise    = [ i :=: BindTo j ]
 
+-- |Test if given argument is a free variable
+isFree :: NonDet a => a -> Bool
+isFree x = case try x of
+  (Free _ _ _) -> True
+  _            -> False
+
 -- ---------------------------------------------------------------------------
 -- Computation of normal forms
 -- ---------------------------------------------------------------------------
@@ -192,7 +198,7 @@ class NonDet a => Generable a where
 -- ---------------------------------------------------------------------------
 
 -- Class for data that supports unification
-class (NormalForm a) => Unifiable a where
+class (NormalForm a, Generable a) => Unifiable a where
   -- |Unification on constructor-rooted terms
   (=.=)    :: a -> a -> Cover -> ConstStore -> C_Success
   -- |Lazy unification on constructor-rooted terms,
@@ -202,6 +208,8 @@ class (NormalForm a) => Unifiable a where
   bind     :: Cover -> ID -> a -> [Constraint]
   -- |Lazily bind a free variable to a value
   lazyBind :: Cover -> ID -> a -> [Constraint]
+  -- |Convert a decision into the original value for the given ID 
+  fromDecision :: Store m => Cover -> ID -> Decision -> m a
 
 -- |Unification on general terms
 (=:=) :: Unifiable a => a -> a -> Cover -> ConstStore -> C_Success
@@ -323,6 +331,12 @@ constrain cd i v = guardCons cd (ValConstr i v (bind cd i v)) C_Success
            then unifyWith cs' (narrows cs' d j id ys)
            else guardCons d (StructConstr [j :=: LazyBind (lazyBind cd j vx)]) C_Success)
 
+-- Lookup the decision made for the given ID and convert back
+-- into the original type
+lookupValue :: (Store m, Unifiable a) => Cover -> ID -> m a
+lookupValue cd i = do (dec,j) <- lookupDecisionID i
+                      fromDecision cd j dec
+
 -- ---------------------------------------------------------------------------
 -- Conversion between Curry and Haskell data types
 -- ---------------------------------------------------------------------------
@@ -336,6 +350,24 @@ instance (ConvertCurryHaskell ca ha, ConvertCurryHaskell cb hb)
   fromCurry f = fromCurry . f . toCurry
   toCurry   f = toCurry   . f . fromCurry
 
+
+-- ---------------------------------------------------------------------------
+-- Conversion of Curry data types into constraint term representations
+-- ---------------------------------------------------------------------------
+
+-- needs MultiParamTypeClasses and FunctionalDependencies
+class Constrainable ctype ttype | ttype -> ctype where
+  -- |Convert a curry type into a constrainable term representation
+  toCsExpr :: ctype -> ttype
+  -- |Update a constrainable term by looking for possible bindings
+  --  in the decision store
+  updateTerm :: Store m => Cover -> ttype -> m ttype
+
+-- Generic constraint term representation
+data Term a
+  = Const a
+  | Var ID
+ deriving (Eq,Show)
 
 -- ---------------------------------------------------------------------------
 -- Auxiliaries for Show and Read
@@ -448,6 +480,11 @@ instance Unifiable C_Success where
   lazyBind _  _ (Choices_C_Success _ i@(ChoiceID _) _) = internalError ("Prelude.Success.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _  _(Fail_C_Success _ info) = [Unsolvable info]
   lazyBind cd i (Guard_C_Success d cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+  fromDecision _  _ (ChooseN 0 0) = return C_Success
+  fromDecision cd i NoDecision    = return (generate (supply i) cd)
+  fromDecision _  i ChooseLeft    = error ("Prelude.Success.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision _  i ChooseRight   = error ("Prelude.Success.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _  _ (LazyBind _)  = error "Prelude.Success.fromDecision: No rule for LazyBind decision yet"
 
 -- END GENERATED FROM PrimTypes.curry
 
@@ -479,7 +516,8 @@ instance NonDet b => NormalForm (a -> b) where
   searchNF _ cont f = cont f
 
 instance NonDet b => Unifiable (a -> b) where
-  (=.=)    = internalError "(=.=) for function is undefined"
-  (=.<=)   = internalError "(=.<=) for function is undefined"
-  bind     = internalError "bind for function is undefined"
-  lazyBind = internalError "lazyBind for function is undefined"
+  (=.=)        = internalError "(=.=) for function is undefined"
+  (=.<=)       = internalError "(=.<=) for function is undefined"
+  bind         = internalError "bind for function is undefined"
+  lazyBind     = internalError "lazyBind for function is undefined"
+  fromDecision = internalError "fromDecision for function is undefined"

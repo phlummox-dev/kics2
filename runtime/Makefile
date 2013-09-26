@@ -33,6 +33,7 @@ clean:
 	rm -rf dist/
 	rm -f *.hi *.hi-boot */*.hi *.o *.o-boot */*.o
 	rm -f $(CABAL_FILE)
+	cd Solver && rm -rf *.hi *.o
 
 $(CABAL_FILE): ../Makefile Makefile
 ifndef VERSION
@@ -52,8 +53,9 @@ endif
 	echo "  Exposed-modules:"                                >> $@
 	echo "      Basics, CurryException, Debug, IDSupply"     >> $@
 	echo "    , Installation, MonadList, MonadSearch"        >> $@
-	echo "    , PrimTypes, SafeExec"                         >> $@
+	echo "    , PrimTypes, SafeExec, Solver.Constraints"     >> $@
 	echo "  Other-modules:"                                  >> $@
-	echo "      ConstStore, ID, Search, Solver"              >> $@
+	echo "      ConstStore, ID, Search"                      >> $@
+	echo "    , Solver.EquationSolver, Solver.OvertonFD"     >> $@
 	echo "    , Strategies, Types"                           >> $@
 	echo "  hs-source-dirs: ., $(IDSUPPLYDIR)"               >> $@

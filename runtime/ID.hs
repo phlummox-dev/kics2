@@ -13,15 +13,17 @@ module ID
   , Decision (..), defaultDecision, isDefaultDecision
     -- * IDs
   , ID (..), leftID, rightID, narrowID, getKey, mkInteger, isNarrowed
-  , IDSupply, initSupply, leftSupply, rightSupply, thisID, freeID
+  , IDSupply, initSupply, leftSupply, rightSupply, thisID, freeID, supply
     -- * Decision management
   , traceLookup, traceDecision
   , lookupDecision, lookupID, lookupDecisionID, setDecision, setUnsetDecision
   , nextNIDs, Store (..)
+  , WrappableConstraint (..), WrappedConstraint
   ) where
 
 import Control.Monad (liftM, when, zipWithM_)
 import Data.List (partition)
+import Data.Typeable -- for unwrapping wrappable constraints
 
 import Debug
 import IDSupply hiding (getDecisionRaw, setDecisionRaw, unsetDecisionRaw)
@@ -74,18 +76,45 @@ data Constraint
 data Constraints
   = forall a . ValConstr ID a [Constraint]
   | StructConstr [Constraint]
+  | WrappedConstr WrappedConstraint -- added for support of wrappable constraints
 
 -- a selector to get the strucural constraint information from a constraint
 getConstrList :: Constraints -> [Constraint]
 getConstrList (ValConstr _ _ c) = c
 getConstrList (StructConstr  c) = c
+getConstrList (WrappedConstr _) = error "ID.getConstrList: Wrapped Constraints" -- added for support of wrappable constraints
 
 instance Show Constraints where
-  showsPrec _ (ValConstr _ _ c) = showString "ValC "    . shows c
-  showsPrec _ (StructConstr  c) = showString "StructC " . shows c
+  showsPrec _ (ValConstr _ _ c) = showString "ValC "     . shows c
+  showsPrec _ (StructConstr  c) = showString "StructC "  . shows c
+  showsPrec _ (WrappedConstr c) = showString "WrappedC " . shows c
 
 instance Eq Constraints where
  c1 == c2 = getConstrList c1 == getConstrList c2
+
+-- ---------------------------------------------------------------------------
+-- Wrappable Constraints
+-- ---------------------------------------------------------------------------
+
+-- members of this type class can be wrapped up in the single type WrappedConstraint
+class (Typeable c, Show c) => WrappableConstraint c where
+  -- |Wrapping up Constraints in WrappedConstraint
+  wrapCs :: c -> WrappedConstraint
+  wrapCs = CWrapper
+  -- |Unwrapping from WrappedConstraint and cast to original constraint type
+  unwrapCs :: WrappedConstraint -> Maybe c
+  unwrapCs (CWrapper c) = cast c
+  -- |Update constraints regarding constraint variable bindings introduced by (=:=)
+  updateVars :: Store m => Cover -> c -> m c
+  updateVars _ = return
+
+-- heterogenous type, which is used to wrap up different constraint types
+-- implementing the WrappableConstraint type class in the single type
+-- WrappedConstraint
+data WrappedConstraint = forall c . WrappableConstraint c => CWrapper c
+
+instance Show WrappedConstraint where
+  show (CWrapper c) = show c
 
 -- ---------------------------------------------------------------------------
 -- Decision

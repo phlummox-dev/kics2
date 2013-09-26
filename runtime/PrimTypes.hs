@@ -1,10 +1,167 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, MagicHash #-}
 module PrimTypes where
 
 import System.IO (Handle)
+import GHC.Exts (Int (I#), Int#, (==#), (<#), (*#), (+#), quotInt#, remInt#, negateInt#)
 
 import Debug
 import Types
+
+-- Curry_Int
+-- BEGIN GENERATED FROM PrimTypes.curry
+data C_Int
+     = C_Int Int#
+     | C_CurryInt BinInt
+     | Choice_C_Int Cover ID C_Int C_Int
+     | Choices_C_Int Cover ID ([C_Int])
+     | Fail_C_Int Cover FailInfo
+     | Guard_C_Int Cover Constraints C_Int
+
+instance Show C_Int where
+  showsPrec d (Choice_C_Int cd i x y) = showsChoice d cd i x y
+  showsPrec d (Choices_C_Int cd i xs) = showsChoices d cd i xs
+  showsPrec d (Guard_C_Int cd c e) = showsGuard d cd c e
+  showsPrec _ (Fail_C_Int _ _) = showChar '!'
+  showsPrec d (C_Int x1) = shows (I# x1)
+  showsPrec d (C_CurryInt x1) = case ((\x _ _ -> x) $## x1) (error "Show C_Int: nesting depth used") emptyCs of
+    Choice_BinInt _ _ _ _ -> shows x1
+    Choices_BinInt _ _ _  -> shows x1
+    Fail_BinInt _ _       -> shows x1
+    Guard_BinInt _ _ _    -> shows x1
+    gnfBinInt             -> shows (I# (curryint2primint gnfBinInt))
+
+instance Read C_Int where
+  readsPrec d s = map readInt (readsPrec d s) where readInt (I# i, s) = (C_Int i, s)
+
+instance NonDet C_Int where
+  choiceCons = Choice_C_Int
+  choicesCons = Choices_C_Int
+  failCons = Fail_C_Int
+  guardCons = Guard_C_Int
+  try (Choice_C_Int cd i x y) = tryChoice cd i x y
+  try (Choices_C_Int cd i xs) = tryChoices cd i xs
+  try (Fail_C_Int cd info) = Fail cd info
+  try (Guard_C_Int cd c e) = Guard cd c e
+  try x = Val x
+  match f _ _ _ _ _ (Choice_C_Int cd i x y) = f cd i x y
+  match _ f _ _ _ _ (Choices_C_Int cd i@(NarrowedID _ _) xs) = f cd i xs
+  match _ _ f _ _ _ (Choices_C_Int cd i@(FreeID _ _) xs) = f cd i xs
+  match _ _ _ _ _ _ (Choices_C_Int _  i _) = error ("Prelude.Int.match: Choices with ChoiceID " ++ (show i))
+  match _ _ _ f _ _ (Fail_C_Int cd info) = f cd info
+  match _ _ _ _ f _ (Guard_C_Int cd cs e) = f cd cs e
+  match _ _ _ _ _ f x = f x
+
+instance Generable C_Int where
+  generate s cd = Choices_C_Int cd (freeID [1] s) [C_CurryInt (generate (leftSupply s) cd)]
+
+instance NormalForm C_Int where
+  ($!!) cont x@(C_Int _) cd cs = cont x cd cs
+  ($!!) cont (C_CurryInt x1) cd cs = ((\y1 -> cont (C_CurryInt y1)) $!! x1) cd cs
+  ($!!) cont (Choice_C_Int d i x y) cd cs = nfChoice cont d i x y cd cs
+  ($!!) cont (Choices_C_Int d i xs) cd cs = nfChoices cont d i xs cd cs
+  ($!!) cont (Guard_C_Int d c x) cd cs = guardCons d c ((cont $!! x) cd $! (addCs c cs))
+  ($!!) _ (Fail_C_Int cd info) _ _ = failCons cd info
+  ($##) cont x@(C_Int _) cd cs = cont x cd cs
+  ($##) cont (C_CurryInt x1) cd cs = ((\y1 -> cont (C_CurryInt y1)) $## x1) cd cs
+  ($##) cont (Choice_C_Int d i x y) cd cs = gnfChoice cont d i x y cd cs
+  ($##) cont (Choices_C_Int d i xs) cd cs = gnfChoices cont d i xs cd cs
+  ($##) cont (Guard_C_Int d c x) cd cs = guardCons d c ((cont $## x) cd $! (addCs c cs))
+  ($##) _ (Fail_C_Int d info) _ _ = failCons d info
+  searchNF search cont x@(C_Int _) = cont x
+  searchNF search cont (C_CurryInt x1) = search (\y1 -> cont (C_CurryInt y1)) x1
+  searchNF _ _ x = error ("Prelude.Int.searchNF: no constructor: " ++ (show x))
+
+instance Unifiable C_Int where
+  (=.=) (C_Int      x1) (C_Int      y1) cd _  = if (x1 ==# y1) then C_Success else Fail_C_Success cd defFailInfo
+  (=.=) (C_Int      x1) (C_CurryInt y1) cd cs = ((primint2curryint x1) =:= y1) cd cs
+  (=.=) (C_CurryInt x1) (C_Int      y1) cd cs = (x1 =:= (primint2curryint y1)) cd cs
+  (=.=) (C_CurryInt x1) (C_CurryInt y1) cd cs = (x1 =:= y1) cd cs
+  (=.=) _               _               cd _  = Fail_C_Success cd defFailInfo
+  (=.<=) (C_Int      x1) (C_Int      y1) cd _ = if (x1 ==# y1) then C_Success else Fail_C_Success cd defFailInfo
+  (=.<=) (C_Int      x1) (C_CurryInt y1) cd cs = ((primint2curryint x1) =:<= y1) cd cs
+  (=.<=) (C_CurryInt x1) (C_Int      y1) cd cs = (x1 =:<= (primint2curryint y1)) cd cs
+  (=.<=) (C_CurryInt x1) (C_CurryInt y1) cd cs = (x1 =:<= y1) cd cs
+  (=.<=) _ _ cd _= Fail_C_Success cd defFailInfo
+  bind cd i (C_Int      x2) = (i :=: ChooseN 0 1) : bind cd (leftID i) (primint2curryint x2)
+  bind cd i (C_CurryInt x2) = (i :=: ChooseN 0 1) : bind cd (leftID i) x2
+  bind cd i (Choice_C_Int d j l r) = [(ConstraintChoice d j (bind cd i l) (bind cd i r))]
+  bind cd i (Choices_C_Int d j@(FreeID _ _) xs) = bindOrNarrow cd i d j xs
+  bind cd i (Choices_C_Int d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (bind cd i) xs))]
+  bind _  _ c@(Choices_C_Int _ i@(ChoiceID _) _) = error ("Prelude.Int.bind: Choices with ChoiceID: " ++ (show c))
+  bind _ _ (Fail_C_Int _ info) = [Unsolvable info]
+  bind cd  i (Guard_C_Int _ cs e) = getConstrList cs ++ (bind cd i e)
+  lazyBind cd i (C_Int      x2) = [i :=: ChooseN 0 1, leftID i :=: LazyBind (lazyBind cd (leftID i) (primint2curryint x2))]
+  lazyBind cd i (C_CurryInt x2) = [i :=: ChooseN 0 1, leftID i :=: LazyBind (lazyBind cd (leftID i) x2)]
+  lazyBind cd i (Choice_C_Int d j l r) = [(ConstraintChoice d j (lazyBind cd i l) (lazyBind cd i r))]
+  lazyBind cd i (Choices_C_Int d j@(FreeID _ _) xs) = lazyBindOrNarrow cd i d j xs
+  lazyBind cd i (Choices_C_Int d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (lazyBind cd i) xs))]
+  lazyBind _  _ c@(Choices_C_Int _ i@(ChoiceID _) _) = error ("Prelude.Int.lazyBind: Choices with ChoiceID: " ++ (show c))
+  lazyBind _  _ (Fail_C_Int _ info) = [Unsolvable info]
+  lazyBind cd i (Guard_C_Int _ cs e) = getConstrList cs ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+  fromDecision cd i (ChooseN 0 1) = 
+    do
+     x3 <- lookupValue cd (leftID i)
+     if (isFree x3)
+         then (return (generate (supply i) cd))
+         else (return (C_CurryInt x3))
+  fromDecision cd i NoDecision   = return (generate (supply i) cd)
+  fromDecision _  i ChooseLeft   = error ("Prelude.Int.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision _  i ChooseRight  = error ("Prelude.Int.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _  _ (LazyBind _) = error "Prelude.Int.fromDecision: No rule for LazyBind decision yet"
+
+instance ConvertCurryHaskell C_Int Int where
+  toCurry (I# i) = C_Int i
+
+  fromCurry (C_Int i)      = I# i
+  fromCurry (C_CurryInt i) = I# (curryint2primint i)
+  fromCurry _              = error "KiCS2 error: Int data with no ground term"
+
+instance ConvertCurryHaskell C_Int Integer where
+  toCurry i = int2C_Int (fromInteger i)
+   where
+    int2C_Int (I# c) = C_Int c
+
+  fromCurry (C_Int      i) = toInteger (I# i)
+  fromCurry (C_CurryInt i) = toInteger (I# (curryint2primint i))
+  fromCurry _              = error "KiCS2 error: Int data with no ground term"
+
+primint2curryint :: Int# -> BinInt
+primint2curryint n
+  | n <#  0#  = Neg (primint2currynat (negateInt# n))
+  | n ==# 0#  = Zero
+  | otherwise = Pos (primint2currynat n)
+
+primint2currynat :: Int# -> Nat
+primint2currynat n
+  | n ==# 1#                = IHi
+  | (n `remInt#` 2#) ==# 0# = O (primint2currynat (n `quotInt#` 2#))
+  | otherwise               = I (primint2currynat (n `quotInt#` 2#))
+
+currynat2primint :: Nat -> Int#
+currynat2primint IHi   = 1#
+currynat2primint (O n) = 2# *# currynat2primint n
+currynat2primint (I n) = 2# *# currynat2primint n +# 1#
+currynat2primint _ = error "KiCS2 error: Prelude.currynat2primint: no ground term"
+
+curryint2primint :: BinInt -> Int#
+curryint2primint Zero    = 0#
+curryint2primint (Pos n) = currynat2primint n
+curryint2primint (Neg n) = negateInt# (currynat2primint n)
+curryint2primint _ = error "KiCS2 error: Prelude.curryint2primint: no ground term"
+
+-- ---------------------------------------------------------------------------
+-- Conversion to constrainable term types
+-- ---------------------------------------------------------------------------
+
+instance Constrainable C_Int (Term Int) where
+  toCsExpr x@(C_Int _)                        = Const (fromCurry x) 
+  toCsExpr x@(C_CurryInt _)                   = Const (fromCurry x)
+  toCsExpr (Choices_C_Int _ i@(FreeID _ _) _) = Var i
+  toCsExpr _                                  = error "toCsExpr: Cannot convert non-normalized int data"
+
+  updateTerm cd (Var i) = do a <- lookupValue cd i
+                             return (toCsExpr a)
+  updateTerm _  c       = return c
 
 -- BinInt
 
@@ -102,6 +259,23 @@ instance Unifiable BinInt where
   lazyBind _  _ (Choices_BinInt _ i@(ChoiceID _) _) = internalError ("Prelude.BinInt.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _  _ (Fail_BinInt _ info) = [Unsolvable info]
   lazyBind cd i (Guard_BinInt _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+  fromDecision cd i (ChooseN 0 1) = 
+    do
+     x3 <- lookupValue cd (leftID i)
+     if (isFree x3)
+         then (return (generate (supply i) cd))
+         else (return (Neg x3))
+  fromDecision _  _ (ChooseN 1 0) = return Zero
+  fromDecision cd i (ChooseN 2 1) = 
+    do
+     x3 <- lookupValue cd (leftID i)
+     if (isFree x3)
+         then (return (generate (supply i) cd))
+         else (return (Pos x3))
+  fromDecision cd i NoDecision   = return (generate (supply i) cd)
+  fromDecision _  i ChooseLeft   = error ("Prelude.BinInt.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision _  i ChooseRight  = error ("Prelude.BinInt.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _  _ (LazyBind _) = error "Prelude.BinInt.fromDecision: No rule for LazyBind decision yet"
 
 -- Nats
 
@@ -199,6 +373,23 @@ instance Unifiable Nat where
   lazyBind _  _ (Choices_Nat _ i@(ChoiceID _) _) = internalError ("Prelude.Nat.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _  _ (Fail_Nat _ info) = [Unsolvable info]
   lazyBind cd i (Guard_Nat _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+  fromDecision _  _ (ChooseN 0 0) = return IHi
+  fromDecision cd i (ChooseN 1 1) = 
+    do
+     x3 <- lookupValue cd (leftID i)
+     if (isFree x3)
+         then (return (generate (supply i) cd))
+         else (return (O x3))
+  fromDecision cd i (ChooseN 2 1) = 
+    do
+     x3 <- lookupValue cd (leftID i)
+     if (isFree x3)
+         then (return (generate (supply i) cd))
+         else (return (I x3))
+  fromDecision cd i NoDecision   = return (generate (supply i) cd)
+  fromDecision _  i ChooseLeft   = error ("Prelude.Nat.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision _  i ChooseRight  = error ("Prelude.Nat.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _  _ (LazyBind _) = error "Prelude.Nat.fromDecision: No rule for LazyBind decision yet"
 
 -- Higher Order Funcs
 
@@ -265,6 +456,7 @@ instance (Unifiable t0,Unifiable t1) => Unifiable (Func t0 t1) where
   lazyBind _  _ (Choices_Func _ i _) = internalError ("Prelude.Func.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _ _ (Fail_Func _ info) = [Unsolvable info]
   lazyBind cd i (Guard_Func _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]  
+  fromDecision _ _ _ = error "ERROR: No fromDecision for Func"   
 -- END GENERATED FROM PrimTypes.curry
 
 -- BEGIN GENERATED FROM PrimTypes.curry
@@ -330,6 +522,7 @@ instance Unifiable t0 => Unifiable (C_IO t0) where
   lazyBind _  _ (Choices_C_IO _ i@(ChoiceID _) _) = internalError ("Prelude.IO.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _  _ (Fail_C_IO cd info) = [Unsolvable info]
   lazyBind cd i (Guard_C_IO _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+  fromDecision _ _ _ = error "ERROR: No fromDecision for C_IO"
 -- END GENERATED FROM PrimTypes.curry
 
 instance ConvertCurryHaskell ca ha => ConvertCurryHaskell (C_IO ca) (IO ha)
@@ -405,6 +598,7 @@ instance Unifiable (PrimData t0) where
   lazyBind _  _ (Choices_PrimData _ i@(ChoiceID _) _) = internalError ("Prelude.PrimData.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _  _ (Fail_PrimData _ info) = [Unsolvable info]
   lazyBind cd i (Guard_PrimData _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+  fromDecision _ _ _ = error "ERROR: No fromDecision for PrimData"
 
 
 -- END GENERATED FROM PrimTypes.curry

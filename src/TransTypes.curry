@@ -508,6 +508,13 @@ unifiableInstance hoResult (FC.Type qf _ tnums cdecls) =
     , bindFailRule     qf (basics "lazyBind")
     , bindGuardRule    qf True
     ]
+    -- fromDecision
+  , concatMap (fromDecisionConsRule hoResult (basics "fromDecision") (\cov ident -> applyF (basics "lookupValue") [cov, ident])) (zip [0..] cdecls)
+  , [ fromDecisionNoDecisionRule (basics "fromDecision")
+    , fromDecisionChooseLeftRightRule qf (basics "fromDecision") "ChooseLeft"
+    , fromDecisionChooseLeftRightRule qf (basics "fromDecision") "ChooseRight"
+    , fromDecisionLazyBindRule qf (basics "fromDecision")
+    ]
   ]
   where targs = map fcy2absTVar tnums
         ctype = TCons qf (map TVar targs)
@@ -637,6 +644,57 @@ bindGuardRule qf lazy = (funcName,
                     ]
                   ]
       else applyF funcName [Var d, Var i, Var e]
+
+-- Generate fromDecisionRules for a data constructor
+fromDecisionConsRule :: HOResult -> QName -> (Expr -> Expr -> Expr) -> (Int, FC.ConsDecl) -> [(QName, Rule)]
+fromDecisionConsRule hoResult funcName lookupValueArgs (num, (FC.Cons qn _ _ texps))
+  | isHoCons  = map rule [qn, mkHoConsName qn]
+  | otherwise = [rule qn]
+  where
+    isHoCons = lookupFM hoResult qn == Just HO
+    carity = length texps
+    rulePattern cd i = [PVar (1, cd), PVar (2, i), PComb (basics "ChooseN") [PLit (Intc num), (PLit . Intc) carity]]
+    vars = map (\i -> Var (i, 'x':show i)) [2 ..carity + 1]
+    returnExpr n = applyF (pre "return") [applyF n vars]
+    ifThenElse n = IfThenElse (foldr1 (\e1 e2 -> applyF (pre "||") [e1, e2]) (map (\e -> applyF (basics "isFree") [e]) vars))
+                                (applyF (pre "return") [applyF (basics "generate") [applyF (basics "supply") [Var (2, "i")], Var (1, "cd")]])
+                                  (returnExpr n)
+    rule name | carity == 0 = (funcName, simpleRule (rulePattern "_" "_") (returnExpr name))
+              | otherwise   = (funcName,
+      simpleRule (rulePattern "cd" "i")
+        (DoExpr $ (zipWith SPat 
+          (map (\i -> PVar (i, 'x':show i)) [2 ..carity + 1])
+          (zipWith lookupValueArgs (repeat (Var (1, "cd"))) (mkIdList carity (Var (2, "i"))))) ++
+            [SExpr (ifThenElse name)]))
+
+fromDecisionNoDecisionRule :: QName -> (QName,Rule)
+fromDecisionNoDecisionRule funcName = (funcName,
+  simpleRule
+    [PVar (1, "cd"), PVar (2, "i"), PComb (basics "NoDecision") []]
+      (applyF (pre "return") [applyF (basics "generate") [applyF (basics "supply") [Var (2, "i")], Var (1, "cd")]]))
+
+fromDecisionChooseLeftRightRule :: QName -> QName -> String -> (QName,Rule)
+fromDecisionChooseLeftRightRule qf funcName leftRight = (funcName,
+  simpleRule
+    [PVar (1, "_"), PVar (2, "i"), PComb (basics leftRight) []]
+      ( applyF (pre "error")
+        [ applyF (pre "++")
+          [ string2ac (showQName (unRenameQName qf) ++ '.' : snd funcName
+                                  ++ ": " ++ leftRight ++ " decision for free ID: ")
+          , applyF (pre "show") [Var (2, "i")]
+          ]
+        ]
+      ))
+
+fromDecisionLazyBindRule :: QName -> QName -> (QName,Rule)
+fromDecisionLazyBindRule qf funcName = (funcName,
+  simpleRule
+    [PVar (1, "_"), PVar (2, "_"), PComb (basics "LazyBind") [PVar (3, "_")]]
+      ( applyF (pre "error")
+        [ string2ac (showQName (unRenameQName qf) ++ '.' : snd funcName
+                                  ++ ": No rule for LazyBind decision yet")
+        ]
+      ))
 
 -- ---------------------------------------------------------------------------
 -- Generate instance of Curry class
