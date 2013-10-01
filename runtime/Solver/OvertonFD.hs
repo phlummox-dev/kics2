@@ -1,5 +1,20 @@
+{- 
+ - Origin:
+ -     Constraint Programming in Haskell 
+ -     http://overtond.blogspot.com/2008/07/pre.html
+ -     author: David Overton, Melbourne Australia
+ -
+ - Modifications:
+ -     Monadic Constraint Programming
+ -     http://www.cs.kuleuven.be/~toms/Haskell/
+ -     Tom Schrijvers
+ -
+ - Further Modifications:
+ - Jan Tikovsky
+ -}
+
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RankNTypes #-}
 module Solver.OvertonFD (
     -- Types
     OvertonFD,    -- Monad for finite domain constraint solver
@@ -22,16 +37,19 @@ module Solver.OvertonFD (
     addMult,
     sumList,
     updateSolver,
-    initState
+    FDState (..),
+    initState,
+    lookupDomain,
+    (.<=.)
     ) where
 
-import Prelude hiding (lookup)
+import Prelude hiding (null)
 import Control.Monad.State.Lazy
 import Control.Monad.Trans
 import qualified Data.Map as Map
 import Data.Map ((!), Map)
-import qualified Data.IntSet as IntSet
-import Data.IntSet (IntSet)
+
+import Solver.OvertonDomain
 
 -- The FD monad
 newtype OvertonFD a = FD { unFD :: StateT FDState [] a }
@@ -42,10 +60,11 @@ newtype FDVar = FDVar { unFDVar :: Int } deriving (Ord, Eq)
 
 type VarSupply = FDVar
 data VarInfo = VarInfo
-     { delayedConstraints :: OvertonFD (), domain :: IntSet }
+     { delayedConstraints :: OvertonFD (), domain :: Domain }
 type VarMap = Map FDVar VarInfo
+type CurryVarMap = Map Integer FDVar
 data FDState = FDState
-     { varSupply :: VarSupply, varMap :: VarMap }
+     { varSupply :: VarSupply, varMap :: VarMap, curryVarMap :: CurryVarMap }
 
 -- Run the FD monad and produce a lazy list of possible solutions.
 runFD :: OvertonFD a -> FDState -> [a]
@@ -55,11 +74,11 @@ updateSolver :: OvertonFD a -> FDState -> [FDState]
 updateSolver fd state = execStateT (unFD fd) state
 
 initState :: FDState
-initState = FDState { varSupply = FDVar 0, varMap = Map.empty }
+initState = FDState { varSupply = FDVar 0, varMap = Map.empty, curryVarMap = Map.empty }
 
 -- Get a new FDVar
-newVar :: [Int] -> OvertonFD FDVar
-newVar d= do
+newVar :: ToDomain a => a -> OvertonFD FDVar
+newVar d = do
   s <- get
   let v = varSupply s
   put $ s { varSupply = FDVar (unFDVar v + 1) }
@@ -67,27 +86,27 @@ newVar d= do
     let vm = varMap s
         vi = VarInfo {
           delayedConstraints = return (),
-          domain = IntSet.fromList d}
+          domain = toDomain d}
     in s { varMap = Map.insert v vi vm }
   return v
 
-newVars :: Int -> [Int] -> OvertonFD [FDVar]
+newVars :: ToDomain a => Int -> a -> OvertonFD [FDVar]
 newVars n domain = replicateM n (newVar domain)
 
 -- Lookup the current domain of a variable.
-lookup :: FDVar -> OvertonFD IntSet
-lookup x = do
+lookupDomain :: FDVar -> OvertonFD Domain
+lookupDomain x = do
   s <- get
   return . domain $ varMap s ! x
 
 -- Update the domain of a variable and fire all delayed constraints
 -- associated with that variable.
-update :: FDVar -> IntSet -> OvertonFD ()
-update x i = do
+update :: FDVar -> Domain -> OvertonFD ()
+update x d = do
   s <- get
   let vm = varMap s
       vi = vm ! x
-  put $ s { varMap = Map.insert x (vi { domain = i}) vm }
+  put $ s { varMap = Map.insert x (vi { domain = d}) vm }
   delayedConstraints vi
 
 -- Add a new constraint for a variable to the constraint store.
@@ -113,29 +132,29 @@ addBinaryConstraint f x y = do
 -- Constrain a variable to a particular value.
 hasValue :: FDVar -> Int -> OvertonFD ()
 var `hasValue` val = do
-  vals <- lookup var
-  guard $ val `IntSet.member` vals
-  let i = IntSet.singleton val
+  vals <- lookupDomain var
+  guard $ val `member` vals
+  let i = singleton val
   when (i /= vals) $ update var i
 
 -- Constrain two variables to have the same value.
 same :: FDVar -> FDVar -> OvertonFD ()
 same = addBinaryConstraint $ \x y -> do
-  xv <- lookup x
-  yv <- lookup y
-  let i = IntSet.intersection xv yv
-  guard $ not $ IntSet.null i
+  xv <- lookupDomain x
+  yv <- lookupDomain y
+  let i = intersection xv yv
+  guard $ not $ null i
   when (i /= xv) $ update x i
   when (i /= yv) $ update y i
 
 -- Constrain two variables to have different values.
 different :: FDVar -> FDVar -> OvertonFD ()
 different = addBinaryConstraint $ \x y -> do
-  xv <- lookup x
-  yv <- lookup y
-  guard $ IntSet.size xv > 1 || IntSet.size yv > 1 || xv /= yv
-  when (IntSet.size xv == 1 && xv `IntSet.isSubsetOf` yv) $ update y (yv `IntSet.difference` xv)
-  when (IntSet.size yv == 1 && yv `IntSet.isSubsetOf` xv) $ update x (xv `IntSet.difference` yv)
+  xv <- lookupDomain x
+  yv <- lookupDomain y
+  guard $ not (isSingleton xv) || not (isSingleton yv) || xv /= yv
+  when (isSingleton xv && xv `isSubsetOf` yv) $ update y (yv `difference` xv)
+  when (isSingleton yv && yv `isSubsetOf` xv) $ update x (xv `difference` yv)
 
 -- Constrain a list of variables to all have different values.
 allDifferent :: [FDVar] -> OvertonFD ()
@@ -148,23 +167,23 @@ allDifferent _ = return ()
 -- variable.
 (.<.) :: FDVar -> FDVar -> OvertonFD ()
 (.<.) = addBinaryConstraint $ \x y -> do
-  xv <- lookup x
-  yv <- lookup y
-  let xv' = IntSet.filter (< IntSet.findMax yv) xv
-      yv' = IntSet.filter (> IntSet.findMin xv) yv
-  guard $ not $ IntSet.null xv'
-  guard $ not $ IntSet.null yv'
+  xv <- lookupDomain x
+  yv <- lookupDomain y
+  let xv' = filterLessThan (findMax yv) xv
+      yv' = filterGreaterThan (findMin xv) yv
+  guard $ not $ null xv'
+  guard $ not $ null yv'
   when (xv /= xv') $ update x xv'
   when (yv /= yv') $ update y yv'
 
 (.<=.) :: FDVar -> FDVar -> OvertonFD ()
 (.<=.) = addBinaryConstraint $ \x y -> do
-  xv <- lookup x
-  yv <- lookup y
-  let xv' = IntSet.filter (< (IntSet.findMax yv) + 1) xv
-      yv' = IntSet.filter (> (IntSet.findMin xv) - 1) yv
-  guard $ not $ IntSet.null xv'
-  guard $ not $ IntSet.null yv'
+  xv <- lookupDomain x
+  yv <- lookupDomain y
+  let xv' = filterLessThan ((findMax yv) + 1) xv
+      yv' = filterGreaterThan ((findMin xv) - 1) yv
+  guard $ not $ null xv'
+  guard $ not $ null yv'
   when (xv /= xv') $ update x xv' 
   when (yv /= yv') $ update y yv'
 
@@ -172,19 +191,19 @@ allDifferent _ = return ()
 labelling :: [FDVar] -> OvertonFD [Int]
 labelling = mapM label where
   label var = do
-    vals <- lookup var
-    val <- FD . lift $ IntSet.toList vals
+    vals <- lookupDomain var
+    val <- FD . lift $ elems vals
     var `hasValue` val
     return val
 
-type DomainUpdate = IntSet -> IntSet -> IntSet
+type DomainUpdate = Domain -> Domain -> Domain
 
 -- add constraints like x `op` y = result
 addArithmeticConstraint :: DomainUpdate -> DomainUpdate -> DomainUpdate -> FDVar -> FDVar -> OvertonFD FDVar
 addArithmeticConstraint getXDomain getYDomain getZDomain x y = do
-  xv <- lookup x
-  yv <- lookup y
-  z <- newVar (IntSet.toList (getZDomain xv yv))
+  xv <- lookupDomain x
+  yv <- lookupDomain y
+  z <- newVar (getZDomain xv yv)
   let zConstraint = constraint getZDomain x y z
       xConstraint = constraint getXDomain z y x
       yConstraint = constraint getYDomain z x y
@@ -199,16 +218,12 @@ addArithmeticConstraint getXDomain getYDomain getZDomain x y = do
 -- helper function
 constraint :: DomainUpdate -> FDVar -> FDVar -> FDVar -> OvertonFD ()
 constraint getDomain x y z = do
-  xv <- lookup x
-  yv <- lookup y
-  zv <- lookup z
-  let zv' = IntSet.intersection zv (getDomain xv yv)
-  guard $ not $ IntSet.null zv'
+  xv <- lookupDomain x
+  yv <- lookupDomain y
+  zv <- lookupDomain z
+  let zv' = intersection zv (getDomain xv yv)
+  guard $ not $ null zv'
   when (zv /= zv') $ update z zv'
-
---foldM1 :: Monad m => (a -> a -> m a) -> [a] -> m a
---foldM1 f (x:xs) = foldM f x xs
---foldM1 _ []     = error "foldM1: empty list"
 
 -- arithmetic constraints
 addSum = addArithmeticConstraint getDomainMinus getDomainMinus getDomainPlus
@@ -222,30 +237,30 @@ sumList [] = mzero
 sumList (x:xs) = foldM addSum x xs  
 
 -- interval arithmetic
-getDomainPlus :: IntSet -> IntSet -> IntSet
-getDomainPlus xs ys = IntSet.fromList [a..b]
+getDomainPlus :: Domain -> Domain -> Domain
+getDomainPlus xs ys = toDomain (a,b)
  where
-  a = IntSet.findMin xs + IntSet.findMin ys
-  b = IntSet.findMax xs + IntSet.findMax ys
+  a = findMin xs + findMin ys
+  b = findMax xs + findMax ys
 
-getDomainMinus :: IntSet -> IntSet -> IntSet
-getDomainMinus xs ys = IntSet.fromList [a..b]
+getDomainMinus :: Domain -> Domain -> Domain
+getDomainMinus xs ys = toDomain (a,b)
  where
-  a = IntSet.findMin xs - IntSet.findMax ys
-  b = IntSet.findMax xs - IntSet.findMin ys
+  a = findMin xs - findMax ys
+  b = findMax xs - findMin ys
 
-getDomainMult :: IntSet -> IntSet -> IntSet
-getDomainMult xs ys = IntSet.fromList [a..b]
+getDomainMult :: Domain -> Domain -> Domain
+getDomainMult xs ys = toDomain (a,b)
  where
   a        = minimum products
   b        = maximum products
-  products = [x * y | x <- [IntSet.findMin xs, IntSet.findMax xs], y <- [IntSet.findMin ys, IntSet.findMax ys]]
+  products = [x * y | x <- [findMin xs, findMax xs], y <- [findMin ys, findMax ys]]
 
-getDomainDiv :: IntSet -> IntSet -> IntSet
-getDomainDiv xs ys = IntSet.fromList [a..b]
+getDomainDiv :: Domain -> Domain -> Domain
+getDomainDiv xs ys = toDomain (a,b)
  where
   a        = minimum (quotients minBound)
   b        = maximum (quotients maxBound)
   quotients z = [if y /= 0 then x `div` y else z |
-                  x <- [IntSet.findMin xs, IntSet.findMax xs]
-                , y <- [IntSet.findMin ys, IntSet.findMax ys]]
+                  x <- [findMin xs, findMax xs]
+                , y <- [findMin ys, findMax ys]]

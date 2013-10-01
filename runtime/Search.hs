@@ -15,8 +15,8 @@ import Strategies
 import Types
 import MonadSearch
 import Solver.EquationSolver
-
-import qualified Debug.Trace as DT
+import Solver.OvertonFD (FDState, initState) -- necessary for encapsulated search
+import Solver.SolverControl (solveAll)
 
 -- ---------------------------------------------------------------------------
 -- Search combinators for top-level search in the IO monad
@@ -256,8 +256,10 @@ printValsDFS backTrack cont goal = do
     follow c           = error $ "Search.prNarrowed: Bad choice " ++ show c
   prNarrowed _ i _ = error $ "Search.prNarrowed: Bad narrowed ID " ++ show i
 
-  prGuard _ (WrappedConstr c) e = DT.trace (show c) $ if backTrack then printValsDFS True  cont e
-                                                                   else printValsDFS False cont e
+  prGuard _ (WrappedConstr c) e = solveAll initCover c e >>= \mbSltn -> case mbSltn of
+    Nothing                      -> return ()
+    Just (reset, e') | backTrack -> printValsDFS True  cont e' >> reset
+                     | otherwise -> printValsDFS False cont e'
   prGuard _ cs e = solve initCover cs e >>= \mbSltn -> case mbSltn of
     Nothing                      -> return ()
     Just (reset, e') | backTrack -> printValsDFS True  cont e' >> reset
@@ -342,7 +344,9 @@ searchDFS act goal = do
       follow c             = error $ "Search.dfsNarrowed: Bad choice " ++ show c
     dfsNarrowed _ i _ = error $ "Search.dfsNarrowed: Bad narrowed ID " ++ show i
 
-    dfsGuard _ (WrappedConstr c) e = DT.trace (show c) dfs cont e
+    dfsGuard _ (WrappedConstr c) e = solveAll initCover c e >>= \mbSltn -> case mbSltn of
+      Nothing -> mnil
+      Just (reset, e') -> dfs cont e' |< reset
     dfsGuard _ cs e = solve initCover cs e >>= \mbSltn -> case mbSltn of
       Nothing          -> mnil
       Just (reset, e') -> dfs cont e' |< reset
@@ -417,7 +421,9 @@ searchBFS act goal = do
       follow (NoDecision , j) = reset >> (cont (choicesCons initCover j zs) +++ (next cont xs ys))
       follow c                = error $ "Search.bfsFree: Bad choice " ++ show c
 
-    bfsGuard _ (WrappedConstr c) e = DT.trace (show c) $ bfs cont xs ys set reset e
+    bfsGuard _ (WrappedConstr c) e = set >> solveAll initCover c e >>= \mbSltn -> case mbSltn of
+      Nothing -> reset >> next cont xs ys
+      Just (newReset, e') -> bfs cont xs ys set (newReset >> reset) e'
     bfsGuard _ cs e = set >> solve initCover cs e >>= \mbSltn -> case mbSltn of
       Nothing            -> reset >> next cont xs ys
       Just (newReset, a) -> bfs cont xs ys set (newReset >> reset) a
@@ -514,7 +520,9 @@ startIDS olddepth newdepth act goal = do
       follow c             = error $ "Search.idsNarrowed: Bad choice " ++ show c
     idsNarrowed _ i _ = error $ "Search.idsNarrowed: Bad narrowed ID " ++ show i
 
-    idsGuard _ (WrappedConstr c) e = DT.trace (show c) $ ids n cont e 
+    idsGuard _ (WrappedConstr c) e = solveAll initCover c e >>= \mbSltn -> case mbSltn of
+      Nothing          -> mnil
+      Just (reset, e') -> ids n cont e' |< reset
     idsGuard _ cs e = solve initCover cs e >>= \mbSltn -> case mbSltn of
       Nothing          -> mnil
       Just (reset, e') -> ids n cont e' |< reset
@@ -566,16 +574,29 @@ encapsulatedSearch x cd store = searchMSearch cd $ ((\y _ _ -> y) $!! x) cd stor
 
 type DecisionMap = Map.Map Integer Decision
 
-instance Monad m => Store (StateT DecisionMap m) where
+data GlobalState = GS {
+  decMap  :: DecisionMap,
+  fdState :: FDState
+}
+
+initGS :: GlobalState
+initGS = GS {
+  decMap  = Map.empty,
+  fdState = initState
+}
+
+instance Monad m => Store (StateT GlobalState m) where
   getDecisionRaw u        = gets
-                          $ Map.findWithDefault defaultDecision (mkInteger u)
+                          $ \gs -> Map.findWithDefault defaultDecision (mkInteger u) (decMap gs)
   setDecisionRaw u c
-    | isDefaultDecision c = modify $ Map.delete (mkInteger u)
-    | otherwise           = modify $ Map.insert (mkInteger u) c
-  unsetDecisionRaw u      = modify $ Map.delete (mkInteger u)
+    | isDefaultDecision c = modify $ \gs -> gs { decMap = Map.delete (mkInteger u) (decMap gs) }
+    | otherwise           = modify $ \gs -> gs { decMap = Map.insert (mkInteger u) c (decMap gs) }
+  unsetDecisionRaw u      = modify $ \gs -> gs { decMap = Map.delete (mkInteger u) (decMap gs) }
+  getFDState              = gets   $ \gs -> fdState gs
+  setFDState state        = modify $ \gs -> gs { fdState = state }
 
 searchMSearch :: (MonadSearch m, NormalForm a) => Cover -> a -> m a
-searchMSearch cd x = evalStateT (searchMSearch' cd return x) (Map.empty :: DecisionMap)
+searchMSearch cd x = evalStateT (searchMSearch' cd return x) initGS --(Map.empty :: DecisionMap)
 
 searchMSearch' :: (NormalForm a, MonadSearch m, Store m) => Cover -> (a -> m b) -> a -> m b
 searchMSearch' cd cont x = match smpChoice smpNarrowed smpFree smpFail smpGuard smpVal x
@@ -619,7 +640,7 @@ searchMSearch' cd cont x = match smpChoice smpNarrowed smpFree smpFail smpGuard 
 
   smpGuard d cs@(WrappedConstr c) e
    | isCovered d = constrainMSearch d cs (searchMSearch' cd cont e)
-   | otherwise   = DT.trace (show c) $ searchMSearch' cd cont e
+   | otherwise   = solveAll cd c e >>= maybe (szero d defFailInfo) (searchMSearch' cd cont . snd)
   smpGuard d cs e 
    | isCovered d = constrainMSearch d cs (searchMSearch' cd cont e)
    | otherwise   = solve cd cs e >>= maybe (szero d defFailInfo) (searchMSearch' cd cont . snd)

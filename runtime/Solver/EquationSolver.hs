@@ -1,7 +1,7 @@
 -- ---------------------------------------------------------------------------
 -- Constraint Solving
 -- ---------------------------------------------------------------------------
-module Solver.EquationSolver (Solution, solve,mkSolution) where
+module Solver.EquationSolver (Solution, solve, mkSolution, noSolution) where
 
 import Types
 
