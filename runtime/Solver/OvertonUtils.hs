@@ -5,6 +5,8 @@ module Solver.OvertonUtils where
 import PrimTypes (C_Int)
 import Solver.Constraints (FDConstraint (..), RelOp (..), ArithOp (..))
 import Solver.EquationSolver (Solution, noSolution, mkSolution)
+import Solver.States (fdState)
+import Solver.Interface
 import Solver.OvertonFD ( OvertonFD, FDVar, FDState (..), newVar, lookupDomain
                         , same, different, (.<.), (.<=.), allDifferent
                         , addSum, addSub, addMult, sumList, labelling, runFD, updateSolver )
@@ -14,23 +16,45 @@ import Types
 import Control.Monad.State.Lazy
 import qualified Data.Map as Map (lookup, insert)
 
-processConstr :: (Store m, NonDet a) => Cover -> FDConstraint -> a -> Solution m a
-processConstr cd (FDLabeling vs i) val = do
-  state <- getFDState
+-- Overton solver
+type Overton = ConstraintSolver FDState
+
+overtonSolver :: Overton
+overtonSolver = Solver {
+  getState      = getFDState,
+  setState      = setFDState
+}
+
+instance ExternalSolver Overton where
+
+  type ForConstraint Overton = FDConstraint
+
+  processWith = processFDConstr
+
+getFDState :: Store m => m FDState
+getFDState = liftM fdState getSolverStates
+
+setFDState :: Store m => FDState -> m ()
+setFDState state = do ss <- getSolverStates
+                      setSolverStates ss { fdState = state }
+
+processFDConstr :: (Store m, NonDet a) => Overton -> Cover -> FDConstraint -> a -> Solution m a
+processFDConstr solver cd (FDLabeling vs i) val = do
+  state <- getState solver
   let labelAction = mapM translateTerm vs >>= labelling
   case runFD labelAction state of
     []        -> noSolution
     solutions -> do let cints = map (map toCurry) solutions :: [[C_Int]]
                     mkSolution $ bindSolutions cd vs cints i val
-processConstr _ c val = do
-  state <- getFDState
+processFDConstr solver _ c val = do
+  state <- getState solver
   case updateSolver (addConstr c) state of
-    [state'] -> do let reset = setFDState state
-                   setFDState state'
+    [state'] -> do let reset = setState solver state
+                   setState solver state'
                    return $ Just (reset,val)
     _        -> noSolution
 
--- Lookup the fd variable for the given term or create a new variable if necessary
+-- Lookup the fd variable for the given term or create a new variable with given domain if necessary
 lookupOrCreateFDVar :: ToDomain a => a -> Term Int -> OvertonFD FDVar
 lookupOrCreateFDVar _   (Const c) = newVar c
 lookupOrCreateFDVar dom (Var i)   = do

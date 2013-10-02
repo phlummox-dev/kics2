@@ -15,8 +15,8 @@ import Strategies
 import Types
 import MonadSearch
 import Solver.EquationSolver
-import Solver.OvertonFD (FDState, initState) -- necessary for encapsulated search
-import Solver.SolverControl (solveAll)
+import Solver.Control (solveAll)
+import Solver.States (SolverStates, initStates)
 
 -- ---------------------------------------------------------------------------
 -- Search combinators for top-level search in the IO monad
@@ -575,14 +575,14 @@ encapsulatedSearch x cd store = searchMSearch cd $ ((\y _ _ -> y) $!! x) cd stor
 type DecisionMap = Map.Map Integer Decision
 
 data GlobalState = GS {
-  decMap  :: DecisionMap,
-  fdState :: FDState
+  decMap       :: DecisionMap,
+  solverStates :: SolverStates
 }
 
 initGS :: GlobalState
 initGS = GS {
-  decMap  = Map.empty,
-  fdState = initState
+  decMap       = Map.empty,
+  solverStates = initStates
 }
 
 instance Monad m => Store (StateT GlobalState m) where
@@ -592,8 +592,8 @@ instance Monad m => Store (StateT GlobalState m) where
     | isDefaultDecision c = modify $ \gs -> gs { decMap = Map.delete (mkInteger u) (decMap gs) }
     | otherwise           = modify $ \gs -> gs { decMap = Map.insert (mkInteger u) c (decMap gs) }
   unsetDecisionRaw u      = modify $ \gs -> gs { decMap = Map.delete (mkInteger u) (decMap gs) }
-  getFDState              = gets   $ \gs -> fdState gs
-  setFDState state        = modify $ \gs -> gs { fdState = state }
+  getSolverStates         = gets   $ \gs -> solverStates gs
+  setSolverStates newSS   = modify $ \gs -> gs { solverStates = newSS }
 
 searchMSearch :: (MonadSearch m, NormalForm a) => Cover -> a -> m a
 searchMSearch cd x = evalStateT (searchMSearch' cd return x) initGS --(Map.empty :: DecisionMap)

@@ -38,7 +38,7 @@ module Solver.OvertonFD (
     sumList,
     updateSolver,
     FDState (..),
-    initState,
+    initFDState,
     lookupDomain,
     (.<=.)
     ) where
@@ -73,8 +73,8 @@ runFD fd state = evalStateT (unFD fd) state
 updateSolver :: OvertonFD a -> FDState -> [FDState]
 updateSolver fd state = execStateT (unFD fd) state
 
-initState :: FDState
-initState = FDState { varSupply = FDVar 0, varMap = Map.empty, curryVarMap = Map.empty }
+initFDState :: FDState
+initFDState = FDState { varSupply = FDVar 0, varMap = Map.empty, curryVarMap = Map.empty }
 
 -- Get a new FDVar
 newVar :: ToDomain a => a -> OvertonFD FDVar

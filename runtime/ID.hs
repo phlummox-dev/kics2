@@ -28,8 +28,8 @@ import Data.Typeable -- for unwrapping wrappable constraints
 import Debug
 import IDSupply hiding (getDecisionRaw, setDecisionRaw, unsetDecisionRaw)
 import qualified IDSupply
-import qualified Solver.GlobalState as GlobalState
-import Solver.OvertonFD (FDState)
+import qualified Solver.States as States
+import Solver.States (SolverStates)
 
 -- ---------------------------------------------------------------------------
 -- Fail Info
@@ -255,17 +255,17 @@ class (Monad m) => Store m where
   setDecisionRaw    :: Unique -> Decision -> m ()
   -- |Unset the 'Decision'
   unsetDecisionRaw  :: Unique -> m ()
-  -- |Get constraint and variable store for overton solver
-  getFDState :: m FDState
-  -- |Set constraint and variable store for overton solver
-  setFDState :: FDState -> m ()
+  -- |Get solver states
+  getSolverStates :: m SolverStates
+  -- |Set solver states
+  setSolverStates :: SolverStates -> m ()
 
 instance Store IO where
   getDecisionRaw   = IDSupply.getDecisionRaw
   setDecisionRaw   = IDSupply.setDecisionRaw
   unsetDecisionRaw = IDSupply.unsetDecisionRaw
-  getFDState       = GlobalState.getFDState
-  setFDState       = GlobalState.setFDState
+  getSolverStates  = States.getSolverStates
+  setSolverStates  = States.setSolverStates
 
 -- ---------------------------------------------------------------------------
 -- Looking up decisions

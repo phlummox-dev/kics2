@@ -1,11 +1,12 @@
 {-# LANGUAGE ExistentialQuantification #-}
 
-module Solver.SolverControl where
+module Solver.Control where
 
 import Debug
 import Solver.Constraints (FDConstraint)
 import Solver.EquationSolver (Solution)
-import Solver.OvertonUtils (processConstr)
+import Solver.Interface (processWith)
+import Solver.OvertonUtils (overtonSolver)
 import Types
 
 data Solver m a = forall c . (WrappableConstraint c) 
@@ -27,4 +28,4 @@ solveAll :: (Store m, NonDet a) => Cover -> WrappedConstraint -> a -> Solution m
 solveAll cd = trySolver cd solvers
 
 overton :: (Store m, NonDet a) => Cover -> FDConstraint -> a -> Solution m a
-overton = processConstr
+overton = processWith overtonSolver
