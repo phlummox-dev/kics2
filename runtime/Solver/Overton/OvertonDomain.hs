@@ -17,7 +17,7 @@
 {-# LANGUAGE IncoherentInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Solver.OvertonDomain
+module Solver.Overton.OvertonDomain
   ( Domain, ToDomain (..)
   , member, singleton, isSingleton, isSubsetOf, null
   , intersection, difference, filterLessThan, filterGreaterThan

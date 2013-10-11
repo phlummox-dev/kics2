@@ -15,7 +15,7 @@ data C_Int
      | Choice_C_Int Cover ID C_Int C_Int
      | Choices_C_Int Cover ID ([C_Int])
      | Fail_C_Int Cover FailInfo
-     | Guard_C_Int Cover Constraints C_Int
+     | Guard_C_Int Cover WrappedConstraint C_Int
 
 instance Show C_Int where
   showsPrec d (Choice_C_Int cd i x y) = showsChoice d cd i x y
@@ -89,7 +89,9 @@ instance Unifiable C_Int where
   bind cd i (Choices_C_Int d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (bind cd i) xs))]
   bind _  _ c@(Choices_C_Int _ i@(ChoiceID _) _) = error ("Prelude.Int.bind: Choices with ChoiceID: " ++ (show c))
   bind _ _ (Fail_C_Int _ info) = [Unsolvable info]
-  bind cd  i (Guard_C_Int _ cs e) = getConstrList cs ++ (bind cd i e)
+  bind cd  i (Guard_C_Int _ c e) = case unwrapCs c of
+    Just cs -> getConstrList cs ++ (bind cd i e)
+    Nothing -> error "Prelude.Int.bind: Called bind with a guard expression containing a non-equation constraint"
   lazyBind cd i (C_Int      x2) = [i :=: ChooseN 0 1, leftID i :=: LazyBind (lazyBind cd (leftID i) (primint2curryint x2))]
   lazyBind cd i (C_CurryInt x2) = [i :=: ChooseN 0 1, leftID i :=: LazyBind (lazyBind cd (leftID i) x2)]
   lazyBind cd i (Choice_C_Int d j l r) = [(ConstraintChoice d j (lazyBind cd i l) (lazyBind cd i r))]
@@ -97,7 +99,9 @@ instance Unifiable C_Int where
   lazyBind cd i (Choices_C_Int d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (lazyBind cd i) xs))]
   lazyBind _  _ c@(Choices_C_Int _ i@(ChoiceID _) _) = error ("Prelude.Int.lazyBind: Choices with ChoiceID: " ++ (show c))
   lazyBind _  _ (Fail_C_Int _ info) = [Unsolvable info]
-  lazyBind cd i (Guard_C_Int _ cs e) = getConstrList cs ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+  lazyBind cd i (Guard_C_Int _ c e) = case unwrapCs c of
+    Just cs -> getConstrList cs ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+    Nothing -> error "Prelude.Int.lazyBind: Called lazyBind with a guard expression containing a non-equation constraint"
   fromDecision cd i (ChooseN 0 1) = 
     do
      x3 <- lookupValue cd (leftID i)
@@ -172,7 +176,7 @@ data BinInt
      | Choice_BinInt Cover ID BinInt BinInt
      | Choices_BinInt Cover ID ([BinInt])
      | Fail_BinInt Cover FailInfo
-     | Guard_BinInt Cover (Constraints) BinInt
+     | Guard_BinInt Cover (WrappedConstraint) BinInt
 
 instance Show BinInt where
   showsPrec d (Choice_BinInt cd i x y) = showsChoice d cd i x y
@@ -249,7 +253,9 @@ instance Unifiable BinInt where
   bind cd i (Choices_BinInt d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (bind cd i) xs))]
   bind _  _ (Choices_BinInt _ i@(ChoiceID _) _) = internalError ("Prelude.BinInt.bind: Choices with ChoiceID: " ++ (show i))
   bind _  _ (Fail_BinInt cd info) = [Unsolvable info]
-  bind cd i (Guard_BinInt _ cs e) = (getConstrList cs) ++ (bind cd i e)
+  bind cd i (Guard_BinInt _ c e) = case unwrapCs c of
+    Just cs -> (getConstrList cs) ++ (bind cd i e)
+    Nothing -> error "Prelude.BinInt.bind: Called bind with a guard expression containing a non-equation constraint"
   lazyBind cd i (Neg x2) = [(i :=: (ChooseN 0 1)),((leftID i) :=: (LazyBind (lazyBind cd (leftID i) x2)))]
   lazyBind _  i Zero = [(i :=: (ChooseN 1 0))]
   lazyBind cd i (Pos x2) = [(i :=: (ChooseN 2 1)),((leftID i) :=: (LazyBind (lazyBind cd (leftID i) x2)))]
@@ -258,7 +264,9 @@ instance Unifiable BinInt where
   lazyBind cd i (Choices_BinInt d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (lazyBind cd i) xs))]
   lazyBind _  _ (Choices_BinInt _ i@(ChoiceID _) _) = internalError ("Prelude.BinInt.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _  _ (Fail_BinInt _ info) = [Unsolvable info]
-  lazyBind cd i (Guard_BinInt _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+  lazyBind cd i (Guard_BinInt _ c e) = case unwrapCs c of
+    Just cs -> (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+    Nothing -> error "Prelude.BinInt.lazyBind: Called lazyBind with a guard expression containing a non-equation constraint"
   fromDecision cd i (ChooseN 0 1) = 
     do
      x3 <- lookupValue cd (leftID i)
@@ -286,7 +294,7 @@ data Nat
      | Choice_Nat Cover ID Nat Nat
      | Choices_Nat Cover ID ([Nat])
      | Fail_Nat Cover  FailInfo
-     | Guard_Nat Cover (Constraints) Nat
+     | Guard_Nat Cover (WrappedConstraint) Nat
 
 instance Show Nat where
   showsPrec d (Choice_Nat cd i x y) = showsChoice d cd i x y
@@ -363,7 +371,9 @@ instance Unifiable Nat where
   bind cd i (Choices_Nat d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (bind cd i) xs))]
   bind _  _ (Choices_Nat _ i@(ChoiceID _) _) = internalError ("Prelude.Nat.bind: Choices with ChoiceID: " ++ (show i))
   bind _  _ (Fail_Nat _ info) = [Unsolvable info]
-  bind cd i (Guard_Nat _ cs e) = (getConstrList cs) ++ (bind cd i e)
+  bind cd i (Guard_Nat _ c e) = case unwrapCs c of
+    Just cs -> (getConstrList cs) ++ (bind cd i e)
+    Nothing -> error "Prelude.Nat.bind: Called bind with a guard expression containing a non-equation constraint"
   lazyBind _  i IHi = [(i :=: (ChooseN 0 0))]
   lazyBind cd i (O x2) = [(i :=: (ChooseN 1 1)),((leftID i) :=: (LazyBind (lazyBind cd (leftID i) x2)))]
   lazyBind cd i (I x2) = [(i :=: (ChooseN 2 1)),((leftID i) :=: (LazyBind (lazyBind cd (leftID i) x2)))]
@@ -372,7 +382,9 @@ instance Unifiable Nat where
   lazyBind cd i (Choices_Nat d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (lazyBind cd i) xs))]
   lazyBind _  _ (Choices_Nat _ i@(ChoiceID _) _) = internalError ("Prelude.Nat.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _  _ (Fail_Nat _ info) = [Unsolvable info]
-  lazyBind cd i (Guard_Nat _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+  lazyBind cd i (Guard_Nat _ c e) = case unwrapCs c of
+    Just cs -> (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+    Nothing -> error "Prelude.Nat.lazyBind: Called lazyBind with a guard expression containing a non-equation constraint"
   fromDecision _  _ (ChooseN 0 0) = return IHi
   fromDecision cd i (ChooseN 1 1) = 
     do
@@ -399,7 +411,7 @@ data Func t0 t1
      | Choice_Func Cover ID (Func t0 t1) (Func t0 t1)
      | Choices_Func Cover ID ([Func t0 t1])
      | Fail_Func Cover FailInfo
-     | Guard_Func Cover Constraints (Func t0 t1)
+     | Guard_Func Cover WrappedConstraint (Func t0 t1)
 
 instance Show (Func a b) where show = internalError "ERROR: no show for Func"
 
@@ -448,14 +460,18 @@ instance (Unifiable t0,Unifiable t1) => Unifiable (Func t0 t1) where
   bind cd i (Choices_Func d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (bind cd i) xs))]
   bind _  _ (Choices_Func _ i@(ChoiceID _) _) = internalError ("Prelude.Func.bind: Choices with ChoiceID: " ++ (show i))
   bind _  _ (Fail_Func _ info) = [Unsolvable info]
-  bind cd i (Guard_Func _ cs e) = (getConstrList cs) ++ (bind cd i e)
+  bind cd i (Guard_Func _ c e) = case unwrapCs c of
+    Just cs -> (getConstrList cs) ++ (bind cd i e)
+    Nothing -> error "Prelude.Func.bind: Called bind with a guard expression containing a non-equation constraint"
   lazyBind _  _ (Func _) = internalError "can not lazily bind a Func"
   lazyBind cd i (Choice_Func d j l r) = [(ConstraintChoice d j (lazyBind cd i l) (lazyBind cd i r))]
   lazyBind cd i (Choices_Func d j@(FreeID _ _) xs) = lazyBindOrNarrow cd i d j xs
   lazyBind cd i (Choices_Func d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (lazyBind cd i) xs))]
   lazyBind _  _ (Choices_Func _ i _) = internalError ("Prelude.Func.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _ _ (Fail_Func _ info) = [Unsolvable info]
-  lazyBind cd i (Guard_Func _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]  
+  lazyBind cd i (Guard_Func _ c e) = case unwrapCs c of
+    Just cs -> (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]  
+    Nothing -> error "Prelude.Func.lazyBind: Called lazyBind with a guard expression containing a non-equation constraint"
   fromDecision _ _ _ = error "ERROR: No fromDecision for Func"   
 -- END GENERATED FROM PrimTypes.curry
 
@@ -465,7 +481,7 @@ data C_IO t0
      | Choice_C_IO Cover ID (C_IO t0) (C_IO t0)
      | Choices_C_IO Cover ID ([C_IO t0])
      | Fail_C_IO Cover FailInfo
-     | Guard_C_IO Cover Constraints (C_IO t0)
+     | Guard_C_IO Cover WrappedConstraint (C_IO t0)
 
 instance Show (C_IO a) where show = internalError "show for C_IO"
 
@@ -514,14 +530,18 @@ instance Unifiable t0 => Unifiable (C_IO t0) where
   bind cd i (Choices_C_IO d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (bind cd i) xs))]
   bind _  _ (Choices_C_IO _ i _) = internalError ("Prelude.IO.bind: Choices with ChoiceID: " ++ (show i))
   bind _ _ (Fail_C_IO _ info) = [Unsolvable info]
-  bind cd i (Guard_C_IO _ cs e) = (getConstrList cs) ++ (bind cd i e)
+  bind cd i (Guard_C_IO _ c e) = case unwrapCs c of
+    Just cs -> (getConstrList cs) ++ (bind cd i e)
+    Nothing -> error "Prelude.IO.bind: Called bind with a guard expression containing a non-equation constraint"
   lazyBind _  _ (C_IO _)            = internalError "can not lazily bind IO"
   lazyBind cd i (Choice_C_IO d j l r) = [(ConstraintChoice d j (lazyBind cd i l) (lazyBind cd i r))]
   lazyBind cd i (Choices_C_IO d j@(FreeID _ _) xs) = lazyBindOrNarrow cd i d j xs
   lazyBind cd i (Choices_C_IO d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (lazyBind cd i) xs))]
   lazyBind _  _ (Choices_C_IO _ i@(ChoiceID _) _) = internalError ("Prelude.IO.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _  _ (Fail_C_IO cd info) = [Unsolvable info]
-  lazyBind cd i (Guard_C_IO _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+  lazyBind cd i (Guard_C_IO _ c e) = case unwrapCs c of
+    Just cs -> (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+    Nothing -> error "Prelude.IO.lazyBind: Called lazyBind with a guard expression containing a non-equation constraint"
   fromDecision _ _ _ = error "ERROR: No fromDecision for C_IO"
 -- END GENERATED FROM PrimTypes.curry
 
@@ -540,7 +560,7 @@ data PrimData t0
      | Choice_PrimData Cover ID (PrimData t0) (PrimData t0)
      | Choices_PrimData Cover ID ([PrimData t0])
      | Fail_PrimData Cover FailInfo
-     | Guard_PrimData Cover (Constraints) (PrimData t0)
+     | Guard_PrimData Cover (WrappedConstraint) (PrimData t0)
 
 instance Show (PrimData a) where show = internalError "show for PrimData"
 
@@ -590,14 +610,18 @@ instance Unifiable (PrimData t0) where
   bind cd i (Choices_PrimData d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (bind cd i) xs))]
   bind _  _ (Choices_PrimData _ i _) = internalError ("Prelude.PrimData.bind: Choices with ChoiceID: " ++ (show i))
   bind _  _ (Fail_PrimData _ info) = [Unsolvable info]
-  bind cd i (Guard_PrimData _ cs e) = (getConstrList cs) ++ (bind cd i e)
+  bind cd i (Guard_PrimData _ c e) = case unwrapCs c of
+    Just cs -> (getConstrList cs) ++ (bind cd i e)
+    Nothing -> error "Prelude.PrimData.bind: Called bind with a guard expression containing a non-equation constraint"
   lazyBind _  _ (PrimData _) = internalError "can not lazily bind PrimData"
   lazyBind cd i (Choice_PrimData d j l r) = [(ConstraintChoice d j (lazyBind cd i l) (lazyBind cd i r))]
   lazyBind cd i (Choices_PrimData d j@(FreeID _ _) xs) = lazyBindOrNarrow cd i d j xs
   lazyBind cd i (Choices_PrimData d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (lazyBind cd i) xs))]
   lazyBind _  _ (Choices_PrimData _ i@(ChoiceID _) _) = internalError ("Prelude.PrimData.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _  _ (Fail_PrimData _ info) = [Unsolvable info]
-  lazyBind cd i (Guard_PrimData _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+  lazyBind cd i (Guard_PrimData _ c e) = case unwrapCs c of
+    Just cs -> (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+    Nothing -> error "Prelude.PrimData.lazyBind: Called lazyBind with a guard expression containing a non-equation constraint"
   fromDecision _ _ _ = error "ERROR: No fromDecision for PrimData"
 
 

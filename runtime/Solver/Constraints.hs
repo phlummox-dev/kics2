@@ -2,7 +2,6 @@
 
 module Solver.Constraints (
                 narrowIfFree, narrowIfFree2
-              , mkGuardExt
               , ArithOp (..)
               , FDConstraint (..)
               , RelOp (..)
@@ -29,10 +28,6 @@ narrowIfFree x contFree contVal cd cs = case try x of
 -- Like narrowIfFree, but converts both given arguments
 narrowIfFree2 :: (NonDet a, NonDet b, NonDet c) => a -> b -> (a -> b -> Cover -> ConstStore -> c) -> (a -> b -> Cover -> ConstStore -> c) -> Cover -> ConstStore -> c
 narrowIfFree2 x y contFree contVal cd cs = narrowIfFree x (\x' cd' cs' -> narrowIfFree y (contFree x') (contFree x') cd' cs') (\x'' cd'' cs'' -> narrowIfFree y (contFree x'') (contVal x'') cd'' cs'') cd cs
-
--- constructor for guard expressions with wrappable constraints
-mkGuardExt :: (NonDet a, WrappableConstraint c) => Cover -> c -> a -> a
-mkGuardExt cd c e = guardCons cd (WrappedConstr (wrapCs c)) e
 
 -- ---------------------------------------------------------------------------
 -- Finite Domain Constraint Representation

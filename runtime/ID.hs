@@ -1,4 +1,5 @@
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE DeriveDataTypeable #-} -- needed for typeable instance of equation constraints
 -- ---------------------------------------------------------------------------
 -- ID module
 -- ---------------------------------------------------------------------------
@@ -8,7 +9,7 @@ module ID
     -- * Cover
   , Cover, incCover, decCover, initCover
     -- * Constraints
-  , Constraint (..), Constraints(..), getConstrList
+  , Constraint (..), EquationConstraints(..), getConstrList
     -- * Decisions
   , Decision (..), defaultDecision, isDefaultDecision
     -- * IDs
@@ -75,24 +76,24 @@ data Constraint
 -- A Value Constraint is used to bind a Value to an id it also contains the
 -- structural constraint information that describes the choice to be taken
 -- for a given id, a Struct Constraint has only the structural information
-data Constraints
+data EquationConstraints
   = forall a . ValConstr ID a [Constraint]
   | StructConstr [Constraint]
-  | WrappedConstr WrappedConstraint -- added for support of wrappable constraints
+ deriving (Typeable)
 
 -- a selector to get the strucural constraint information from a constraint
-getConstrList :: Constraints -> [Constraint]
+getConstrList :: EquationConstraints -> [Constraint]
 getConstrList (ValConstr _ _ c) = c
 getConstrList (StructConstr  c) = c
-getConstrList (WrappedConstr _) = error "ID.getConstrList: Wrapped Constraints" -- added for support of wrappable constraints
 
-instance Show Constraints where
+instance Show EquationConstraints where
   showsPrec _ (ValConstr _ _ c) = showString "ValC "     . shows c
   showsPrec _ (StructConstr  c) = showString "StructC "  . shows c
-  showsPrec _ (WrappedConstr c) = showString "WrappedC " . shows c
 
-instance Eq Constraints where
+instance Eq EquationConstraints where
  c1 == c2 = getConstrList c1 == getConstrList c2
+
+instance WrappableConstraint EquationConstraints
 
 -- ---------------------------------------------------------------------------
 -- Wrappable Constraints

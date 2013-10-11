@@ -25,7 +25,7 @@ emptyCs :: ConstStore
 emptyCs = Map.empty
 
 -- insert a constraint into a constraint store
-addCs :: Constraints -> ConstStore -> ConstStore
+addCs :: WrappedConstraint -> ConstStore -> ConstStore
 
 -- combine two constraint stores
 combineCs :: ConstStore -> ConstStore -> ConstStore
@@ -44,7 +44,7 @@ pureGlobalCs :: ConstStore
 lookupGlobalCs :: IO ConstStore
 
 -- adds a Constraint to the global constraint store
-addToGlobalCs :: Constraints -> IO ()
+addToGlobalCs :: WrappedConstraint -> IO ()
 
 -- ---------------------------------------------------------------------------
 -- Implementation
@@ -62,9 +62,14 @@ addToGlobalCs              _ = return ()
 
 #else
 
-addCs (StructConstr  _) store = store
-addCs (WrappedConstr _) store = store -- added for support of wrappable constraints
-addCs (ValConstr i v _) store = id $! Map.insert (getKey i) (V v) store
+addCs wc store = case unwrapCs wc of
+  Nothing -> store
+  Just c  -> addCs' c store
+
+addCs' :: EquationConstraints -> ConstStore -> ConstStore
+addCs' (StructConstr  _) store = store
+addCs' (ValConstr i v _) store = id $! Map.insert (getKey i) (V v) store
+
 
 combineCs = Map.union
 
@@ -76,8 +81,13 @@ lookupWithGlobalCs cs i f def = lookupCs cs i f
 pureGlobalCs   = unsafePerformIO lookupGlobalCs
 lookupGlobalCs = readIORef globalCs
 
-addToGlobalCs (StructConstr     _) = return ()
-addToGlobalCs cs@(ValConstr _ _ _) = modifyIORef globalCs (addCs cs)
+addToGlobalCs wc = case unwrapCs wc of
+  Nothing -> return ()
+  Just c  -> addToGlobalCs' c
+ where
+  addToGlobalCs' :: EquationConstraints -> IO ()
+  addToGlobalCs' (StructConstr     _) = return ()
+  addToGlobalCs' cs@(ValConstr _ _ _) = modifyIORef globalCs (addCs' cs)
 
 globalCs :: IORef ConstStore
 globalCs = unsafePerformIO $ newIORef emptyCs

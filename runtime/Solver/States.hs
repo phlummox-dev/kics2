@@ -1,6 +1,6 @@
 module Solver.States (SolverStates (..), initStates, getSolverStates, setSolverStates) where
 
-import Solver.OvertonFD (FDState, initFDState)
+import Solver.Overton.OvertonFD (FDState, initFDState)
 
 import Data.IORef (IORef, newIORef, readIORef, modifyIORef)
 import System.IO.Unsafe (unsafePerformIO)

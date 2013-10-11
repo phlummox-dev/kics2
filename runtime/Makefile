@@ -55,7 +55,10 @@ endif
 	echo "    , Installation, MonadList, MonadSearch"        >> $@
 	echo "    , PrimTypes, SafeExec, Solver.Constraints"     >> $@
 	echo "  Other-modules:"                                  >> $@
-	echo "      ConstStore, ID, Search"                      >> $@
-	echo "    , Solver.EquationSolver, Solver.OvertonFD"     >> $@
+	echo "      ConstStore, ID, Search, Solver.Control"      >> $@
+	echo "    , Solver.EquationSolver, Solver.Interface"     >> $@
+	echo "    , Solver.Overton.OvertonDomain"                >> $@
+	echo "    , Solver.Overton.OvertonFD"                    >> $@
+	echo "    , Solver.Overton.OvertonUtils, Solver.States"  >> $@
 	echo "    , Strategies, Types"                           >> $@
 	echo "  hs-source-dirs: ., $(IDSUPPLYDIR)"               >> $@

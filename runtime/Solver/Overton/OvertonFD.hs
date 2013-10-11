@@ -15,7 +15,7 @@
 
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Solver.OvertonFD (
+module Solver.Overton.OvertonFD (
     -- Types
     OvertonFD,    -- Monad for finite domain constraint solver
     FDVar,        -- Finite domain solver variable
@@ -49,7 +49,7 @@ import Control.Monad.Trans
 import qualified Data.Map as Map
 import Data.Map ((!), Map)
 
-import Solver.OvertonDomain
+import Solver.Overton.OvertonDomain
 
 -- The FD monad
 newtype OvertonFD a = FD { unFD :: StateT FDState [] a }

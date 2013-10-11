@@ -11,7 +11,7 @@ class MonadPlus m => MonadSearch m where
   ssum  :: Cover -> ID -> [m a] -> m a
   var   :: m a   -> [m a] -> m a
   svar  :: Cover -> ID-> [m a] -> m a
-  constrainMSearch :: Cover -> Constraints -> m a -> m a
+  constrainMSearch :: Cover -> WrappedConstraint -> m a -> m a
 
   szero _ _   = mzero
   splus _ _   = mplus

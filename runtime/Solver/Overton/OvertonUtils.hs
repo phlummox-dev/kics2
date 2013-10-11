@@ -1,16 +1,16 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
 
-module Solver.OvertonUtils where
+module Solver.Overton.OvertonUtils where
 
 import PrimTypes (C_Int)
 import Solver.Constraints (FDConstraint (..), RelOp (..), ArithOp (..))
-import Solver.EquationSolver (Solution, noSolution, mkSolution)
 import Solver.States (fdState)
 import Solver.Interface
-import Solver.OvertonFD ( OvertonFD, FDVar, FDState (..), newVar, lookupDomain
-                        , same, different, (.<.), (.<=.), allDifferent
-                        , addSum, addSub, addMult, sumList, labelling, runFD, updateSolver )
-import Solver.OvertonDomain (ToDomain, findMin, findMax)
+import Solver.Overton.OvertonFD ( OvertonFD, FDVar, FDState (..), newVar, lookupDomain
+                                , same, different, (.<.), (.<=.), allDifferent
+                                , addSum, addSub, addMult, sumList, labelling, runFD, updateSolver )
+import Solver.Overton.OvertonDomain (ToDomain, findMin, findMax)
 import Types
 
 import Control.Monad.State.Lazy
@@ -25,7 +25,7 @@ overtonSolver = Solver {
   setState      = setFDState
 }
 
-instance ExternalSolver Overton where
+instance ExternalSolver (ConstraintSolver FDState) where
 
   type ForConstraint Overton = FDConstraint
 
@@ -127,7 +127,7 @@ addConstr (FDDomain vs l u) = do
   mapM_ (lookupOrCreateFDVar (lb,ub)) vs
 
 bindSolution :: (Unifiable a, NonDet b) => Cover -> [Term Int] -> [a] -> ID -> b -> b
-bindSolution cd vs solution i val = guardCons cd (ValConstr i solution (concat (zipWith (bindValue cd) vs solution))) val
+bindSolution cd vs solution i val = mkGuardExt cd (ValConstr i solution (concat (zipWith (bindValue cd) vs solution))) val
  where
   bindValue :: Unifiable a => Cover -> Term Int -> a -> [Constraint]
   bindValue cd (Var i)   val = bind cd i val

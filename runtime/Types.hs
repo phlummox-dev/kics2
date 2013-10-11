@@ -28,14 +28,14 @@ import ID
 -- of non-deterministic values in the runtime system, e.g. for implementing
 -- the search strategies.
 data Try a
-  = Val a                     -- ^ Value in head normal form (HNF)
-  | Fail Cover FailInfo       -- ^ Failure with covering depth and additional information
-  | Choice Cover ID a a       -- ^ Binary choice, introduced by the (?) operator
-  | Narrowed Cover ID [a]     -- ^ N-ary choice for narrowed variable
-  | Free Cover ID [a]         -- ^ N-ary choice for free variable, where
-                              --   N corresponds to the number of constructors of
-                              --   the underlying type
-  | Guard Cover Constraints a -- ^ Constrained value
+  = Val a                           -- ^ Value in head normal form (HNF)
+  | Fail Cover FailInfo             -- ^ Failure with covering depth and additional information
+  | Choice Cover ID a a             -- ^ Binary choice, introduced by the (?) operator
+  | Narrowed Cover ID [a]           -- ^ N-ary choice for narrowed variable
+  | Free Cover ID [a]               -- ^ N-ary choice for free variable, where
+                                    --   N corresponds to the number of constructors of
+                                    --   the underlying type
+  | Guard Cover WrappedConstraint a -- ^ Constrained value
     deriving Show
 
 -- |Convert a binary choice of type a into one of type 'Try' a
@@ -54,7 +54,7 @@ tryChoices _  i                       = internalError $ "Basics.tryChoices: wron
 -- tryFail :: Try a
 -- tryFail = Fail
 
--- tryGuard :: Constraints -> a -> Try a
+-- tryGuard :: WrappedConstraint -> a -> Try a
 -- tryGuard = Guard
 
 -- tryVal :: a -> Try a
@@ -73,7 +73,7 @@ class NonDet a where
   -- |Construct a failed computation
   failCons   :: Cover -> FailInfo -> a
   -- |Construct a constrained value
-  guardCons  :: Cover -> Constraints -> a -> a
+  guardCons  :: Cover -> WrappedConstraint -> a -> a
   -- |Convert a value into the generic 'Try' structure
   try        :: a -> Try a
   -- |Apply the adequate function to a non-deterministic value, where each of
@@ -82,13 +82,13 @@ class NonDet a where
   -- /Note:/ This functionality was introduced to render the conversion from
   -- and to the 'Try' structure obsolete. Nonetheless, the performance impact
   -- still is to be analyzed.
-  match      :: (Cover -> ID -> a -> a -> b)     -- ^ Binary Choice
-             -> (Cover -> ID -> [a] -> b)        -- ^ n-ary Choice for narrowed variable
-             -> (Cover -> ID -> [a] -> b)        -- ^ n-ary Choice for free variable
-             -> (Cover -> FailInfo -> b)         -- ^ Failure
-             -> (Cover -> Constraints -> a -> b) -- ^ Constrained value
-             -> (a -> b)                         -- ^ Head Normal Form
-             -> a                                -- ^ value to apply the functions to
+  match      :: (Cover -> ID -> a -> a -> b)           -- ^ Binary Choice
+             -> (Cover -> ID -> [a] -> b)              -- ^ n-ary Choice for narrowed variable
+             -> (Cover -> ID -> [a] -> b)              -- ^ n-ary Choice for free variable
+             -> (Cover -> FailInfo -> b)               -- ^ Failure
+             -> (Cover -> WrappedConstraint -> a -> b) -- ^ Constrained value
+             -> (a -> b)                               -- ^ Head Normal Form
+             -> a                                      -- ^ value to apply the functions to
              -> b
 
   try = match Choice Narrowed Free Fail Guard Val
@@ -100,6 +100,10 @@ class NonDet a where
     Narrowed cd i xs  -> nrwd cd i xs
     Free cd i xs      -> fr cd i xs
     Guard cd cs e     -> grd cd cs e
+
+-- constructor for guard expressions with wrappable constraints
+mkGuardExt :: (NonDet a, WrappableConstraint c) => Cover -> c -> a -> a
+mkGuardExt cd c e = guardCons cd (wrapCs c) e
 
 -- |Lift a choice encountered at pattern matching to the result value.
 -- The name of this function is misleading because of historical reasons
@@ -231,7 +235,7 @@ unifyMatch x y cd cs = match uniChoice uniNarrowed uniFree failCons uniGuard uni
       bindFree     cdj j ys    = lookupCs cs j (bindTo cs') $
 			      if cdj < cd
                then unifyMatch x (narrows cs cdj j id ys) cd cs
-               else guardCons cd (ValConstr i y' [i :=: BindTo j]) C_Success
+               else mkGuardExt cd (ValConstr i y' [i :=: BindTo j]) C_Success
       bindGuard cdj c    = guardCons cdj c . (bindTo $! c `addCs` cs')
       bindVal v          = bindToVal i v cd cs'
 
@@ -277,7 +281,7 @@ unifyTry xVal yVal cd csVal = unify (try xVal) (try yVal) csVal -- 1. compute HN
                     then unify (try (narrows cs cdi i id xs)) hy cs
                     else (if cdj < cd
                            then unify hx (try (narrows cs cdj j id nfy)) cs
-                           else guardCons cdi (ValConstr i nfy [i :=: BindTo j]) C_Success)))
+                           else mkGuardExt cdi (ValConstr i nfy [i :=: BindTo j]) C_Success)))
   -- one free variable and one value
   unify (Free cdi i xs) hy@(Val y) cs = lookupCs cs i
     (\x -> unify (try x) hy cs) 
@@ -297,7 +301,7 @@ bindToVal i v cd _ =           constrain cd i v
 #endif
 
 constrain :: Unifiable a => Cover -> ID -> a -> C_Success
-constrain cd i v = guardCons cd (ValConstr i v (bind cd i v)) C_Success
+constrain cd i v = mkGuardExt cd (ValConstr i v (bind cd i v)) C_Success
 
   -- TODO2: Occurs check?
 
@@ -315,7 +319,7 @@ constrain cd i v = guardCons cd (ValConstr i v (bind cd i v)) C_Success
   uniFree d i xs   = lookupCs cs i (\xVal -> (xVal =:<= y) cd cs)
                        (if d < cd
                         then (narrows cs d i id xs =:<= y) cd cs
-                        else guardCons d (StructConstr [i :=: LazyBind (lazyBind cd i y)]) C_Success)
+                        else mkGuardExt d (StructConstr [i :=: LazyBind (lazyBind cd i y)]) C_Success)
   -- constructor-rooted term
   uniVal vx = unifyWith cs y
     where
@@ -329,7 +333,7 @@ constrain cd i v = guardCons cd (ValConstr i v (bind cd i v)) C_Success
          lookupCs cs' j (unifyWith cs') 
           (if d < cd
            then unifyWith cs' (narrows cs' d j id ys)
-           else guardCons d (StructConstr [j :=: LazyBind (lazyBind cd j vx)]) C_Success)
+           else mkGuardExt d (StructConstr [j :=: LazyBind (lazyBind cd j vx)]) C_Success)
 
 -- Lookup the decision made for the given ID and convert back
 -- into the original type
@@ -414,7 +418,7 @@ data C_Success
      | Choice_C_Success Cover ID C_Success C_Success
      | Choices_C_Success Cover ID ([C_Success])
      | Fail_C_Success Cover FailInfo
-     | Guard_C_Success Cover Constraints C_Success
+     | Guard_C_Success Cover WrappedConstraint C_Success
 
 instance Show C_Success where
   showsPrec d (Choice_C_Success cd i x y) = showsChoice d cd i x y
@@ -472,14 +476,18 @@ instance Unifiable C_Success where
   bind cd i (Choices_C_Success d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (bind cd i) xs))]
   bind _ _  (Choices_C_Success  _ i@(ChoiceID _) _) = internalError ("Prelude.Success.bind: Choices with ChoiceID: " ++ (show i))
   bind _ _ (Fail_C_Success _ info) = [Unsolvable info]
-  bind cd i (Guard_C_Success _ cs e) = (getConstrList cs) ++ (bind cd i e)
+  bind cd i (Guard_C_Success _ c e) = case unwrapCs c of
+    Just cs -> (getConstrList cs) ++ (bind cd i e)
+    Nothing -> error "Prelude.Success.bind: Called bind with a guard expression containing a non-equation constraint"
   lazyBind _  i C_Success = [(i :=: (ChooseN 0 0))]
   lazyBind cd i (Choice_C_Success d j l r) = [(ConstraintChoice d j (lazyBind cd i l) (lazyBind cd i r))]
   lazyBind cd i (Choices_C_Success d j@(FreeID _ _) xs) = lazyBindOrNarrow cd i d j xs 
   lazyBind cd i (Choices_C_Success d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (lazyBind cd i) xs))]
   lazyBind _  _ (Choices_C_Success _ i@(ChoiceID _) _) = internalError ("Prelude.Success.lazyBind: Choices with ChoiceID: " ++ (show i))
   lazyBind _  _(Fail_C_Success _ info) = [Unsolvable info]
-  lazyBind cd i (Guard_C_Success d cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+  lazyBind cd i (Guard_C_Success d c e) = case unwrapCs c of
+    Just cs -> (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+    Nothing -> error "Prelude.Success.lazyBind: Called lazyBind with a guard expression containing a non-equation constraint"
   fromDecision _  _ (ChooseN 0 0) = return C_Success
   fromDecision cd i NoDecision    = return (generate (supply i) cd)
   fromDecision _  i ChooseLeft    = error ("Prelude.Success.fromDecision: ChooseLeft decision for free ID: " ++ (show i))

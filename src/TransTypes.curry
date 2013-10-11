@@ -632,10 +632,18 @@ bindFailRule qf funcName = (funcName,
 bindGuardRule :: QName -> Bool -> (QName, Rule)
 bindGuardRule qf lazy = (funcName,
   simpleRule [PVar d, PVar i, mkGuardPattern qf]
-    (applyF (pre "++") [applyF (basics "getConstrList") [Var c], bindings]))
+    (Case (applyF (basics "unwrapCs") [Var c]) [justBranch,nothingBranch]))
+--    (applyF (pre "++") [applyF (basics "getConstrList") [Var c], bindings]))
   where
-    [d,i,c,e] = newVars ["d", "i","c","e"]
+    [d,i,c,e,cs] = newVars ["d", "i","c","e", "cs"]
     funcName = basics $ if lazy then "lazyBind" else "bind"
+    justBranch = (Branch (PComb (pre "Just") [PVar cs])
+                         (applyF (pre "++") [applyF (basics "getConstrList") [Var cs], bindings]))
+    nothingBranch = (Branch (PComb (pre "Nothing") [])
+                            (applyF (pre "error")
+                              [ string2ac (showQName (unRenameQName qf) ++ '.' : snd funcName
+                                  ++ ": Called " ++ snd funcName ++ " with a guard expression containing a non-equation constraint")
+                              ]))
     bindings = if lazy
       then list2ac [applyF (basics ":=:")
                     [ Var i
@@ -917,7 +925,7 @@ failInfoType :: TypeExpr
 failInfoType = baseType (basics "FailInfo")
 
 constraintType :: TypeExpr
-constraintType = baseType (basics "Constraints")
+constraintType = baseType (basics "WrappedConstraint")
 
 basics :: String -> QName
 basics n = ("Basics", n)
