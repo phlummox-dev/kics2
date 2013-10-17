@@ -216,10 +216,11 @@ extractFuncInfos funs =
 -- Patch Prelude in order to add some exports for predefined items
 patchCurryTypeClassIntoPrelude :: AH.Prog -> AH.Prog
 patchCurryTypeClassIntoPrelude p@(AH.Prog m imps td fd od)
-  | m == curryPrelude = AH.Prog m imps (curryDecl:td) fd od
+  | m == curryPrelude = AH.Prog m imps (curryDecl:td) (d_OP_lt_Decl:fd) od
   | otherwise         = p
  where
   curryDecl = AH.Type (curryPrelude, "Curry") AH.Public [] []
+  d_OP_lt_Decl = AH.Func "" (curryPrelude, "d_OP_lt") 4 AH.Public AH.Untyped (AH.Rules [])
 
 compMessage :: Int -> Int -> String -> String -> String -> String
 compMessage curNum maxNum msg fn dest

@@ -217,7 +217,8 @@ showFuncDecls :: Options -> [FuncDecl] -> String
 showFuncDecls opts fdecls = prefixInter (showFuncDeclOpt opts) fdecls "\n\n"
 
 showFuncDeclOpt :: Options -> FuncDecl -> String
-showFuncDeclOpt opts (Func cmt (_,name) arity _ ftype (Rules rules)) =
+showFuncDeclOpt _ (Func _ _ _ _ _ (Rules [])) = ""
+showFuncDeclOpt opts (Func cmt (_,name) arity _ ftype (Rules rules@(_:_))) =
   funcComment cmt ++ showTypeSig opts name ftype ++
   (if funcIsInfixOp
     then rulePrints arity
