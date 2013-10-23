@@ -13,7 +13,7 @@ data EquationSolver = EquationSolver
 equationSolver :: EquationSolver
 equationSolver = EquationSolver
 
-instance ExternalSolver EquationSolver where
+instance IncrementalSolver EquationSolver where
   type ForConstraint EquationSolver = EquationConstraints
 
   processWith = processEquationConstr

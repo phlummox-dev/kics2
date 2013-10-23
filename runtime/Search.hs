@@ -14,7 +14,7 @@ import MonadList
 import Strategies
 import Types
 import MonadSearch
-import Solver.Control (solveAll)
+import Solver.Control (solve)
 import Solver.States (SolverStates, initStates)
 
 -- ---------------------------------------------------------------------------
@@ -64,7 +64,7 @@ toIO (C_IO             io) _     = io
 toIO (Fail_C_IO       _ _) _     = throwFail "IO action failed"
 toIO (Choice_C_IO _ _ _ _) _     = throwNondet "Non-determinism in IO occured"
 toIO (Guard_C_IO  _  cs e) store = do
-  mbSolution <- solveAll initCover cs e
+  mbSolution <- solve initCover cs e
   case mbSolution of
     Nothing       -> throwFail "IO action failed"
     Just (_, val) -> do
@@ -255,7 +255,7 @@ printValsDFS backTrack cont goal = do
     follow c           = error $ "Search.prNarrowed: Bad choice " ++ show c
   prNarrowed _ i _ = error $ "Search.prNarrowed: Bad narrowed ID " ++ show i
 
-  prGuard _ c e = solveAll initCover c e >>= \mbSltn -> case mbSltn of
+  prGuard _ c e = solve initCover c e >>= \mbSltn -> case mbSltn of
     Nothing                      -> return ()
     Just (reset, e') | backTrack -> printValsDFS True  cont e' >> reset
                      | otherwise -> printValsDFS False cont e'
@@ -339,7 +339,7 @@ searchDFS act goal = do
       follow c             = error $ "Search.dfsNarrowed: Bad choice " ++ show c
     dfsNarrowed _ i _ = error $ "Search.dfsNarrowed: Bad narrowed ID " ++ show i
 
-    dfsGuard _ c e = solveAll initCover c e >>= \mbSltn -> case mbSltn of
+    dfsGuard _ c e = solve initCover c e >>= \mbSltn -> case mbSltn of
       Nothing -> mnil
       Just (reset, e') -> dfs cont e' |< reset
 
@@ -413,7 +413,7 @@ searchBFS act goal = do
       follow (NoDecision , j) = reset >> (cont (choicesCons initCover j zs) +++ (next cont xs ys))
       follow c                = error $ "Search.bfsFree: Bad choice " ++ show c
 
-    bfsGuard _ c e = set >> solveAll initCover c e >>= \mbSltn -> case mbSltn of
+    bfsGuard _ c e = set >> solve initCover c e >>= \mbSltn -> case mbSltn of
       Nothing -> reset >> next cont xs ys
       Just (newReset, e') -> bfs cont xs ys set (newReset >> reset) e'
 
@@ -509,7 +509,7 @@ startIDS olddepth newdepth act goal = do
       follow c             = error $ "Search.idsNarrowed: Bad choice " ++ show c
     idsNarrowed _ i _ = error $ "Search.idsNarrowed: Bad narrowed ID " ++ show i
 
-    idsGuard _ c e = solveAll initCover c e >>= \mbSltn -> case mbSltn of
+    idsGuard _ c e = solve initCover c e >>= \mbSltn -> case mbSltn of
       Nothing          -> mnil
       Just (reset, e') -> ids n cont e' |< reset
 
@@ -626,7 +626,7 @@ searchMSearch' cd cont x = match smpChoice smpNarrowed smpFree smpFail smpGuard 
 
   smpGuard d c e
    | isCovered d = constrainMSearch d c (searchMSearch' cd cont e)
-   | otherwise   = solveAll cd c e >>= maybe (szero d defFailInfo) (searchMSearch' cd cont . snd)
+   | otherwise   = solve cd c e >>= maybe (szero d defFailInfo) (searchMSearch' cd cont . snd)
 
   processLB d i cs xs = decide i NoDecision
                         $ mkGuardExt d (StructConstr cs) (choicesCons d i xs)

@@ -18,7 +18,7 @@ data ConstraintSolver state = Solver {
   setState      :: Store m => state -> m ()
 }
 
-class ExternalSolver solver where
+class IncrementalSolver solver where
 
   type ForConstraint solver :: *
 

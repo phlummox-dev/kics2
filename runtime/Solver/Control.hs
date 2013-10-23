@@ -1,6 +1,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 
-module Solver.Control where
+module Solver.Control (solve) where
 
 import Debug
 import Solver.Constraints (FDConstraint)
@@ -24,8 +24,8 @@ trySolver cd ((Solver process):solvers) wc val = case unwrapCs wc of
   Just c  -> do c' <- updateVars cd c
                 process cd c' val
 
-solveAll :: (Store m, NonDet a) => Cover -> WrappedConstraint -> a -> Solution m a
-solveAll cd = trySolver cd solvers
+solve :: (Store m, NonDet a) => Cover -> WrappedConstraint -> a -> Solution m a
+solve cd = trySolver cd solvers
 
 overton :: (Store m, NonDet a) => Cover -> FDConstraint -> a -> Solution m a
 overton = processWith overtonSolver

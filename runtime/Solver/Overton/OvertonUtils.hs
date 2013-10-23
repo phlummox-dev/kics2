@@ -25,7 +25,7 @@ overtonSolver = Solver {
   setState      = setFDState
 }
 
-instance ExternalSolver (ConstraintSolver FDState) where
+instance IncrementalSolver (ConstraintSolver FDState) where
 
   type ForConstraint Overton = FDConstraint
 
