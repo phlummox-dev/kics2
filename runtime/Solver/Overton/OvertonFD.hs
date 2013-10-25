@@ -122,7 +122,7 @@ addConstraint x constraint = do
 -- Useful helper function for adding binary constraints between FDVars.
 type BinaryConstraint = FDVar -> FDVar -> OvertonFD ()
 
-addBinaryConstraint :: BinaryConstraint -> BinaryConstraint
+addBinaryConstraint :: BinaryConstraint -> FDVar -> FDVar -> OvertonFD ()
 addBinaryConstraint f x y = do
   let constraint  = f x y
   constraint
@@ -233,8 +233,9 @@ addSub = addArithmeticConstraint getDomainPlus (flip getDomainMinus) getDomainMi
 addMult = addArithmeticConstraint getDomainDiv getDomainDiv getDomainMult
 
 sumList :: [FDVar] -> OvertonFD FDVar
-sumList [] = mzero
-sumList (x:xs) = foldM addSum x xs  
+sumList xs = do
+  z <- (newVar 0)
+  foldM addSum z xs
 
 -- interval arithmetic
 getDomainPlus :: Domain -> Domain -> Domain
