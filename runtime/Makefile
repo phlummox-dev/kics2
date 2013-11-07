@@ -52,8 +52,8 @@ endif
 	echo "  Exposed-modules:"                                >> $@
 	echo "      Basics, CurryException, Debug, IDSupply"     >> $@
 	echo "    , Installation, MonadList, MonadSearch"        >> $@
-	echo "    , PrimTypes, SafeExec"                         >> $@
+	echo "    , PrimTypes, SafeExec, Strategies"             >> $@
 	echo "  Other-modules:"                                  >> $@
 	echo "      ConstStore, ID, Search, Solver"              >> $@
-	echo "    , Strategies, Types"                           >> $@
+	echo "    , Types"                                       >> $@
 	echo "  hs-source-dirs: ., $(IDSUPPLYDIR)"               >> $@
