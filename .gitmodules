@@ -1,6 +1,6 @@
 [submodule "lib"]
 	path = lib
-	url = git://git-ps.informatik.uni-kiel.de/curry/curry-libs.git
+	url = ssh+git://git@git-ps.informatik.uni-kiel.de:55055/curry/bhos-curry-libs.git
 
 [submodule "curry-base"]
   path = frontend/curry-base
