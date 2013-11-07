@@ -1,0 +1,18 @@
+{ "name": "KiCS2"
+, "projects": [
+    { "name": "KiCS2"
+    , "files": [ { "git": 1 } ] }
+  , { "name": "KiCS2: curry-libs",
+      "files": [ { "directory": "lib"
+                 , "git": 1 } ] }
+  , { "name": "KiCS2: curry-base",
+      "files": [ { "directory": "frontend/curry-base"
+                 , "git": 1 } ] }
+  , { "name": "KiCS2: curry-frontend",
+      "files": [ { "directory": "frontend/curry-frontend"
+                 , "git": 1 } ] }
+  , { "name": "KiCS2: currytools",
+      "files": [ { "directory": "currytools"
+                 , "git": 1 } ] }
+  ]
+}
