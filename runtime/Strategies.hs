@@ -1,17 +1,26 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Strategies
-  ( bfsSearch, dfsSearch, parSearch
+  ( bfsSearch, dfsSearch, parSearch, evalSearch
   , idsSearch, idsDefaultDepth, idsDefaultIncr
   ) where
 
 import Control.Monad.SearchTree
 import Control.Parallel.TreeSearch (parSearch)
+import Control.Parallel.Strategies
 
 import MonadSearch
 
 instance MonadSearch SearchTree where
   constrainMSearch _ _ x = x
   var              x _   = x
+
+evalSearch :: SearchTree a -> [a]
+evalSearch None         = []
+evalSearch (One x )     = [x]
+evalSearch (Choice l r) = runEval $ do
+  rs <- rpar $ evalSearch r
+  ls <- rseq $ evalSearch l
+  return $ ls ++ rs
 
 -- |Breadth-first search
 bfsSearch :: SearchTree a -> [a]
