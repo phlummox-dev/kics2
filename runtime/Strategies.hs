@@ -1,12 +1,16 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Strategies
-  ( bfsSearch, dfsSearch, parSearch, evalSearch
+  ( bfsSearch, dfsSearch, parSearch, evalSearch, fairSearch
   , idsSearch, idsDefaultDepth, idsDefaultIncr
   ) where
 
 import Control.Monad.SearchTree
 import Control.Parallel.TreeSearch (parSearch)
 import Control.Parallel.Strategies
+import Data.List (delete)
+import Control.Concurrent (forkIO, myThreadId, ThreadId)
+import Control.Concurrent.MVar
+import Control.Concurrent.Chan
 
 import MonadSearch
 
@@ -21,6 +25,69 @@ evalSearch (Choice l r) = runEval $ do
   rs <- rpar $ evalSearch r
   ls <- rseq $ evalSearch l
   return $ ls ++ rs
+
+data SearchResultMessage a =
+    ThreadCreated ThreadId
+  | ThreadStopped ThreadId
+  | Value a
+
+fairSearch :: SearchTree a -> IO [a]
+fairSearch tree = do
+  runFlag <- newMVar True
+  resultChan <- newChan
+  startSearchThread runFlag resultChan tree
+  result <- readChan resultChan
+  case result of
+    ThreadCreated tid ->
+      handleResults runFlag resultChan [tid] []
+ where
+  handleResults :: MVar Bool -> Chan (SearchResultMessage a) -> [ThreadId] -> [ThreadId] -> IO [a]
+  handleResults _       _          [] _ =
+    return []
+  handleResults runFlag resultChan tids stoppedThreads = do
+    result <- readChan resultChan
+    case result of
+      ThreadCreated tid ->
+        case elem tid stoppedThreads of
+          True ->
+            handleResults runFlag resultChan tids (delete tid stoppedThreads)
+          False ->
+            handleResults runFlag resultChan (tid:tids) stoppedThreads
+      ThreadStopped tid ->
+        case elem tid tids of
+          True ->
+            handleResults runFlag resultChan (delete tid tids) stoppedThreads
+          False ->
+            handleResults runFlag resultChan tids (tid:stoppedThreads)
+      Value val         -> do
+        other <- handleResults runFlag resultChan tids stoppedThreads
+        return $ val:other
+
+  startSearchThread :: MVar Bool -> Chan (SearchResultMessage a) -> SearchTree a -> IO ()
+  startSearchThread runFlag resultChan tree = do
+    newTid <- forkIO $ do
+      tid <- myThreadId
+      run <- readMVar runFlag
+      case run of
+        True ->
+          searchThread runFlag resultChan tree
+        False ->
+          writeChan resultChan $ ThreadStopped tid
+    writeChan resultChan $ ThreadCreated newTid
+
+  searchThread :: MVar Bool -> Chan (SearchResultMessage a) -> SearchTree a -> IO ()
+  searchThread runFlag resultChan tree =
+    case tree of
+      None  -> do 
+        tid <- myThreadId
+        writeChan resultChan $ ThreadStopped tid
+      One x -> do
+        tid <- myThreadId
+        writeChan resultChan $ Value x
+        writeChan resultChan $ ThreadStopped tid
+      Choice x y -> do
+        startSearchThread runFlag resultChan y
+        searchThread      runFlag resultChan x
 
 -- |Breadth-first search
 bfsSearch :: SearchTree a -> [a]
