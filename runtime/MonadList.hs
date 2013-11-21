@@ -7,7 +7,7 @@ module MonadList
     MList, mnil, msingleton, mcons, abort, (|<), (+++), (++++), fromList
     -- * list evaluation
   , IOList, MoreDefault (..), countValues, printOneValue, printAllValues
-  , printValsOnDemand
+  , printValsOnDemand, evalIOList
   ) where
 
 import Data.Char (toLower)
@@ -176,3 +176,15 @@ askUserKey prompt = do
   putChar c
   if c == '\n' then return () else putChar '\n'
   return c
+
+-- | Evaluate the whole IOList to a normal list in the IO Monad
+evalIOList :: IOList a -> IO [a]
+evalIOList Nil =
+  return []
+evalIOList Abort =
+  warnAbort >> return []
+evalIOList (Cons x r) = do
+  xs <- r >>= evalIOList
+  return $ x:xs
+evalIOList (Reset l _) =
+  l >>= evalIOList
