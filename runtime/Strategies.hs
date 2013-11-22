@@ -11,6 +11,7 @@ import Data.List (delete)
 import Control.Concurrent (forkIO, myThreadId, ThreadId, killThread)
 import Control.Concurrent.MVar
 import Control.Concurrent.Chan
+import System.Mem.Weak
 
 import MonadSearch
 import MonadList
@@ -27,24 +28,13 @@ evalSearch (Choice l r) = runEval $ do
   ls <- rseq $ evalSearch l
   return $ ls ++ rs
 
-data SearchResultMessage a =
-    ThreadCreated ThreadId
-  | ThreadStopped ThreadId
-  | Value a
-  
-type ThreadsRef a = MVar ([ThreadId], [ThreadId])
-
 fairSearch :: SearchTree a -> MList IO a
 fairSearch tree = do
-  runFlag <- newMVar True
+  threadVar <- newMVar $ ([], [])
   resultChan <- newChan
-  startSearchThread runFlag resultChan tree
-  result <- readChan resultChan
-  case result of
-    ThreadCreated tid -> do
-      thvar <- newMVar ([tid], [])
-      _ <- mkWeakMVar thvar (killThreads runFlag resultChan thvar)
-      handleResults runFlag resultChan thvar
+  weakChan <- mkWeakPtr resultChan $ Just $ killThreads threadVar
+  startSearchThread threadVar weakChan tree
+  handleResults threadVar resultChan
  where
   addThread :: ThreadId -> ([ThreadId], [ThreadId]) -> ([ThreadId], [ThreadId])
   addThread tid (runningThreads, stoppedThreads) =
@@ -58,70 +48,43 @@ fairSearch tree = do
       True -> (delete tid runningThreads, stoppedThreads)
       False -> (runningThreads, tid:stoppedThreads)
 
-  killThreads :: MVar Bool -> Chan (SearchResultMessage a) -> ThreadsRef a -> IO ()
-  killThreads runFlag resultChan thvar = do
-    _ <- swapMVar runFlag False
-    _ <- handleThreadChanges resultChan thvar
-    (runningThreads, _) <- takeMVar thvar
+  killThreads :: MVar ([ThreadId], [ThreadId]) -> IO ()
+  killThreads threadVar = do
+    (runningThreads, _) <- takeMVar threadVar
     mapM_ killThread runningThreads
 
-  handleThreadChanges :: Chan (SearchResultMessage a) -> ThreadsRef a -> IO ()
-  handleThreadChanges resultChan thvar = do
-    result <- readChan resultChan
-    case result of
-      ThreadCreated tid -> do
-        modifyMVar_ thvar $ return . (addThread tid)
-        handleThreadChanges resultChan thvar
-      ThreadStopped tid -> do
-        modifyMVar_ thvar $ return . (removeThread tid)
-        handleThreadChanges resultChan thvar
-      _ ->
-        handleThreadChanges resultChan thvar
-
-  handleResults :: MVar Bool -> Chan (SearchResultMessage a) -> ThreadsRef a -> MList IO a
-  handleResults runFlag resultChan thvar = do
-    threads@(runningThreads, _) <- readMVar thvar
+  handleResults :: MVar ([ThreadId], [ThreadId]) -> Chan a -> MList IO a
+  handleResults threadVar resultChan = do
+    threads@(runningThreads, _) <- readMVar threadVar
     case runningThreads of
       [] -> mnil
       _  -> do
         result <- readChan resultChan
-        case result of
-          ThreadCreated tid -> do
-            modifyMVar_ thvar $ return . (addThread tid)
-            handleResults runFlag resultChan thvar
-          ThreadStopped tid -> do
-            modifyMVar_ thvar $ return . (removeThread tid)
-            handleResults runFlag resultChan thvar
-          Value val ->
-            mcons val $ handleResults runFlag resultChan thvar
+        mcons result $ handleResults threadVar resultChan
 
-  startSearchThread :: MVar Bool -> Chan (SearchResultMessage a) -> SearchTree a -> IO ()
-  startSearchThread runFlag resultChan tree = do
-    run <- takeMVar runFlag
+  startSearchThread :: MVar ([ThreadId], [ThreadId]) -> Weak (Chan a) -> SearchTree a -> IO ()
+  startSearchThread threadVar weakChan tree = do
+    threads <- takeMVar threadVar
     newTid <- forkIO $ do
+      searchThread threadVar weakChan tree
       tid <- myThreadId
-      run <- readMVar runFlag
-      case run of
-        True ->
-          searchThread runFlag resultChan tree
-        False ->
-          writeChan resultChan $ ThreadStopped tid
-    writeChan resultChan $ ThreadCreated newTid
-    putMVar runFlag run
+      modifyMVar_ threadVar $ return . (removeThread tid)
+    putMVar threadVar (addThread newTid threads)
 
-  searchThread :: MVar Bool -> Chan (SearchResultMessage a) -> SearchTree a -> IO ()
-  searchThread runFlag resultChan tree =
+  searchThread :: MVar ([ThreadId], [ThreadId]) -> Weak (Chan a) -> SearchTree a -> IO ()
+  searchThread threadVar weakChan tree =
     case tree of
-      None  -> do 
-        tid <- myThreadId
-        writeChan resultChan $ ThreadStopped tid
+      None  -> 
+        return ()
       One x -> do
-        tid <- myThreadId
-        writeChan resultChan $ Value x
-        writeChan resultChan $ ThreadStopped tid
+        mResultChan <- deRefWeak weakChan
+        case mResultChan of
+          Nothing -> return ()
+          Just resultChan ->
+            writeChan resultChan x
       Choice x y -> do
-        startSearchThread runFlag resultChan y
-        searchThread      runFlag resultChan x
+        startSearchThread threadVar weakChan y
+        searchThread      threadVar weakChan x
 
 -- |Breadth-first search
 bfsSearch :: SearchTree a -> [a]
