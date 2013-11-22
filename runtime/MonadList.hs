@@ -7,7 +7,7 @@ module MonadList
     MList, mnil, msingleton, mcons, abort, (|<), (+++), (++++), fromList
     -- * list evaluation
   , IOList, MoreDefault (..), countValues, printOneValue, printAllValues
-  , printValsOnDemand, evalIOList
+  , printValsOnDemand, evalIOList, listIOToMaybe
   ) where
 
 import Data.Char (toLower)
@@ -188,3 +188,10 @@ evalIOList (Cons x r) = do
   return $ x:xs
 evalIOList (Reset l _) =
   l >>= evalIOList
+
+listIOToMaybe :: IOList a -> IO (Maybe a)
+listIOToMaybe Nil         = return Nothing
+listIOToMaybe Abort       = warnAbort >> return Nothing
+listIOToMaybe (Cons x _)  = return $ Just x
+listIOToMaybe (Reset l _) = l >>= listIOToMaybe
+  
