@@ -545,6 +545,23 @@ printPari ud prt goal = computeWithPar goal >>= printValsOnDemand ud prt
 computeWithPar :: NormalForm a => NonDetExpr a -> IO (IOList a)
 computeWithPar goal = getNormalForm goal >>= fromList . parSearch . searchMSearch initCover
 
+
+-- ---------------------------------------------------------------------------
+-- Fair parallel search by mapping search results into monadic structure
+-- ---------------------------------------------------------------------------
+
+printFair :: NormalForm a => (a -> IO ()) -> NonDetExpr a -> IO ()
+printFair prt goal = computeWithFair goal >>= printAllValues prt
+
+printFair1 :: NormalForm a => (a -> IO ()) -> NonDetExpr a -> IO ()
+printFair1 prt goal = computeWithFair goal >>= printOneValue prt
+
+printFairi :: NormalForm a => MoreDefault -> (a -> IO ()) -> NonDetExpr a -> IO ()
+printFairi ud prt goal = computeWithFair goal >>= printValsOnDemand ud prt
+
+computeWithFair :: NormalForm a => NonDetExpr a -> IO (IOList a)
+computeWithFair goal = getNormalForm goal >>= fairSearch . searchMSearch initCover
+
 -- ---------------------------------------------------------------------------
 -- Encapsulated search
 -- ---------------------------------------------------------------------------

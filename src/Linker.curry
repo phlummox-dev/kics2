@@ -204,7 +204,7 @@ ghcCall rst useGhci recompile mainFile = unwords . filter notNull $
       ] ++ map (</> rst :> outputSubdir) (loadPaths rst)
 
 --- Mode of non-deterministic evaluation of main goal
-data NonDetMode  = DFS | BFS | IDS Int | Par Int | PrDFS | PrtChoices Int
+data NonDetMode  = DFS | BFS | IDS Int | Par Int | Fair | PrDFS | PrtChoices Int
 
 data EvalMode    = All | One | Interactive MoreDefault -- | Count
 
@@ -251,6 +251,7 @@ mainExpr goal isdet isio ndMode evalMode mbBindings
       BFS          -> searchExpr $ "printBFS" ++ searchSuffix
       IDS        d -> searchExpr $ "printIDS" ++ searchSuffix ++ ' ' : show d
       Par        _ -> searchExpr $ "printPar" ++ searchSuffix
+      Fair         -> searchExpr $ "printFair" ++ searchSuffix
       PrtChoices d -> "prtChoiceTree" ++ ' ' : show d
   searchExpr strat = strat ++ ' ' : printOperation
   searchSuffix = case evalMode of

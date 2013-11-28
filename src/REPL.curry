@@ -612,6 +612,7 @@ replOptions =
   , ("choices"      , setOptionNDMode PrtChoices 10                      )
   , ("ids"          , setOptionNDMode IDS        100                     )
   , ("parallel"     , setOptionNDMode Par        0                       )
+  , ("fair"         , \r _ -> return (Just { ndMode       := Fair  | r }))
   , ("supply"       , setOptionSupply                                    )
   , ("v0"           , \r _ -> return (Just { verbose      := 0     | r }))
   , ("v1"           , \r _ -> return (Just { verbose      := 1     | r }))
@@ -685,6 +686,7 @@ printOptions rst = putStrLn $ unlines
   , "bfs             - set search mode to breadth-first search"
   , "ids [<n>]       - set search mode to iterative deepening (initial depth <n>)"
   , "parallel [<n>]  - set search mode to parallel search with <n> threads"
+  , "fair            - set search mode to fair parallel search"
   , "choices [<n>]   - set search mode to print the choice structure as a tree"
   , "                  (up to level <n>)"
   , ifLocal "supply <I>      - set idsupply implementation (ghc|giants|integer|ioref|pureio)"
@@ -723,6 +725,7 @@ showCurrentOptions rst = "\nCurrent settings:\n"++
          BFS           -> "breadth-first search"
          IDS d         -> "iterative deepening (initial depth: "++show d++")"
          Par s         -> "parallel search with "++show s++" threads"
+         Fair          -> "fair search"
       ) ++ "\n" ++
   "idsupply          : " ++ rst :> idSupply ++ "\n" ++
   "prelude           : " ++ rst :> preludeName ++ "\n" ++
