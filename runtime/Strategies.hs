@@ -4,9 +4,11 @@ module Strategies
   , idsSearch, idsDefaultDepth, idsDefaultIncr
   ) where
 
+import System.IO (hPutStr, stderr)
 import Control.Monad.SearchTree
 import Control.Parallel.TreeSearch (parSearch)
 import Control.Parallel.Strategies
+import Data.IORef (newIORef, mkWeakIORef, IORef, writeIORef)
 import Data.List (delete)
 import Control.Concurrent (forkIO, myThreadId, ThreadId, killThread)
 import Control.Concurrent.MVar
@@ -28,63 +30,84 @@ evalSearch (Choice l r) = runEval $ do
   ls <- rseq $ evalSearch l
   return $ ls ++ rs
 
+data ExecuteState = Stopped
+                  | Executing [ThreadId]
+
 fairSearch :: SearchTree a -> MList IO a
 fairSearch tree = do
-  threadVar <- newMVar $ ([], [])
+  threadVar <- newMVar $ Executing []
   resultChan <- newChan
-  weakChan <- mkWeakPtr resultChan $ Just $ killThreads threadVar
-  startSearchThread threadVar weakChan tree
-  handleResults threadVar resultChan
+
+  -- The following dummy IORef is just used to have a trigger for the
+  -- finalizer to kill remaining threads.
+  -- The naive implementation, using a weak reference on the Chan does not work
+  -- as expected. The problem is the following:
+  --   The threads need to be killed when there is no reference on the IOList
+  --   anymore. This will be done in the finalizer "killThreads threadVar".
+  --   Setting this as a finalizer for the result Chan requires using weak
+  --   references to the Chan in the search threads. The GHC runtime now detects
+  --   that there is only one reference to the Chan, the reference in
+  --   handleResults. Here the program wants to read from the Chan and the GHC
+  --   runtime detects that this will be never successful (as there is no
+  --   reference to the Chan in another thread). The GHC runtime stops the
+  --   waiting thread, the last reference to the Chan is removed, the garbage
+  --   collector fires the finalizer and all search threads are killed.
+  dummyRef <- newIORef ()
+  _ <- mkWeakIORef dummyRef $ killThreads threadVar
+
+  startSearchThread threadVar resultChan tree
+  handleResults dummyRef threadVar resultChan
  where
-  addThread :: ThreadId -> ([ThreadId], [ThreadId]) -> ([ThreadId], [ThreadId])
-  addThread tid (runningThreads, stoppedThreads) =
-    case elem tid stoppedThreads of
-      True -> (runningThreads, delete tid stoppedThreads)
-      False -> (tid:runningThreads, stoppedThreads)
+  removeThread :: ThreadId -> ExecuteState -> ExecuteState
+  removeThread tid Stopped = Stopped
+  removeThread tid (Executing tids) =
+    Executing $ delete tid tids
 
-  removeThread :: ThreadId -> ([ThreadId], [ThreadId]) -> ([ThreadId], [ThreadId])
-  removeThread tid (runningThreads, stoppedThreads) =
-    case elem tid runningThreads of
-      True -> (delete tid runningThreads, stoppedThreads)
-      False -> (runningThreads, tid:stoppedThreads)
-
-  killThreads :: MVar ([ThreadId], [ThreadId]) -> IO ()
+  killThreads :: MVar ExecuteState -> IO ()
   killThreads threadVar = do
-    (runningThreads, _) <- takeMVar threadVar
-    mapM_ killThread runningThreads
+    executeState <- takeMVar threadVar
+    case executeState of
+      Stopped ->
+        hPutStr stderr "Execution already stopped!"
+      Executing tids ->
+        mapM_ killThread tids
+    putMVar threadVar Stopped
 
-  handleResults :: MVar ([ThreadId], [ThreadId]) -> Chan a -> MList IO a
-  handleResults threadVar resultChan = do
-    threads@(runningThreads, _) <- readMVar threadVar
-    case runningThreads of
-      [] -> mnil
-      _  -> do
+  handleResults :: IORef () -> MVar ExecuteState -> Chan (Maybe a) -> MList IO a
+  handleResults dummyRef threadVar resultChan = do
+    executeState <- readMVar threadVar
+     -- this is for the optimizer not to optimize out the dummyRef
+    writeIORef dummyRef ()
+    case executeState of
+      Executing (_:_) -> do
         result <- readChan resultChan
-        mcons result $ handleResults threadVar resultChan
+        case result of
+          Nothing -> handleResults dummyRef threadVar resultChan
+          Just a  -> mcons a $ handleResults dummyRef threadVar resultChan
+      _ ->
+        mnil
 
-  startSearchThread :: MVar ([ThreadId], [ThreadId]) -> Weak (Chan a) -> SearchTree a -> IO ()
-  startSearchThread threadVar weakChan tree = do
-    threads <- takeMVar threadVar
-    newTid <- forkIO $ do
-      searchThread threadVar weakChan tree
-      tid <- myThreadId
-      modifyMVar_ threadVar $ return . (removeThread tid)
-    putMVar threadVar (addThread newTid threads)
+  startSearchThread :: MVar ExecuteState -> (Chan (Maybe a)) -> SearchTree a -> IO ()
+  startSearchThread threadVar chan tree = do
+    executeState <- takeMVar threadVar
+    case executeState of
+      Stopped -> do
+        putMVar threadVar executeState
+      Executing tids -> do
+        newTid <- forkIO $ do
+          tid <- myThreadId
+          searchThread threadVar chan tree
+          modifyMVar_ threadVar $ return . (removeThread tid)
+        putMVar threadVar $ Executing $ newTid:tids
 
-  searchThread :: MVar ([ThreadId], [ThreadId]) -> Weak (Chan a) -> SearchTree a -> IO ()
-  searchThread threadVar weakChan tree =
+  searchThread :: MVar ExecuteState -> (Chan (Maybe a)) -> SearchTree a -> IO ()
+  searchThread threadVar resultChan tree =
     case tree of
-      None  -> 
-        return ()
-      One x -> do
-        mResultChan <- deRefWeak weakChan
-        case mResultChan of
-          Nothing -> return ()
-          Just resultChan ->
-            writeChan resultChan x
+      None  -> writeChan resultChan $ Nothing
+      One x -> writeChan resultChan $ Just x
       Choice x y -> do
-        startSearchThread threadVar weakChan y
-        searchThread      threadVar weakChan x
+        startSearchThread threadVar resultChan y
+        searchThread      threadVar resultChan x
 
 -- |Breadth-first search
 bfsSearch :: SearchTree a -> [a]
