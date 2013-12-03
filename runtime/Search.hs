@@ -137,6 +137,9 @@ evalDIO goal = toIO (goal initCover emptyCs) emptyCs >> return ()
 evalIO :: NormalForm a => NonDetExpr (C_IO a) -> IO ()
 evalIO goal = initSupply >>= \s -> toIO (goal s initCover emptyCs) emptyCs >> return ()
 
+printIO :: NormalForm a => (a -> IO ()) -> NonDetExpr (C_IO a) -> IO ()
+printIO prt goal = initSupply >>= \s -> toIO (goal s initCover emptyCs) emptyCs >>= prt
+
 -- evalIO goal = computeWithDFS goal >>= execIOList
 -- execIOList :: IOList (C_IO a) -> IO ()
 -- execIOList MNil                 = return ()

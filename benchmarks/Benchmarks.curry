@@ -331,6 +331,7 @@ data Strategy
   | IODFS    | IOBFS    | IOIDS Int String    | IOIDS2 Int String -- top-level
   | MPLUSDFS | MPLUSBFS | MPLUSIDS Int String | MPLUSPar          -- MonadPlus
   | EncDFS   | EncBFS   | EncIDS                                  -- encapsulated
+  | EncPar   | EncEval  | EncFair                                 -- parallel encapsulated
 
 data Goal   = Goal Bool String String -- non-det? / module / main-expr
 data Output = All | One | Interactive | Count
@@ -370,9 +371,15 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
   searchExpr EncDFS           = wrapEnc "DFS"
   searchExpr EncBFS           = wrapEnc "BFS"
   searchExpr EncIDS           = wrapEnc "IDS"
+  searchExpr EncPar           = wrapParEnc "parSearch"
+  searchExpr EncEval          = wrapParEnc "evalSearch"
+  searchExpr EncFair          = wrapParEnc "fairSearch"
   wrapEnc strat      = "import qualified Curry_SearchTree as ST\n"
     ++ "main = prdfs print (\\i cov cs -> ST.d_C_allValues" ++ strat
     ++ " cov cs (ST.d_C_someSearchTree (nd_C_" ++ goal ++ " i cov cs) cov cs) cov cs)"
+  wrapParEnc strat   = "import qualified Curry_ParallelSearch as PS\n"
+    ++ "main = printIO print (\\i cov cs -> PS.d_C_getAllValues (PS.d_C_" ++ strat
+    ++ " cov cs) (nd_C_" ++ goal ++ " i cov cs) cov cs)"
   searchComb search  = "main = " ++ comb ++ " " ++ search ++ " $ " ++ "nd_C_" ++ goal
   comb = case o of
     All         -> "printAll"
