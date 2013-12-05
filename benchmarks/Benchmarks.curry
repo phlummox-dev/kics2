@@ -703,6 +703,24 @@ benchIDSSearch prog = concatMap
   (\st -> kics2 True True 1 S_IORef st Count prog)
   [IOIDS 100 "(*2)", IOIDS 100 "(+1)", IOIDS2 100 "(+1)"]
 
+benchThreads :: Bool -> Bool -> Supply -> Strategy -> Output -> Goal -> [Benchmark]
+benchThreads hoOpt ghcOpt idsupply strategy output goal =
+  concatMap (\n -> kics2 hoOpt ghcOpt n idsupply strategy output goal) threadCounts
+ where
+  maxThreads = 24
+  addAfter   =  4
+  threadCounts =
+    let f n = n : if n < 4 then f $ 2*n else f $ addAfter+n in
+      takeWhile (\n -> n <= maxThreads) (f 1)
+
+benchParallelAll :: Goal -> [Benchmark]
+benchParallelAll goal =
+     (kics2 True True 1 S_GHC EncDFS All goal)
+  ++ (kics2 True True 1 S_GHC EncBFS All goal)
+  ++ (benchThreads True True S_GHC EncFair All goal)
+  ++ (benchThreads True True S_GHC EncPar  All goal)
+  ++ (benchThreads True True S_GHC EncEval All goal)
+
 -- ---------------------------------------------------------------------------
 -- goal collections
 -- ---------------------------------------------------------------------------
@@ -805,11 +823,7 @@ benchSearch = -- map benchFLPSearch searchGoals
 -- main = run 2 benchSearch
 --main = run 1 allBenchmarks
 main = run 3 allBenchmarks
--- main = run 1 $ [ (kics2 True True 2 S_GHC EncFair All $ Goal True "Fib" "mexp")
---               ++ (kics2 True True 2 S_GHC EncPar All $ Goal True "Fib" "mexp")
---               ++ (kics2 True True 1 S_GHC EncDFS All $ Goal True "Fib" "mexp")
---               ++ (kics2 True True 1 S_GHC EncBFS All $ Goal True "Fib" "mexp")
---               ++ (kics2 True True 2 S_GHC MPLUSPar All $ Goal True "Fib" "mexp") ]
+--main = run 3 $ [ benchParallelAll $ Goal True "Fib" "mexp" ]
 --main = run 1 [benchFLPCompleteSearch "NDNums"]
 --main = run 1 (benchFPWithMain "ShareNonDet" "goal1" : [])
 --           map (\g -> benchFLPDFSWithMain "ShareNonDet" g) ["goal2","goal3"])
