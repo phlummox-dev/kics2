@@ -841,7 +841,10 @@ benchSearch = -- map benchFLPSearch searchGoals
 -- main = run 2 benchSearch
 --main = run 1 allBenchmarks
 main = run 3 allBenchmarks
---main = run 3 $ [ benchParallelAll $ Goal True "Fib" "mexp" ]
+-- main = run 1 $ [ benchParallelAll $ Goal True "Fib" "mexp"
+--                , benchParallelAll $ Goal True "SearchQueens" "main"
+--                , benchParallelAll $ Goal True "SatSolver" "main"
+--                , benchParallelAll $ Goal True "EditSeq" "main3" ]
 --main = run 1 [benchFLPCompleteSearch "NDNums"]
 --main = run 1 (benchFPWithMain "ShareNonDet" "goal1" : [])
 --           map (\g -> benchFLPDFSWithMain "ShareNonDet" g) ["goal2","goal3"])
