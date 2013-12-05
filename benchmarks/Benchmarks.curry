@@ -75,6 +75,19 @@ lpad n s = replicate (n - length s) ' ' ++ s
 rpad :: Int -> String -> String
 rpad n str = str ++ replicate (n - length str) ' '
 
+unzip4 :: [(a,b,c,d)] -> ([a], [b], [c], [d])
+unzip4 [] = ([], [], [], [])
+unzip4 ((w,x,y,z):ts) =
+  let (ws,xs,ys,zs) = unzip4 ts
+  in (w:ws, x:xs, y:ys, z:zs)
+
+zip4 :: [a] -> [b] -> [c] -> [d] -> [(a, b, c, d)]
+zip4 []     _      _      _      = []
+zip4 (_:_)  []     _      _      = []
+zip4 (_:_)  (_:_)  []     _      = []
+zip4 (_:_)  (_:_)  (_:_)  []     = []
+zip4 (w:ws) (x:xs) (y:ys) (z:zs) = (w,x,y,z) : zip4 ws xs ys zs
+
 -- ---------------------------------------------------------------------------
 -- Executing commands
 -- ---------------------------------------------------------------------------
@@ -200,12 +213,12 @@ timeCmd (cmd, args) = do
     | otherwise        = let (k, v) = splitInfo (d:cs) in (c:k, v)
 
 --- Execute a shell command and return the time of its execution
-benchCmd :: Command -> IO (Int, Float, Int)
+benchCmd :: Command -> IO (Int, Float, Float, Int)
 benchCmd cmd = do
   (exitcode, outcnt, errcnt, ti) <- timeCmd cmd
   trace outcnt
   trace errcnt
-  return $ (exitcode, ti :> tiUserTime, ti :> tiMaxResident)
+  return $ (exitcode, ti :> tiElapsedTime, ti :> tiUserTime, ti :> tiMaxResident)
 
 -- ---------------------------------------------------------------------------
 -- Operations for running benchmarks.
@@ -221,7 +234,7 @@ type Benchmark =
   , bmCleanup :: Command
   }
 
-type BenchResult = (String, [Float], [Int])
+type BenchResult = (String, [Float], [Float], [Int])
 
 -- Run a benchmark and return its timings
 runBenchmark :: Int -> Int -> (Int, Benchmark) -> IO BenchResult
@@ -234,15 +247,17 @@ runBenchmark rpts totalNum (currentNum, benchMark) = do
   infos <- sequenceIO $ replicate rpts $ benchCmd
                       $ timeout benchTimeout $ benchMark :> bmCommand
   silentCmd $ benchMark :> bmCleanup
-  let (codes, times, mems) = unzip3 infos
+  let (codes, elapsedTimes, userTimes, mems) = unzip4 infos
   flushStrLn $ if all (==0) codes then "PASSED" else "FAILED"
-  trace $ "RUNTIMES: " ++ intercalate " | " (map show times)
-  trace $ "MEMUSAGE: " ++ intercalate " | " (map show mems)
-  return (benchMark :> bmName, times, mems)
+  trace $ "RUNTIMES:  " ++ intercalate " | " (map show elapsedTimes)
+  trace $ "USERTIMES: " ++ intercalate " | " (map show userTimes)
+  trace $ "MEMUSAGE:  " ++ intercalate " | " (map show mems)
+  return (benchMark :> bmName, elapsedTimes, userTimes, mems)
 
 showResult :: Int -> BenchResult -> String
-showResult maxName (n, ts, ms) = rpad maxName n
-  ++ " | "  ++ intercalate " | " (map (lpad 7 . showTime) ts)
+showResult maxName (n, ets, uts, ms) = rpad maxName n
+  ++ " | "  ++ intercalate " | " (map (lpad 7 . showTime) ets)
+  ++ " || " ++ intercalate " | " (map (lpad 7 . showTime) uts)
   ++ " || " ++ intercalate " | " (map (lpad 8 . show) ms)
   where
     showTime x = let (x1,x2) = break (=='.') (show x)
@@ -268,10 +283,11 @@ processTimes timings =
 runBenchmarks :: Int -> Int -> (Int, [Benchmark]) -> IO String
 runBenchmarks rpts total (start, benchmarks) = do
   results <- mapIO (runBenchmark rpts total) (zip [start ..] benchmarks)
-  let (names, times, memus) = unzip3 results
+  let (names, elapsedTimes, userTimes, memus) = unzip4 results
       maxName = foldr max 0 $ map length names
-      times' = processTimes times
-  return $ unlines $ map (showResult maxName) (zip3 names times' memus)
+      elapsedTimes' = processTimes elapsedTimes
+      userTimes'    = processTimes userTimes
+  return $ unlines $ map (showResult maxName) (zip4 names elapsedTimes' userTimes' memus)
 
 runAllBenchmarks :: Int -> [[Benchmark]] -> IO String
 runAllBenchmarks rpts benchmarks = do
@@ -292,7 +308,9 @@ run rpts benchmarks = do
   info    <- getSystemInfo
   mach    <- getHostName
   let res = "Benchmarks on system " ++ info ++ "\n" ++
-            "Format of timings: normalized | mean | runtimes ... || memory used ...\n\n" ++
+            "Format of timings:\n"  ++
+            "elapsed times                 || user times                    | memory\n"     ++
+            "normalized | mean | times ... || normalized | mean | times ... | used ...\n\n" ++
             results
   putStrLn res
   unless (null args) $ writeFile (outputFile (head args) (init mach) ltime) res
