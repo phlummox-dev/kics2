@@ -375,7 +375,7 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
   searchExpr EncPar           = wrapParEnc "parSearch"
   searchExpr EncEval          = wrapParEnc "evalSearch"
   searchExpr EncFair          = wrapParEnc "fairSearch"
-  searchExpr (EncCon i)       = wrapParEnc "conSearch " ++ show i
+  searchExpr (EncCon i)       = wrapParEnc $ "conSearch (toCurry (" ++ show i ++ ":: Int))"
   wrapEnc strat      = "import qualified Curry_SearchTree as ST\n"
     ++ "main = prdfs print (\\i cov cs -> ST.d_C_allValues" ++ strat
     ++ " cov cs (ST.d_C_someSearchTree (nd_C_" ++ goal ++ " i cov cs) cov cs) cov cs)"
