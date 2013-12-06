@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Strategies
-  ( bfsSearch, dfsSearch, parSearch, evalSearch, fairSearch
+  ( bfsSearch, dfsSearch, parSearch, evalSearch, fairSearch, conSearch
   , idsSearch, idsDefaultDepth, idsDefaultIncr
   ) where
 
@@ -30,12 +30,19 @@ evalSearch (Choice l r) = runEval $ do
   ls <- rseq $ evalSearch l
   return $ ls ++ rs
 
-data ExecuteState = Stopped
-                  | Executing [ThreadId]
-
 fairSearch :: SearchTree a -> MList IO a
-fairSearch tree = do
-  threadVar <- newMVar $ Executing []
+fairSearch = conSearch (-1)
+
+data ExecuteState = Stopped
+                 -- number of threads left / running threads
+                  | Executing Int [ThreadId]
+
+-- | A parallel search implemented with concurrent Haskell
+conSearch :: Int         -- ^ The maximum number of threads to use
+         -> SearchTree a -- ^ The search tree to search in
+         -> MList IO a
+conSearch i tree = do
+  threadVar <- newMVar $ Executing i []
   resultChan <- newChan
 
   -- The following dummy IORef is just used to have a trigger for the
@@ -60,8 +67,8 @@ fairSearch tree = do
  where
   removeThread :: ThreadId -> ExecuteState -> ExecuteState
   removeThread tid Stopped = Stopped
-  removeThread tid (Executing tids) =
-    Executing $ delete tid tids
+  removeThread tid (Executing n tids) =
+    Executing (n+1) $ delete tid tids
 
   killThreads :: MVar ExecuteState -> IO ()
   killThreads threadVar = do
@@ -69,7 +76,7 @@ fairSearch tree = do
     case executeState of
       Stopped ->
         hPutStr stderr "Execution already stopped!"
-      Executing tids ->
+      Executing _ tids ->
         mapM_ killThread tids
     putMVar threadVar Stopped
 
@@ -79,7 +86,7 @@ fairSearch tree = do
      -- this is for the optimizer not to optimize out the dummyRef
     writeIORef dummyRef ()
     case executeState of
-      Executing (_:_) -> do
+      Executing _ (_:_) -> do
         result <- readChan resultChan
         case result of
           Nothing -> handleResults dummyRef threadVar resultChan
@@ -93,12 +100,15 @@ fairSearch tree = do
     case executeState of
       Stopped -> do
         putMVar threadVar executeState
-      Executing tids -> do
+      Executing 0 tids -> do
+        putMVar threadVar executeState
+        searchThread threadVar chan tree
+      Executing n tids -> do
         newTid <- forkIO $ do
           tid <- myThreadId
           searchThread threadVar chan tree
           modifyMVar_ threadVar $ return . (removeThread tid)
-        putMVar threadVar $ Executing $ newTid:tids
+        putMVar threadVar $ Executing (n-1) $ newTid:tids
 
   searchThread :: MVar ExecuteState -> (Chan (Maybe a)) -> SearchTree a -> IO ()
   searchThread threadVar resultChan tree =
