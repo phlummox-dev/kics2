@@ -332,7 +332,7 @@ data Strategy
   | IODFS    | IOBFS    | IOIDS Int String    | IOIDS2 Int String -- top-level
   | MPLUSDFS | MPLUSBFS | MPLUSIDS Int String | MPLUSPar          -- MonadPlus
   | EncDFS   | EncBFS   | EncIDS                                  -- encapsulated
-  | EncPar   | EncEval  | EncFair                                 -- parallel encapsulated
+  | EncPar   | EncEval  | EncFair | EncCon Int                    -- parallel encapsulated
 
 data Goal   = Goal Bool String String -- non-det? / module / main-expr
 data Output = All | One | Interactive | Count
@@ -375,6 +375,7 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
   searchExpr EncPar           = wrapParEnc "parSearch"
   searchExpr EncEval          = wrapParEnc "evalSearch"
   searchExpr EncFair          = wrapParEnc "fairSearch"
+  searchExpr (EncCon i)       = wrapParEnc "conSearch " ++ show i
   wrapEnc strat      = "import qualified Curry_SearchTree as ST\n"
     ++ "main = prdfs print (\\i cov cs -> ST.d_C_allValues" ++ strat
     ++ " cov cs (ST.d_C_someSearchTree (nd_C_" ++ goal ++ " i cov cs) cov cs) cov cs)"
@@ -845,6 +846,7 @@ main = run 3 allBenchmarks
 --                , benchParallelAll $ Goal True "SearchQueens" "main"
 --                , benchParallelAll $ Goal True "SatSolver" "main"
 --                , benchParallelAll $ Goal True "EditSeq" "main3" ]
+--main = run 1 $ map (\i -> benchThreads True True S_GHC (EncCon i) All $ Goal True "SearchQueens" "main") (map (*10) [1..100])
 --main = run 1 [benchFLPCompleteSearch "NDNums"]
 --main = run 1 (benchFPWithMain "ShareNonDet" "goal1" : [])
 --           map (\g -> benchFLPDFSWithMain "ShareNonDet" g) ["goal2","goal3"])
