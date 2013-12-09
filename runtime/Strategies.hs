@@ -37,6 +37,9 @@ data ExecuteState = Stopped
                  -- number of threads left / running threads
                   | Executing Int [ThreadId]
 
+data ThreadResult a = ThreadStopped ThreadId
+                    | Value         a
+
 -- | A parallel search implemented with concurrent Haskell
 conSearch :: Int         -- ^ The maximum number of threads to use
          -> SearchTree a -- ^ The search tree to search in
@@ -80,21 +83,23 @@ conSearch i tree = do
         mapM_ killThread tids
     putMVar threadVar Stopped
 
-  handleResults :: IORef () -> MVar ExecuteState -> Chan (Maybe a) -> MList IO a
+  handleResults :: IORef () -> MVar ExecuteState -> Chan (ThreadResult a) -> MList IO a
   handleResults dummyRef threadVar resultChan = do
-    executeState <- readMVar threadVar
      -- this is for the optimizer not to optimize out the dummyRef
     writeIORef dummyRef ()
-    case executeState of
-      Executing _ (_:_) -> do
-        result <- readChan resultChan
-        case result of
-          Nothing -> handleResults dummyRef threadVar resultChan
-          Just a  -> mcons a $ handleResults dummyRef threadVar resultChan
-      _ ->
-        mnil
+    result <- readChan resultChan
+    case result of
+      ThreadStopped tid -> do
+        state <- modifyMVar threadVar $ return . (\a -> (a,a)) . (removeThread tid)
+        case state of
+          Executing _ (_:_) ->
+            handleResults dummyRef threadVar resultChan
+          _ ->
+            mnil
+      Value a  ->
+        mcons a $ handleResults dummyRef threadVar resultChan
 
-  startSearchThread :: MVar ExecuteState -> (Chan (Maybe a)) -> SearchTree a -> IO ()
+  startSearchThread :: MVar ExecuteState -> (Chan (ThreadResult a)) -> SearchTree a -> IO ()
   startSearchThread threadVar chan tree = do
     executeState <- takeMVar threadVar
     case executeState of
@@ -107,14 +112,16 @@ conSearch i tree = do
         newTid <- forkIO $ do
           tid <- myThreadId
           searchThread threadVar chan tree
-          modifyMVar_ threadVar $ return . (removeThread tid)
+          writeChan chan $ ThreadStopped tid
         putMVar threadVar $ Executing (n-1) $ newTid:tids
 
-  searchThread :: MVar ExecuteState -> (Chan (Maybe a)) -> SearchTree a -> IO ()
+  searchThread :: MVar ExecuteState -> (Chan (ThreadResult a)) -> SearchTree a -> IO ()
   searchThread threadVar resultChan tree =
     case tree of
-      None  -> writeChan resultChan $ Nothing
-      One x -> writeChan resultChan $ Just x
+      None  ->
+        return ()
+      One x -> do
+        writeChan resultChan $ Value x
       Choice x y -> do
         startSearchThread threadVar resultChan y
         searchThread      threadVar resultChan x
