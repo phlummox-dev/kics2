@@ -541,10 +541,13 @@ kics2Compile mod hoOpt ghcOpt threaded idsupply mainexp = do
 --                         , "-DDISABLE_CS" -- disable constraint store
                         --,"-DSTRICT_VAL_BIND" -- strict value bindings
                         , "-XMultiParamTypeClasses","-XFlexibleInstances"
---                         , "-fforce-recomp"
+                        , "-XRelaxedPolyRec"
+                        , "-fforce-recomp"
                         , "-i" ++ intercalate ":" ghcImports
                         , mainFile
                         ]) -- also:  -funbox-strict-fields ?
+      ghcVersion = ("ghc" , [ "--version" ])
+  traceCmd ghcVersion
   traceCmd ghcCmd
   return 0
 
