@@ -9,7 +9,7 @@ module IDSupply
 
 import Control.Monad (liftM)
 import Data.IORef (IORef, newIORef, readIORef, modifyIORef)
-import qualified Data.Map as Map (Map, empty, delete, findWithDefault, insert)
+import qualified Data.Map as Map (Map, empty, delete, filterWithKey, insert, elems)
 import System.IO.Unsafe (unsafePerformIO)
 import UniqSupply
   (UniqSupply, mkSplitUniqSupply, splitUniqSupply, uniqFromSupply)
@@ -52,16 +52,16 @@ store :: IORef (Map.Map Unique Decision)
 store = unsafePerformIO (newIORef Map.empty)
 {-# NOINLINE store #-}
 
-findAll :: k -> Map k a -> [a]
-findAll k = elems . (filterWithKey (\k' _ -> k' == k))
+findAll :: Eq k => k -> Map.Map k a -> [a]
+findAll k = Map.elems . (Map.filterWithKey (\k' _ -> k' == k))
 
 getDecisionRaw :: Unique -> IO Decision
 getDecisionRaw u = do
   m <- readIORef store
   case findAll u m of
-    []  -> defaultDecision
-    [d] -> d
-    _   -> error $ "Unique " ++ showUnique ++ " not unique."
+    []  -> return defaultDecision
+    [d] -> return d
+    _   -> error $ "Unique " ++ showUnique u ++ " not unique."
 
 setDecisionRaw :: Unique -> Decision -> IO ()
 setDecisionRaw u c
