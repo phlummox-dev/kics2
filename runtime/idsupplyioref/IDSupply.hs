@@ -4,7 +4,7 @@
 module IDSupply
   ( IDSupply, initSupply, leftSupply, rightSupply, unique
   , Unique, mkInteger, showUnique
-  , getDecisionRaw, setDecisionRaw, unsetDecisionRaw
+  , getDecisionRaw, setDecisionRaw, unsetDecisionRaw, chan
   ) where
 
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
@@ -12,6 +12,7 @@ import GHC.IO  (unsafeDupableInterleaveIO)
 import UniqSupply
   (UniqSupply, mkSplitUniqSupply, splitUniqSupply, uniqFromSupply)
 import qualified Unique as GHC (Unique, getKey)
+import Control.Concurrent.Chan
 
 -- SOURCE pragma to allow mutually recursive dependency
 import {-# SOURCE #-} ID (Decision, defaultDecision)
@@ -72,3 +73,9 @@ setDecisionRaw u c = writeIORef (unqRef u) c
 
 unsetDecisionRaw :: Unique -> IO ()
 unsetDecisionRaw u = writeIORef (unqRef u) defaultDecision
+
+chan :: Chan Unique
+chan = unsafePerformIO $ do
+  putStrLn "Create unique chan"
+  newChan
+{-# NOINLINE chan #-}
