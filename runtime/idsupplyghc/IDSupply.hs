@@ -52,16 +52,9 @@ store :: IORef (Map.Map Unique Decision)
 store = unsafePerformIO (newIORef Map.empty)
 {-# NOINLINE store #-}
 
-findAll :: k -> Map k a -> [a]
-findAll k = elems . (filterWithKey (\k' _ -> k' == k))
-
 getDecisionRaw :: Unique -> IO Decision
-getDecisionRaw u = do
-  m <- readIORef store
-  case findAll u m of
-    []  -> defaultDecision
-    [d] -> d
-    _   -> error $ "Unique " ++ showUnique ++ " not unique."
+getDecisionRaw u = Map.findWithDefault defaultDecision u
+                   `liftM` readIORef store
 
 setDecisionRaw :: Unique -> Decision -> IO ()
 setDecisionRaw u c
