@@ -20,6 +20,8 @@ import Prelude hiding ((!!))
 import GHC.Stack
 import GHC.Base
 import System.IO.Unsafe (unsafePerformIO) 
+import IDSupply
+import Control.Concurrent.Chan
 
 (!!) :: Show a => [a] -> Int -> a
 xs !! n@(I# n0) | n0 <# 0#  =  error "Search.(!!): negative index\n"
@@ -27,9 +29,12 @@ xs !! n@(I# n0) | n0 <# 0#  =  error "Search.(!!): negative index\n"
  if n >= length xs 
  then unsafePerformIO $ do
    stack <- currentCallStack
+   uniqueIds <- readUniqueIds
    let msg = "Search.(!!): index " ++ show n ++" too large\n"
           ++ "List: " ++ show xs ++ "\n\n"
           ++ (renderStack stack)
+          ++ "\n\n"
+          ++ intercalate "\n" (map showUnique uniqueIds)
    return $ error msg
  else sub xs n0
  where
@@ -38,6 +43,15 @@ xs !! n@(I# n0) | n0 <# 0#  =  error "Search.(!!): negative index\n"
   sub (y:ys) n = if n ==# 0#
                   then y
                   else sub ys (n -# 1#)
+  readUniqueIds :: IO [Unique]
+  readUniqueIds = do
+    isEmpty <- isEmptyChan chan
+    if isEmpty
+      then return []
+      else do
+        x  <- readChan chan
+        xs <- readUniqueIds
+        return $ x : xs
 
 -- ---------------------------------------------------------------------------
 -- Search combinators for top-level search in the IO monad

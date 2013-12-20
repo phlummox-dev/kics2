@@ -4,7 +4,7 @@
 module IDSupply
   ( IDSupply, initSupply, leftSupply, rightSupply, unique
   , Unique, mkInteger, showUnique
-  , getDecisionRaw, setDecisionRaw, unsetDecisionRaw
+  , getDecisionRaw, setDecisionRaw, unsetDecisionRaw, chan
   ) where
 
 import Control.Monad (liftM)
@@ -14,6 +14,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import UniqSupply
   (UniqSupply, mkSplitUniqSupply, splitUniqSupply, uniqFromSupply)
 import Unique (Unique, getKey)
+import Control.Concurrent.Chan
 
 -- SOURCE pragma to allow mutually recursive dependency
 import {-# SOURCE #-} ID (Decision, defaultDecision, isDefaultDecision)
@@ -44,8 +45,17 @@ leftSupply = IDSupply . fst . splitUniqSupply . uniqSupply
 rightSupply :: IDSupply -> IDSupply
 rightSupply = IDSupply . snd . splitUniqSupply . uniqSupply
 
+chan :: Chan Unique
+chan = unsafePerformIO $ do
+  putStrLn "Create unique chan"
+  newChan
+{-# NOINLINE chan #-}
+
 unique :: IDSupply -> Unique
-unique = uniqFromSupply . uniqSupply
+unique supply = unsafePerformIO $ do
+  let uniq = uniqFromSupply $ uniqSupply supply
+  writeChan chan uniq
+  return uniq
 
 -- |Internal store for 'Decision's
 store :: IORef (Map.Map Unique Decision)
