@@ -21,19 +21,23 @@ import GHC.Stack
 import GHC.Base
 import System.IO.Unsafe (unsafePerformIO) 
 
-(!!) :: [a] -> Int -> a
-xs !! (I# n0) | n0 <# 0#   =  error "Search.(!!): negative index\n"
-               | otherwise =  sub xs n0
-                         where
-                            sub :: [a] -> Int# -> a
-                            sub []     _ = unsafePerformIO $ do
-                              putStrLn "Search.(!!): index too large\n"
-                              stack <- currentCallStack
-                              when (not (null stack)) $ putStrLn (renderStack stack)
-                              return undefined
-                            sub (y:ys) n = if n ==# 0#
-                                           then y
-                                           else sub ys (n -# 1#)
+(!!) :: Show a => [a] -> Int -> a
+xs !! n@(I# n0) | n0 <# 0#  =  error "Search.(!!): negative index\n"
+                | otherwise = 
+ if n >= length xs 
+ then unsafePerformIO $ do
+   stack <- currentCallStack
+   let msg = "Search.(!!): index " ++ show n ++" too large\n"
+          ++ "List: " ++ show xs ++ "\n\n"
+          ++ (renderStack stack)
+   return $ error msg
+ else sub xs n0
+ where
+  sub :: [a] -> Int# -> a
+  sub []     _ = error "Search.(!!): impossible, index too large\n"
+  sub (y:ys) n = if n ==# 0#
+                  then y
+                  else sub ys (n -# 1#)
 
 -- ---------------------------------------------------------------------------
 -- Search combinators for top-level search in the IO monad
