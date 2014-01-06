@@ -1,3 +1,5 @@
+import ParallelSearch
+
 permute :: [a] -> [a]
 permute [] = []
 permute (x:xs) | u++v =:= permute xs = u++(x:v) where u,v free
@@ -19,3 +21,7 @@ queens :: Int -> [Int]
 queens n | allSafe qs = qs where qs = permute [1..n]
 
 main = queens 8
+
+test = do
+  vals <- getAllValues (conSearch 20) $ queens 8
+  putStrLn $ "RESULT: " ++ (show $ length vals)
