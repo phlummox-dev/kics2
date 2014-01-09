@@ -4,14 +4,13 @@
 module IDSupply
   ( IDSupply, initSupply, leftSupply, rightSupply, unique
   , Unique, mkInteger, showUnique
-  , getDecisionRaw, setDecisionRaw, unsetDecisionRaw, chan
+  , getDecisionRaw, setDecisionRaw, unsetDecisionRaw
   ) where
 
 import Control.Monad (liftM)
 import Data.IORef (IORef, newIORef, readIORef, modifyIORef)
 --import qualified Data.Map as Map (Map, empty, delete, findWithDefault, insert)
 import System.IO.Unsafe (unsafePerformIO)
-import Control.Concurrent.Chan
 
 import Giant (n, o, i, emptyTMap, lookupT, insertT, deleteT, T(..), TMap)
 
@@ -62,10 +61,3 @@ setDecisionRaw u c
 
 unsetDecisionRaw :: Unique -> IO ()
 unsetDecisionRaw = modifyIORef store . deleteT
-
-chan :: Chan Unique
-chan = unsafePerformIO $ do
-  putStrLn "Create unique chan"
-  newChan
-{-# NOINLINE chan #-}
-
