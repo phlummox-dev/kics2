@@ -13,7 +13,6 @@ import UniqSupply
   (UniqSupply, mkSplitUniqSupply, splitUniqSupply, uniqFromSupply)
 import qualified Unique as GHC (Unique, getKey)
 import Control.Concurrent.Chan
-import System.IO.Unsafe (unsafePerformIO)
 
 -- SOURCE pragma to allow mutually recursive dependency
 import {-# SOURCE #-} ID (Decision, defaultDecision)
