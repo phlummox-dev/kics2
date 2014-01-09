@@ -15,12 +15,6 @@ import Solver
 import Strategies
 import Types
 import MonadSearch
-import Prelude hiding ((!!))
-
-(!!) :: [a] -> Int -> a
-(x:_)  !! 0 = x
-(x:xs) !! n = xs !! (n-1)
-[]     !! _ = error "Index not in range Searchs.(!!)"
 
 -- ---------------------------------------------------------------------------
 -- Search combinators for top-level search in the IO monad

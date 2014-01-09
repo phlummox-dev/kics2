@@ -4,14 +4,8 @@
 module Solver (Solution, solve,mkSolution) where
 
 import Types
-import Prelude hiding ((!!))
 
 type Solution m a = m (Maybe (m (), a))
-
-(!!) :: [a] -> Int -> a
-(x:_)  !! 0 = x
-(x:xs) !! n = xs !! (n-1)
-[]     !! _ = error "Index not in range Solver.(!!)"
 
 mkDecision :: Store m => ID -> Decision -> a -> Solution m a
 mkDecision i d a = setUnsetDecision i d >>= \reset -> return $ Just (reset, a)
