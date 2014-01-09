@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MagicHash #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Search where
 
@@ -17,23 +16,11 @@ import Strategies
 import Types
 import MonadSearch
 import Prelude hiding ((!!))
-import GHC.Stack
-import GHC.Base
-import System.IO.Unsafe (unsafePerformIO) 
 
 (!!) :: [a] -> Int -> a
-xs !! (I# n0) | n0 <# 0#   =  error "Search.(!!): negative index\n"
-               | otherwise =  sub xs n0
-                         where
-                            sub :: [a] -> Int# -> a
-                            sub []     _ = unsafePerformIO $ do
-                              putStrLn "Search.(!!): index too large\n"
-                              stack <- currentCallStack
-                              when (not (null stack)) $ putStrLn (renderStack stack)
-                              return undefined
-                            sub (y:ys) n = if n ==# 0#
-                                           then y
-                                           else sub ys (n -# 1#)
+(x:_)  !! 0 = x
+(x:xs) !! n = xs !! (n-1)
+[]     !! _ = error "Index not in range Searchs.(!!)"
 
 -- ---------------------------------------------------------------------------
 -- Search combinators for top-level search in the IO monad
