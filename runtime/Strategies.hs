@@ -30,6 +30,15 @@ evalSearch (Choice l r) = runEval $ do
   ls <- rseq $ evalSearch l
   return $ ls ++ rs
 
+evalSearch' :: Int -> SearchTree a -> [a]
+evalSearch' _ None           = []
+evalSearch' _ (One x)        = [x]
+evalSearch' 0 c@(Choice _ _) = dfsSearch c
+evalSearch' i   (Choice l r) = runEval $ do
+  rs <- rpar $ evalSearch r
+  ls <- rseq $ evalSearch l
+  return $ ls ++ rs
+
 fairSearch :: SearchTree a -> MList IO a
 fairSearch = conSearch (-1)
 
