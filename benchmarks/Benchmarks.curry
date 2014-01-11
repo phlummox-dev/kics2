@@ -737,11 +737,11 @@ benchThreads hoOpt ghcOpt idsupply strategy output goal =
 
 benchParallelAll :: Goal -> [Benchmark]
 benchParallelAll goal =
-     (kics2 True True 1 S_GHC EncDFS All goal)
-  ++ (kics2 True True 1 S_GHC EncBFS All goal)
-  ++ (benchThreads True True S_GHC EncFair All goal)
-  ++ (benchThreads True True S_GHC EncPar  All goal)
-  ++ (benchThreads True True S_GHC EncEval All goal)
+     (kics2 True True 1 S_Integer EncDFS All goal)
+  ++ (kics2 True True 1 S_Integer EncBFS All goal)
+  ++ (benchThreads True True S_Integer EncFair All goal)
+  ++ (benchThreads True True S_Integer EncPar  All goal)
+  ++ (benchThreads True True S_Integer EncEval All goal)
 
 -- ---------------------------------------------------------------------------
 -- goal collections
@@ -849,7 +849,7 @@ main = run 3 allBenchmarks
 --                , benchParallelAll $ Goal True "SearchQueens" "main"
 --                , benchParallelAll $ Goal True "SatSolver" "main"
 --                , benchParallelAll $ Goal True "EditSeq" "main3" ]
---main = run 1 $ map (\i -> benchThreads True True S_GHC (EncCon i) All $ Goal True "SearchQueens" "main") (map (*10) [1..100])
+--main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueens" "main") (map (*10) [1..100])
 --main = run 1 [benchFLPCompleteSearch "NDNums"]
 --main = run 1 (benchFPWithMain "ShareNonDet" "goal1" : [])
 --           map (\g -> benchFLPDFSWithMain "ShareNonDet" g) ["goal2","goal3"])
