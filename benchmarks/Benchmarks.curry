@@ -546,8 +546,6 @@ kics2Compile mod hoOpt ghcOpt threaded idsupply mainexp = do
                         , "-i" ++ intercalate ":" ghcImports
                         , mainFile
                         ]) -- also:  -funbox-strict-fields ?
-      ghcVersion = ("ghc" , [ "--version" ])
-  traceCmd ghcVersion
   traceCmd ghcCmd
   return 0
 
