@@ -1,4 +1,5 @@
 {-# LANGUAGE MagicHash #-}
+{-# LANGUAGE CPP #-}
 
 module Basics
   ( module Basics
@@ -9,6 +10,8 @@ module Basics
 
 import Data.Char(ord)
 import GHC.Exts (Int#, Char#, chr#)
+import qualified GHC.Exts
+
 
 import Debug (internalError)
 import PrimTypes
@@ -130,6 +133,26 @@ mapFst f (a, b) = (f a, b)
          Choice_C_Success  cd i (amp a s cs) (amp b s cs)
    amp (Choices_C_Success cd i xs) s cs = 
          Choices_C_Success cd (narrowID i) (map (\x -> amp x s cs) xs)
+
+#if __GLASGOW_HASKELL__>706
+isTrue# :: Int# -> Bool
+isTrue# = GHC.Exts.isTrue#
+
+andI# :: Int# -> Int# -> Int#
+andI# = GHC.Exts.andI#
+
+orI# :: Int# -> Int# -> Int#
+orI# = GHC.Exts.orI#
+#else
+isTrue# :: Bool -> Bool
+isTrue# = id
+
+andI# :: Bool -> Bool -> Bool
+andI# = (&&)
+
+orI# :: Bool -> Bool -> Bool
+orI# = (||)
+#endif
 
 {- interleaved (&) from Bernd
 (&) :: C_Success -> C_Success -> C_Success
