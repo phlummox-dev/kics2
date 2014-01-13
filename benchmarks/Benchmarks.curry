@@ -138,53 +138,15 @@ getTotalMemory = dropWhile (not . isDigit)
                 `liftIO` runCmd ("grep", ["MemTotal", "/proc/meminfo"])
 
 type TimeInfo =
-  { tiCommand       :: String -- Command being timed
-  , tiUserTime      :: Float  -- User time (seconds)
-  , tiSystemTime    :: Float  -- System time (seconds)
-  , tiPercentCPU    :: Int    -- Percent of CPU this job got
+  { tiUserTime      :: Float  -- User time (seconds)
   , tiElapsedTime   :: Float  -- Elapsed (wall clock) time (h:mm:ss or m:ss)
-  , tiSharedMem     :: Int    -- Average shared text size (kbytes)
-  , tiUnsharedMem   :: Int    -- Average unshared data size (kbytes)
-  , tiAvgStack      :: Int    -- Average stack size (kbytes)
-  , tiAvgTotal      :: Int    -- Average total size (kbytes)
   , tiMaxResident   :: Int    -- Maximum resident set size (kbytes)
-  , tiAvgResident   :: Int    -- Average resident set size (kbytes)
-  , tiMajorFaults   :: Int    -- Major (requiring I/O) page faults
-  , tiMinorFaults   :: Int    -- Minor (reclaiming a frame) page faults
-  , tiVolSwitch     :: Int    -- Voluntary context switches
-  , tiNonvolSwitch  :: Int    -- Involuntary context switches
-  , tiSwaps         :: Int    -- Swaps
-  , tiFSInputs      :: Int    -- File system inputs
-  , tiFSOutputs     :: Int    -- File system outputs
-  , tiSocketMsgSent :: Int    -- Socket messages sent
-  , tiSocketMsgRecv :: Int    -- Socket messages received
-  , tiSignalsDelivd :: Int    -- Signals delivered
-  , tiPageSize      :: Int    -- Page size (bytes)
-  , tiExitStatus    :: Int    -- Exit status
   }
 
 toInfo :: [String] -> TimeInfo
-toInfo [x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22,x23]
-  = { tiCommand       := readQTerm   x1, tiUserTime      := readQTerm x2
-    , tiSystemTime    := readQTerm   x3, tiPercentCPU    := readQTerm $ init x4
-    , tiElapsedTime   := readElapsed x5, tiSharedMem     := readQTerm x6
-    , tiUnsharedMem   := readQTerm   x7, tiAvgStack      := readQTerm x8
-    , tiAvgTotal      := readQTerm   x9, tiMaxResident   := readQTerm x10
-    , tiAvgResident   := readQTerm  x11, tiMajorFaults   := readQTerm x12
-    , tiMinorFaults   := readQTerm  x13, tiVolSwitch     := readQTerm x14
-    , tiNonvolSwitch  := readQTerm  x15, tiSwaps         := readQTerm x16
-    , tiFSInputs      := readQTerm  x17, tiFSOutputs     := readQTerm x18
-    , tiSocketMsgSent := readQTerm  x19, tiSocketMsgRecv := readQTerm x20
-    , tiSignalsDelivd := readQTerm  x21, tiPageSize      := readQTerm x22
-    , tiExitStatus    := readQTerm  x23  }
-  where
-    readElapsed hms = hh *. 3600 +. mm *. 60 +. ss
-      where hh = if noHours then 0.0 else readQTerm p1
-            mm = readQTerm $ if noHours then p1 else p2
-            ss = readQTerm $ if noHours then p2 else (tail r2)
-            noHours = null r2
-            (p1,r1) = break (==':') hms
-            (p2,r2) = break (==':') (tail r1)
+toInfo [x1,x2,x3]
+  = { tiUserTime      := readQTerm x2
+    , tiElapsedTime   := readQTerm x1, tiMaxResident   := readQTerm x3  }
 
 --- Time the execution of a command and return
 ---   * the exit code
@@ -196,16 +158,14 @@ timeCmd (cmd, args) = do
   -- create timing process and execute it
   (exitCode, outCnts, errCnts) <- evalCmd timeCommand timeArgs []
   -- extract timing information
-  timingInfo <- extractInfo `liftIO` readFile timeFile
+  timingInfo <- words `liftIO` readFile timeFile
   -- remove time file
   silentCmd ("rm", ["-rf", timeFile])
-  return (exitCode, outCnts, errCnts, toInfo $ map snd timingInfo)
+  return (exitCode, outCnts, errCnts, toInfo timingInfo)
  where
   timeFile    = ".time"
   timeCommand = "/usr/bin/time"
-  timeArgs    = [ "--verbose", "-o", timeFile ] ++ cmd : args
-  extractInfo = map (splitInfo . trim) . lines
-  trim        = reverse . dropWhile isSpace . reverse . dropWhile isSpace
+  timeArgs    = [ "-f", "%e %U %M", "-o", timeFile ] ++ cmd : args
   splitInfo s@[]       = ([], s)
   splitInfo s@[_]      = ([], s)
   splitInfo s@(c:d:cs)
@@ -267,7 +227,7 @@ processTimes :: [[Float]] -> [[Float]]
 processTimes timings =
   let means        = map mean timings
       roundedmeans = map truncateFloat means
-      minNonZero   = max 0.0001 $ foldr1 min means
+      minNonZero   = max 0.0001 $ foldr min 0.0 means
       normalized   = map (truncateFloat . (/.minNonZero)) means
   in  zipWith (:) normalized (if length (head timings) == 1
                               then timings
