@@ -12,9 +12,9 @@ import CLPFD
 seven11 :: [Int]
 seven11 = let l,a,b,c,d free in
   ( l =:= [a,b,c,d] &
-    domain l 0 711 &
+    domain l 1 711 &
     a <=# b & b <=# c & c <=# d &
-    a +# b +# c +# d =# 711 &
+    sum [a,b,c,d] =# 711 &
     (a *# b) *# (c *# d) =# 711000000 &
     labeling l
   ) &> l

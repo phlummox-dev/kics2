@@ -43,10 +43,13 @@ module Solver.Overton.OvertonFD (
     (.<=.)
     ) where
 
+import Debug.Trace
+
 import Prelude hiding (null)
 import Control.Monad.State.Lazy
 import Control.Monad.Trans
 import qualified Data.Map as Map
+import Data.List (sortBy)
 import Data.Map ((!), Map)
 
 import Solver.Overton.OvertonDomain
@@ -56,7 +59,7 @@ newtype OvertonFD a = FD { unFD :: StateT FDState [] a }
     deriving (Monad, MonadPlus, MonadState FDState)
 
 -- FD variables
-newtype FDVar = FDVar { unFDVar :: Int } deriving (Ord, Eq)
+newtype FDVar = FDVar { unFDVar :: Int } deriving (Show, Ord, Eq)
 
 type VarSupply = FDVar
 data VarInfo = VarInfo
@@ -152,7 +155,7 @@ different :: FDVar -> FDVar -> OvertonFD ()
 different = addBinaryConstraint $ \x y -> do
   xv <- lookupDomain x
   yv <- lookupDomain y
-  guard $ not (isSingleton xv) || not (isSingleton yv) || xv /= yv
+  guard $ not $ isSingleton xv && isSingleton yv && xv == yv
   when (isSingleton xv && xv `isSubsetOf` yv) $ update y (yv `difference` xv)
   when (isSingleton yv && yv `isSubsetOf` xv) $ update x (xv `difference` yv)
 
@@ -186,7 +189,7 @@ allDifferent _ = return ()
   guard $ not $ null yv'
   when (xv /= xv') $ update x xv' 
   when (yv /= yv') $ update y yv'
-
+{-
 -- Label variables using a depth-first left-to-right search.
 labelling :: [FDVar] -> OvertonFD [Int]
 labelling = mapM label where
@@ -195,6 +198,48 @@ labelling = mapM label where
     val <- FD . lift $ elems vals
     var `hasValue` val
     return val
+-}
+
+-- Label variables using a depth-first left-to-right search.
+labelling :: [FDVar] -> OvertonFD [Int]
+labelling vars = do
+  labelingWith vars firstFail
+  assignments vars
+
+-- Label variables using the given strategy.
+labelingWith :: [FDVar] -> ([FDVar] -> OvertonFD [FDVar]) -> OvertonFD ()
+labelingWith [] _ = return ()
+labelingWith (v:vs) strategy = do
+  labelVar v
+  vs' <- strategy vs
+  labelingWith vs' strategy
+  return ()
+
+-- Label FD variable using a depth-first left-to-right search.
+labelVar :: FDVar -> OvertonFD Int
+labelVar var = do
+  vals <- lookupDomain var
+  val <- FD . lift $ elems vals
+  var `hasValue` val
+  return val
+
+-- in order labeling strategy
+inOrder :: [FDVar] -> OvertonFD [FDVar]
+inOrder = return
+
+-- first fail labeling strategy
+firstFail :: [FDVar] -> OvertonFD [FDVar]
+firstFail vars = do
+  ds <- mapM (\v -> lookupDomain v >>= (return . size)) vars
+  let domVars = sortBy (\x y -> compare (fst x) (fst y)) $ zip ds vars
+  return $ map snd domVars
+
+-- Get the assignments for the FD variables
+assignments :: [FDVar] -> OvertonFD [Int]
+assignments vars = do
+  doms <- mapM lookupDomain vars
+  guard $ all isSingleton doms
+  return (concatMap elems doms)
 
 type DomainUpdate = Domain -> Domain -> Domain
 
@@ -234,7 +279,7 @@ addMult = addArithmeticConstraint getDomainDiv getDomainDiv getDomainMult
 
 sumList :: [FDVar] -> OvertonFD FDVar
 sumList xs = do
-  z <- (newVar 0)
+  z <- newVar 0
   foldM addSum z xs
 
 -- interval arithmetic
