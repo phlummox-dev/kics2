@@ -6,7 +6,7 @@
 SUBDIR     = .curry/kics2
 TYPEINFDIR = $(ROOT)/currytools/typeinference
 # ghc options
-GHC_OPTS  += -O2 --make -v1 -cpp -package ghc
+GHC_OPTS  += -O2 --make -v1 -cpp -package ghc +RTS -K1000M -RTS
 # ghc language extensions for compiling translated Curry programs
 GHC_EXTS   = -XMultiParamTypeClasses -XFlexibleInstances -XRelaxedPolyRec
 # ghc includes for compiling translated Curry programs
