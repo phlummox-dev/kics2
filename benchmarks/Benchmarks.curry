@@ -165,7 +165,7 @@ timeCmd (cmd, args) = do
  where
   timeFile    = ".time"
   timeCommand = "/usr/bin/time"
-  timeArgs    = [ "-f", "%e %U %M", "-o", timeFile ] ++ cmd : args
+  timeArgs    = [ "--quiet", "-f", "%e %U %M", "-o", timeFile ] ++ cmd : args
   splitInfo s@[]       = ([], s)
   splitInfo s@[_]      = ([], s)
   splitInfo s@(c:d:cs)
@@ -227,7 +227,7 @@ processTimes :: [[Float]] -> [[Float]]
 processTimes timings =
   let means        = map mean timings
       roundedmeans = map truncateFloat means
-      minNonZero   = max 0.0001 $ foldr min 0.0 means
+      minNonZero   = max 0.0001 $ foldr1 min means
       normalized   = map (truncateFloat . (/.minNonZero)) means
   in  zipWith (:) normalized (if length (head timings) == 1
                               then timings
