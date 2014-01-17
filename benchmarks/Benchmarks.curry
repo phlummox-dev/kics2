@@ -292,7 +292,8 @@ data Strategy
   | IODFS    | IOBFS    | IOIDS Int String    | IOIDS2 Int String -- top-level
   | MPLUSDFS | MPLUSBFS | MPLUSIDS Int String | MPLUSPar          -- MonadPlus
   | EncDFS   | EncBFS   | EncIDS                                  -- encapsulated
-  | EncPar   | EncEval  | EncFair | EncCon Int                    -- parallel encapsulated
+  | EncPar   | EncFair  | EncCon Int                              -- parallel encapsulated
+  | EncSAll  | EncSLimit Int | EncSAlt Int | EncSPow              -- parallel with Eval
 
 data Goal   = Goal Bool String String -- non-det? / module / main-expr
 data Output = All | One | Interactive | Count
@@ -333,9 +334,12 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
   searchExpr EncBFS           = wrapEnc "BFS"
   searchExpr EncIDS           = wrapEnc "IDS"
   searchExpr EncPar           = wrapParEnc "parSearch"
-  searchExpr EncEval          = wrapParEnc "evalSearch"
   searchExpr EncFair          = wrapParEnc "fairSearch"
   searchExpr (EncCon i)       = wrapParEnc $ "conSearch (toCurry (" ++ show i ++ ":: Int))"
+  searchExpr EncSAll          = wrapParEnc "splitAll"
+  searchExpr (EncSLimit i)    = wrapParEnc $ "splitLimitDepth (toCurry (" ++ show i ++ ":: Int))"
+  searchExpr (EncSAlt   i)    = wrapParEnc $ "splitAlternating (toCurry (" ++ show i ++ ":: Int))"
+  searchExpr EncSPow          = wrapParEnc $ "splitPower"
   wrapEnc strat      = "import qualified Curry_SearchTree as ST\n"
     ++ "main = prdfs print (\\i cov cs -> ST.d_C_allValues" ++ strat
     ++ " cov cs (ST.d_C_someSearchTree (nd_C_" ++ goal ++ " i cov cs) cov cs) cov cs)"
@@ -695,11 +699,15 @@ benchThreads hoOpt ghcOpt idsupply strategy output goal =
 
 benchParallelAll :: Goal -> [Benchmark]
 benchParallelAll goal =
-     (kics2 True True 1 S_Integer EncDFS All goal)
-  ++ (kics2 True True 1 S_Integer EncBFS All goal)
-  ++ (benchThreads True True S_Integer EncFair All goal)
-  ++ (benchThreads True True S_Integer EncPar  All goal)
-  ++ (benchThreads True True S_Integer EncEval All goal)
+     (kics2 True True 1 S_GHC EncDFS All goal)
+  ++ (kics2 True True 1 S_GHC EncBFS All goal)
+  ++ (benchThreads True True S_GHC EncFair All goal)
+  ++ concatMap (\n -> kics2 True True n S_GHC (EncCon n) All goal)         [1,2,4,8,12,24]
+  ++ (benchThreads True True S_GHC EncPar  All goal)
+  ++ (benchThreads True True S_GHC EncSAll All goal)
+  ++ concatMap (\n -> benchThreads True True S_GHC (EncSLimit n) All goal) [1,2,4,8,12,24]
+  ++ concatMap (\n -> benchThreads True True S_GHC (EncSAlt   n) All goal) [1,2,4,8,14,24]
+  ++ (benchThreads True True S_GHC EncSPow All goal)
 
 -- ---------------------------------------------------------------------------
 -- goal collections

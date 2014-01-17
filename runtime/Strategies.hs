@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Strategies
-  ( bfsSearch, dfsSearch, parSearch, evalSearch, fairSearch, conSearch
+  ( bfsSearch, dfsSearch, parSearch, fairSearch, conSearch
   , idsSearch, idsDefaultDepth, idsDefaultIncr
+  , splitAll, splitLimitDepth, splitAlternating, splitPower
   ) where
 
 import System.IO (hPutStr, stderr)
@@ -22,22 +23,51 @@ instance MonadSearch SearchTree where
   constrainMSearch _ _ x = x
   var              x _   = x
 
-evalSearch :: SearchTree a -> [a]
-evalSearch None         = []
-evalSearch (One x )     = [x]
-evalSearch (Choice l r) = runEval $ do
-  rs <- rpar $ evalSearch r
-  ls <- rseq $ evalSearch l
+splitAll :: SearchTree a -> [a]
+splitAll None         = []
+splitAll (One x )     = [x]
+splitAll (Choice l r) = runEval $ do
+  rs <- rpar $ splitAll r
+  ls <- rseq $ splitAll l
   return $ ls ++ rs
 
-evalSearch' :: Int -> SearchTree a -> [a]
-evalSearch' _ None           = []
-evalSearch' _ (One x)        = [x]
-evalSearch' 0 c@(Choice _ _) = dfsSearch c
-evalSearch' i   (Choice l r) = runEval $ do
-  rs <- rpar $ evalSearch r
-  ls <- rseq $ evalSearch l
+splitLimitDepth :: Int -> SearchTree a -> [a]
+splitLimitDepth _ None           = []
+splitLimitDepth _ (One x)        = [x]
+splitLimitDepth 0 c@(Choice _ _) = dfsSearch c
+splitLimitDepth i   (Choice l r) = runEval $ do
+  rs <- rpar $ splitLimitDepth (i-1) r
+  ls <- rseq $ splitLimitDepth (i-1) l
   return $ ls ++ rs
+
+splitAlternating :: Int -> SearchTree a -> [a]
+splitAlternating n = splitAlternating' 1 n
+ where
+  splitAlternating' :: Int -> Int -> SearchTree a -> [a]
+  splitAlternating' _ _ None         = []
+  splitAlternating' _ _ (One x)      = [x]
+  splitAlternating' 1 n (Choice l r) = runEval $ do
+    rs <- rpar $ splitAlternating' n n l
+    ls <- rseq $ splitAlternating' n n r
+    return $ ls ++ rs
+  splitAlternating' i n (Choice l r) =
+    let ls = splitAlternating' (i-1) n l
+        rs = splitAlternating' (i-1) n r
+    in ls ++ rs
+
+splitPower :: SearchTree a -> [a]
+splitPower = splitPower' 1 2
+ where
+  splitPower' _ _ None = []
+  splitPower' _ _ (One x) = [x]
+  splitPower' 1 n (Choice l r) = runEval $ do
+    rs <- rpar $ splitPower' n (n*2) r
+    ls <- rseq $ splitPower' n (n*2) l
+    return $ ls ++ rs
+  splitPower' i n (Choice l r) =
+    let ls = splitPower' (i-1) n l
+        rs = splitPower' (i-1) n r
+    in ls ++ rs
 
 fairSearch :: SearchTree a -> MList IO a
 fairSearch = conSearch (-1)
