@@ -689,25 +689,22 @@ benchIDSSearch prog = concatMap
 
 benchThreads :: Bool -> Bool -> Supply -> Strategy -> Output -> Goal -> [Benchmark]
 benchThreads hoOpt ghcOpt idsupply strategy output goal =
-  concatMap (\n -> kics2 hoOpt ghcOpt n idsupply strategy output goal) threadCounts
- where
-  maxThreads = 24
-  addAfter   =  4
-  threadCounts =
-    let f n = n : if n < 4 then f $ 2*n else f $ addAfter+n in
-      takeWhile (\n -> n <= maxThreads) (f 1)
+  concatMap (\n -> kics2 hoOpt ghcOpt n idsupply strategy output goal) threadNumbers
 
 benchParallelAll :: Goal -> [Benchmark]
 benchParallelAll goal =
      (kics2 True True 1 S_GHC EncDFS All goal)
   ++ (kics2 True True 1 S_GHC EncBFS All goal)
   ++ (benchThreads True True S_GHC EncFair All goal)
-  ++ concatMap (\n -> kics2 True True n S_GHC (EncCon n) All goal)         [1,2,4,8,12,24]
+  ++ concatMap (\n -> kics2 True True n S_GHC (EncCon n) All goal)         threadNumbers
   ++ (benchThreads True True S_GHC EncPar  All goal)
   ++ (benchThreads True True S_GHC EncSAll All goal)
-  ++ concatMap (\n -> benchThreads True True S_GHC (EncSLimit n) All goal) [1,2,4,8,12,24]
-  ++ concatMap (\n -> benchThreads True True S_GHC (EncSAlt   n) All goal) [1,2,4,8,14,24]
+  ++ concatMap (\n -> benchThreads True True S_GHC (EncSLimit n) All goal) threadNumbers
+  ++ concatMap (\n -> benchThreads True True S_GHC (EncSAlt   n) All goal) threadNumbers
   ++ (benchThreads True True S_GHC EncSPow All goal)
+
+threadNumbers :: [Int]
+threadNumbers = [1,2,4,8,12,16,20,23,24]
 
 -- ---------------------------------------------------------------------------
 -- goal collections
