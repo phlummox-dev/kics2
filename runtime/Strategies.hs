@@ -72,7 +72,7 @@ splitPower = splitPower' 1 2
 fairSearch :: SearchTree a -> MList IO a
 fairSearch = conSearch (-1)
 
-data ExecuteState = Stopped
+data ExecutionState = Stopped
                  -- number of threads left / running threads
                   | Executing Int [ThreadId]
 
@@ -107,12 +107,12 @@ conSearch i tree = do
   startSearchThread threadVar resultChan tree
   handleResults dummyRef threadVar resultChan
  where
-  removeThread :: ThreadId -> ExecuteState -> ExecuteState
+  removeThread :: ThreadId -> ExecutionState -> ExecutionState
   removeThread tid Stopped = Stopped
   removeThread tid (Executing n tids) =
     Executing (n+1) $ delete tid tids
 
-  killThreads :: MVar ExecuteState -> IO ()
+  killThreads :: MVar ExecutionState -> IO ()
   killThreads threadVar = do
     executeState <- takeMVar threadVar
     case executeState of
@@ -122,7 +122,7 @@ conSearch i tree = do
         mapM_ killThread tids
     putMVar threadVar Stopped
 
-  handleResults :: IORef () -> MVar ExecuteState -> Chan (ThreadResult a) -> MList IO a
+  handleResults :: IORef () -> MVar ExecutionState -> Chan (ThreadResult a) -> MList IO a
   handleResults dummyRef threadVar resultChan = do
      -- this is for the optimizer not to optimize out the dummyRef
     writeIORef dummyRef ()
@@ -138,7 +138,7 @@ conSearch i tree = do
       Value a  ->
         mcons a $ handleResults dummyRef threadVar resultChan
 
-  startSearchThread :: MVar ExecuteState -> (Chan (ThreadResult a)) -> SearchTree a -> IO ()
+  startSearchThread :: MVar ExecutionState -> Chan (ThreadResult a) -> SearchTree a -> IO ()
   startSearchThread threadVar chan tree = do
     executeState <- takeMVar threadVar
     case executeState of
@@ -154,7 +154,7 @@ conSearch i tree = do
           writeChan chan $ ThreadStopped tid
         putMVar threadVar $ Executing (n-1) $ newTid:tids
 
-  searchThread :: MVar ExecuteState -> (Chan (ThreadResult a)) -> SearchTree a -> IO ()
+  searchThread :: MVar ExecutionState -> Chan (ThreadResult a) -> SearchTree a -> IO ()
   searchThread threadVar resultChan tree =
     case tree of
       None  ->
