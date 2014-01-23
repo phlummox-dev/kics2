@@ -227,7 +227,7 @@ processTimes :: [[Float]] -> [[Float]]
 processTimes timings =
   let means        = map mean timings
       roundedmeans = map truncateFloat means
-      minNonZero   = max 0.0001 $ foldr1 min means
+      minNonZero   = max 0.0001 $ foldr1 min $ filter (>=0.0001) means
       normalized   = map (truncateFloat . (/.minNonZero)) means
   in  zipWith (:) normalized (if length (head timings) == 1
                               then timings
