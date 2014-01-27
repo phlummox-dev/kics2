@@ -75,18 +75,18 @@ lpad n s = replicate (n - length s) ' ' ++ s
 rpad :: Int -> String -> String
 rpad n str = str ++ replicate (n - length str) ' '
 
-unzip4 :: [(a,b,c,d)] -> ([a], [b], [c], [d])
-unzip4 [] = ([], [], [], [])
-unzip4 ((w,x,y,z):ts) =
-  let (ws,xs,ys,zs) = unzip4 ts
-  in (w:ws, x:xs, y:ys, z:zs)
+concatReplicate :: Int -> [a] -> [a]
+concatReplicate n = concat . (replicate n)
 
-zip4 :: [a] -> [b] -> [c] -> [d] -> [(a, b, c, d)]
-zip4 []     _      _      _      = []
-zip4 (_:_)  []     _      _      = []
-zip4 (_:_)  (_:_)  []     _      = []
-zip4 (_:_)  (_:_)  (_:_)  []     = []
-zip4 (w:ws) (x:xs) (y:ys) (z:zs) = (w,x,y,z) : zip4 ws xs ys zs
+part :: Int -> Int -> [Int]
+part n m =
+  let (d, mo) = n `divMod` m
+      (f, l)  = splitAt mo $ replicate m d
+  in (map (+1) f) ++ l
+
+(^) :: Int -> Int -> Int
+n ^ e | e == 0    = 1
+      | otherwise = n * (n ^ (e - 1))
 
 -- ---------------------------------------------------------------------------
 -- Executing commands
@@ -148,6 +148,16 @@ toInfo [x1,x2,x3]
   = { tiUserTime      := readQTerm x2
     , tiElapsedTime   := readQTerm x1, tiMaxResident   := readQTerm x3  }
 
+getElapsedTime :: Maybe TimeInfo -> Either String Float
+getElapsedTime = maybe (Left "FAILED") (\i -> Right (i :> tiElapsedTime))
+getUserTime    :: Maybe TimeInfo -> Either String Float
+getUserTime    = maybe (Left "FAILED") (\i -> Right (i :> tiUserTime))
+getMaxResident :: Maybe TimeInfo -> Either String Float
+getMaxResident = maybe (Left "FAILED") (\i -> Right $ i2f (i :> tiMaxResident))
+
+showEither :: Either String Float -> String
+showEither = either id show
+
 --- Time the execution of a command and return
 ---   * the exit code
 ---   * the content written to stdout
@@ -173,12 +183,12 @@ timeCmd (cmd, args) = do
     | otherwise        = let (k, v) = splitInfo (d:cs) in (c:k, v)
 
 --- Execute a shell command and return the time of its execution
-benchCmd :: Command -> IO (Int, Float, Float, Int)
+benchCmd :: Command -> IO (Maybe TimeInfo)
 benchCmd cmd = do
   (exitcode, outcnt, errcnt, ti) <- timeCmd cmd
   trace outcnt
   trace errcnt
-  return $ (exitcode, ti :> tiElapsedTime, ti :> tiUserTime, ti :> tiMaxResident)
+  return $ if (exitcode == 0) then Just ti else Nothing
 
 -- ---------------------------------------------------------------------------
 -- Operations for running benchmarks.
@@ -194,7 +204,7 @@ type Benchmark =
   , bmCleanup :: Command
   }
 
-type BenchResult = (String, [Float], [Float], [Int])
+type BenchResult = (Benchmark, [Maybe TimeInfo])
 
 -- Run a benchmark and return its timings
 runBenchmark :: Int -> Int -> (Int, Benchmark) -> IO BenchResult
@@ -207,57 +217,101 @@ runBenchmark rpts totalNum (currentNum, benchMark) = do
   infos <- sequenceIO $ replicate rpts $ benchCmd
                       $ timeout benchTimeout $ benchMark :> bmCommand
   silentCmd $ benchMark :> bmCleanup
-  let (codes, elapsedTimes, userTimes, mems) = unzip4 infos
-  flushStrLn $ if all (==0) codes then "PASSED" else "FAILED"
-  trace $ "RUNTIMES:  " ++ intercalate " | " (map show elapsedTimes)
-  trace $ "USERTIMES: " ++ intercalate " | " (map show userTimes)
-  trace $ "MEMUSAGE:  " ++ intercalate " | " (map show mems)
-  return (benchMark :> bmName, elapsedTimes, userTimes, mems)
-
-showResult :: Int -> BenchResult -> String
-showResult maxName (n, ets, uts, ms) = rpad maxName n
-  ++ " | "  ++ intercalate " | " (map (lpad 7 . showTime) ets)
-  ++ " || " ++ intercalate " | " (map (lpad 7 . showTime) uts)
-  ++ " || " ++ intercalate " | " (map (lpad 8 . show) ms)
-  where
-    showTime x = let (x1,x2) = break (=='.') (show x)
-                 in  x1 ++ x2 ++ take (3-length x2) (repeat '0')
-
-processTimes :: [[Float]] -> [[Float]]
-processTimes timings =
-  let means        = map mean timings
-      roundedmeans = map truncateFloat means
-      minNonZero   = max 0.0001 $ foldr1 min $ filter (>=0.0001) means
-      normalized   = map (truncateFloat . (/.minNonZero)) means
-  in  zipWith (:) normalized (if length (head timings) == 1
-                              then timings
-                              else zipWith (:) roundedmeans timings)
-  where
-  mean :: [Float] -> Float
-  mean []       = 0.0
-  mean xs@(_:_) = (foldr1 (+.) xs) /. (i2f (length xs))
-
-  truncateFloat x = i2f (round (x*.100)) /. 100
+  flushStrLn $ if all isJust infos then "PASSED" else "FAILED"
+  let elapsedTimes = map (showEither . getElapsedTime) infos
+      userTimes    = map (showEither . getUserTime) infos
+      mems         = map (showEither . getMaxResident) infos
+  trace $ "RUNTIMES:  " ++ intercalate " | " elapsedTimes
+  trace $ "USERTIMES: " ++ intercalate " | " userTimes
+  trace $ "MEMUSAGE:  " ++ intercalate " | " mems
+  return (benchMark, infos)
 
 -- Run a set of benchmarks and return the timings
-runBenchmarks :: Int -> Int -> (Int, [Benchmark]) -> IO String
+runBenchmarks :: Int -> Int -> (Int, [Benchmark]) -> IO [BenchResult]
 runBenchmarks rpts total (start, benchmarks) = do
-  results <- mapIO (runBenchmark rpts total) (zip [start ..] benchmarks)
-  let (names, elapsedTimes, userTimes, memus) = unzip4 results
-      maxName = foldr max 0 $ map length names
-      elapsedTimes' = processTimes elapsedTimes
-      userTimes'    = processTimes userTimes
-  return $ unlines $ map (showResult maxName) (zip4 names elapsedTimes' userTimes' memus)
+  mapIO (runBenchmark rpts total) (zip [start ..] benchmarks)
 
-runAllBenchmarks :: Int -> [[Benchmark]] -> IO String
+runAllBenchmarks :: Int -> [[Benchmark]] -> IO [[BenchResult]]
 runAllBenchmarks rpts benchmarks = do
-  results <- mapIO (runBenchmarks rpts total) (zip startnums benchmarks)
-  return $ intercalate "--------\n" results
+  mapIO (runBenchmarks rpts total) (zip startnums benchmarks)
  where
   total    = length (concat benchmarks)
   startnums = scanl (+) 1 $ map length benchmarks
 
+showTable :: Int -> [[(Int, Either String Float)]] -> String
+showTable dec table =
+  intercalate "\n" $ map (showLine sizes) table
+ where
+  modSize :: [Int] -> [(Int, Either String Float)] -> [Int]
+  modSize old [] = old
+  modSize old ((n, content):cols) -- what if old is empty
+    | tl < cl   = zipWith (+) curr (part (cl - tl) n) ++ modSize next cols
+    | otherwise = curr                                ++ modSize next cols
+   where
+    cl = length $ showValue content
+    tl = foldl (+) 0 curr
+    (curr, next) = splitAt n old
 
+  sizes :: [Int]
+  sizes = foldl modSize (repeat 0) table
+
+  showLine :: [Int] -> [(Int, Either String Float)] -> String
+  showLine ss ((n, content):cols) | null cols =
+     showEntry size content
+                                  | otherwise =
+    (showEntry size content) ++ split ++ showLine (drop n ss) cols
+   where size = (foldl (+) 0 $ take n ss) + (n-1) * length split
+
+  split :: String
+  split = " | "
+
+  showEntry :: Int -> Either String Float -> String
+  showEntry s v =
+    let val = showValue v
+    in (replicate (s - length val) ' ') ++ val
+
+  showValue :: Either String Float -> String
+  showValue (Left s)  = s
+  showValue (Right x) =
+    let rounded = round $ x *.(i2f $ 10^dec)
+        rstr    = show rounded
+        po      = reverse $ take dec $ (reverse rstr) ++ (repeat '0')
+        pr      =
+          case reverse $ drop dec $ reverse rstr of
+            "" -> "0"
+            x1 -> x1
+    in  pr ++ "." ++ po
+
+resultTable :: [BenchResult] -> [[(Int, Either String Float)]]
+resultTable results =
+  title : titles : content
+ where
+  maxRuns :: Int
+  maxRuns = foldr max 0 $ map (length . snd) results
+
+  title :: [(Int, Either String Float)]
+  title = [ (1, Left "Title")
+          , (maxRuns, Left "elapsed times")
+          , (maxRuns, Left "user times")
+          , (maxRuns, Left "memory") ]
+
+  titles :: [(Int, Either String Float)]
+  titles = [(1, Left "")]
+        ++ (concatReplicate 3 $ map (\i -> (1, Left $ show i)) [1..maxRuns])
+
+  content :: [[(Int, Either String Float)]]
+  content = map line results
+
+  line :: BenchResult -> [(Int, Either String Float)]
+  line (bench, infos) =
+    [(1, Left $ bench :> bmName)]
+    ++ entries (\i -> getElapsedTime i) infos
+    ++ entries (\i -> getUserTime    i) infos
+    ++ entries (\i -> getMaxResident i) infos
+
+  entries :: (Maybe TimeInfo -> Either String Float) -> [Maybe TimeInfo] -> [(Int, Either String Float)]
+  entries f infos =
+    take maxRuns $ map (\i -> (1, f i)) infos ++ repeat (1, Left "")
 
 -- Run all benchmarks and show results
 run :: Int -> [[Benchmark]] -> IO ()
@@ -268,11 +322,8 @@ run rpts benchmarks = do
   info    <- getSystemInfo
   mach    <- getHostName
   let res = "Benchmarks on system " ++ info ++ "\n" ++
-            "Format of timings:\n"  ++
-            "elapsed times                 || user times                    | memory\n"     ++
-            "normalized | mean | times ... || normalized | mean | times ... | used ...\n\n" ++
-            results
-  putStrLn res
+            intercalate "\n\n" (map ((showTable 2) . resultTable) results)
+  putStrLn $ res
   unless (null args) $ writeFile (outputFile (head args) (init mach) ltime) res
 
 outputFile :: String -> String -> CalendarTime -> String
