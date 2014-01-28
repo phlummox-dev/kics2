@@ -204,7 +204,7 @@ type Benchmark =
   , bmCleanup :: Command
   }
 
-type BenchResult = (Benchmark, [Maybe TimeInfo])
+type BenchResult = (String, [Maybe TimeInfo])
 
 -- Run a benchmark and return its timings
 runBenchmark :: Int -> Int -> (Int, Benchmark) -> IO BenchResult
@@ -224,7 +224,7 @@ runBenchmark rpts totalNum (currentNum, benchMark) = do
   trace $ "RUNTIMES:  " ++ intercalate " | " elapsedTimes
   trace $ "USERTIMES: " ++ intercalate " | " userTimes
   trace $ "MEMUSAGE:  " ++ intercalate " | " mems
-  return (benchMark, infos)
+  return (benchMark :> bmName, infos)
 
 -- Run a set of benchmarks and return the timings
 runBenchmarks :: Int -> Int -> (Int, [Benchmark]) -> IO [BenchResult]
@@ -303,8 +303,8 @@ resultTable results =
   content = map line results
 
   line :: BenchResult -> [(Int, Either String Float)]
-  line (bench, infos) =
-    [(1, Left $ bench :> bmName)]
+  line (name, infos) =
+    [(1, Left name)]
     ++ entries (\i -> getElapsedTime i) infos
     ++ entries (\i -> getUserTime    i) infos
     ++ entries (\i -> getMaxResident i) infos
@@ -323,14 +323,24 @@ run rpts benchmarks = do
   mach    <- getHostName
   let res = "Benchmarks on system " ++ info ++ "\n" ++
             intercalate "\n\n" (map ((showTable 2) . resultTable) results)
+      raw = show results
   putStrLn $ res
-  unless (null args) $ writeFile (outputFile (head args) (init mach) ltime) res
+  unless (null args) $ do
+    writeFile (outputFile (head args) (init mach) ltime) res
+    writeFile (rawFile    (head args) (init mach) ltime) raw
 
-outputFile :: String -> String -> CalendarTime -> String
-outputFile name mach (CalendarTime ye mo da ho mi se _) = "../results/"
+fileName :: String -> String -> CalendarTime -> String
+fileName name mach (CalendarTime ye mo da ho mi se _) = "../results/"
   ++ name ++ '@' : mach
   ++ intercalate "_" (map show [ye, mo, da, ho, mi, se])
-  ++ ".bench"
+
+outputFile :: String -> String -> CalendarTime -> String
+outputFile name mach time =
+  fileName name mach time ++ ".bench"
+
+rawFile :: String -> String -> CalendarTime -> String
+rawFile name mach time =
+  fileName name mach time ++ ".raw"
 
 -- ---------------------------------------------------------------------------
 -- Benchmarks for various systems
