@@ -391,9 +391,9 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
   searchExpr MPLUSBFS         = searchComb "mplusBFS"
   searchExpr (MPLUSIDS i inc) = searchComb $ "(mplusIDS " ++ show i ++ " " ++ inc ++ ")"
   searchExpr MPLUSPar         = searchComb "mplusPar"
-  searchExpr EncDFS           = wrapEnc "DFS"
-  searchExpr EncBFS           = wrapEnc "BFS"
-  searchExpr EncIDS           = wrapEnc "IDS"
+  searchExpr EncDFS           = wrapEnc "dfsStrategy"
+  searchExpr EncBFS           = wrapEnc "bfsStrategy"
+  searchExpr EncIDS           = wrapEnc "idsStrategy"
   searchExpr EncPar           = wrapParEnc "parSearch"
   searchExpr EncFair          = wrapParEnc "fairSearch"
   searchExpr (EncCon i)       = wrapParEnc $ "conSearch (toCurry (" ++ show i ++ ":: Int))"
@@ -402,10 +402,10 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
   searchExpr (EncSAlt   i)    = wrapParEnc $ "splitAlternating (toCurry (" ++ show i ++ ":: Int))"
   searchExpr EncSPow          = wrapParEnc $ "splitPower"
   wrapEnc strat      = "import qualified Curry_SearchTree as ST\n"
-    ++ "main = prdfs print (\\i cov cs -> ST.d_C_allValues" ++ strat
-    ++ " cov cs (ST.d_C_someSearchTree (nd_C_" ++ goal ++ " i cov cs) cov cs) cov cs)"
+    ++ "main = prdfs print (\\i cov cs -> ST.d_C_" ++ encComb ++ " ST.d_C_" ++ strat
+    ++ " (ST.d_C_someSearchTree (nd_C_" ++ goal ++ " i cov cs) cov cs) cov cs)"
   wrapParEnc strat   = "import qualified Curry_ParallelSearch as PS\n"
-    ++ "main = printIO print (\\i cov cs -> PS.d_C_getAllValues (PS.d_C_" ++ strat
+    ++ "main = printIO print (\\i cov cs -> PS.d_C_" ++ parComb ++ " (PS.d_C_" ++ strat
     ++ " cov cs) (nd_C_" ++ goal ++ " i cov cs) cov cs)"
   searchComb search  = "main = " ++ comb ++ " " ++ search ++ " $ " ++ "nd_C_" ++ goal
   comb = case o of
@@ -413,6 +413,14 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
     One         -> "printOne"
     Interactive -> "printInteractive"
     Count       -> "countAll"
+
+  encComb = case o of
+    All         -> "allValuesWith"
+    One         -> "someValueWith"
+
+  parComb = case o of
+    All         -> "getAllValues"
+    One         -> "getOneValue"
 
 --- Create a KiCS2 Benchmark
 --- @param tag      - the benchmark's tag to be part of its name
