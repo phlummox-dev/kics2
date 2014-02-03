@@ -9,3 +9,4 @@ g n = g (n+1) ? n ? g (n + 1)
 
 main2 | g 0 == 29 = success
 
+main3 | g 0 == 26 = success
