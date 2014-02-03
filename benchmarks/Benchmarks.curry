@@ -651,6 +651,24 @@ benchFOFP withMon goal = concatMap ($goal)
   , if withMon then monc else skip
   ]
 
+benchGhcUniqSupply :: Goal -> [Benchmark]
+benchGhcUniqSupply goal = concat
+  [ kics2 True go 1 su st All goal | st <- strats
+                                   , su <- suppls
+                                   , go <- [True, False] ]
+ where
+  strats = [ PRDFS, IODFS, MPLUSDFS, EncDFS, IOBFS, MPLUSBFS, EncBFS ]
+  suppls = [ S_GHC, S_IORef ]
+
+benchGhcUniqSupplyComplete :: Goal -> [Benchmark]
+benchGhcUniqSupplyComplete goal = concat
+  [ kics2 True go 1 su st All goal | st <- strats
+                                   , su <- suppls
+                                   , go <- [True, False] ]
+ where
+  strats = [ IOBFS, MPLUSBFS, EncBFS ]
+  suppls = [ S_GHC, S_IORef ]
+
 -- Benchmark higher-order functional programs with kics2/pakcs/mcc/ghc/ghc+
 benchHOFP :: Bool -> Goal -> [Benchmark]
 benchHOFP withMon goal = concatMap ($goal)
@@ -834,6 +852,20 @@ allBenchmarks = concat
   , map (benchFLPEncapsSearch . nonDetGoal "main") ["Half", "Last", "PermSort"]
   ]
 
+ghcUniqSupplyBenchmarks = concat
+  [ map benchGhcUniqSupply fofpGoals
+  , map (benchGhcUniqSupply         . detGoal "main") [ "ReverseBuiltin", "ReverseHO" ]
+  , map (benchGhcUniqSupply         . detGoal "main") [ "Primes", "PrimesPeano", "PrimesBuiltin" ]
+  , map (benchGhcUniqSupply         . detGoal "main") [ "Queens", "QueensUser" ]
+  , map (benchGhcUniqSupply         . nonDetGoal "main") [ "PermSort", "PermSortPeano", "Half"]
+  , [benchGhcUniqSupplyComplete     $ nonDetGoal "main"  "NDNums"]
+  , [benchGhcUniqSupply             $ detGoal    "goal1" "ShareNonDet"]
+  , [benchGhcUniqSupply             $ nonDetGoal "goal2" "ShareNonDet"]
+  , [benchGhcUniqSupply             $ nonDetGoal "goal3" "ShareNonDet"]
+  , map (benchGhcUniqSupply         . nonDetGoal "main") ["Last", "RegExp"]
+  , map (benchGhcUniqSupply         . nonDetGoal "main") ["LastFunPats", "ExpVarFunPats", "ExpSimpFunPats", "PaliFunPats"]
+  ]
+
 parallelBenchmarks :: [[Benchmark]]
 parallelBenchmarks =
   [ benchParallelAll $ Goal True "SearchQueens" "main"
@@ -893,6 +925,7 @@ benchSearch = -- map benchFLPSearch searchGoals
 -- main = run 2 benchSearch
 --main = run 1 allBenchmarks
 main = run 3 allBenchmarks
+--main = run 5 ghcUniqSupplyBenchmarks
 --main = run 3 parallelBenchmarks
 --main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueens" "main") (map (*10) [1..100])
 --main = run 1 [benchFLPCompleteSearch "NDNums"]
