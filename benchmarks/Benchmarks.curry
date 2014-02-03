@@ -355,6 +355,7 @@ data Strategy
   | EncDFS   | EncBFS   | EncIDS                                  -- encapsulated
   | EncPar   | EncFair  | EncCon Int                              -- parallel encapsulated
   | EncSAll  | EncSLimit Int | EncSAlt Int | EncSPow              -- parallel with Eval
+  | EncBFSEval                                                    -- parallel breadth-first-search
 
 data Goal   = Goal Bool String String -- non-det? / module / main-expr
 data Output = All | One | Interactive | Count
@@ -401,6 +402,7 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
   searchExpr (EncSLimit i)    = wrapParEnc $ "splitLimitDepth (toCurry (" ++ show i ++ ":: Int))"
   searchExpr (EncSAlt   i)    = wrapParEnc $ "splitAlternating (toCurry (" ++ show i ++ ":: Int))"
   searchExpr EncSPow          = wrapParEnc $ "splitPower"
+  searchExpr EncBFSEval       = wrapParEnc $ "bfsParallel"
   wrapEnc strat      = "import qualified Curry_SearchTree as ST\n"
     ++ "main = prdfs print (\\i cov cs -> ST.d_C_" ++ encComb ++ " ST.d_C_" ++ strat
     ++ " (ST.d_C_someSearchTree (nd_C_" ++ goal ++ " i cov cs) cov cs) cov cs)"

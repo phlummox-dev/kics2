@@ -3,6 +3,7 @@ module Strategies
   ( bfsSearch, dfsSearch, parSearch, fairSearch, conSearch
   , idsSearch, idsDefaultDepth, idsDefaultIncr
   , splitAll, splitLimitDepth, splitAlternating, splitPower
+  , bfsParallel
   ) where
 
 import System.IO (hPutStr, stderr)
@@ -22,6 +23,16 @@ import MonadList
 instance MonadSearch SearchTree where
   constrainMSearch _ _ x = x
   var              x _   = x
+
+-- | Parallel Breadth-first search
+bfsParallel :: SearchTree a -> [a]
+bfsParallel t = bfs [t]
+ where
+  bfs :: [SearchTree a] -> [a]
+  bfs [] = []
+  bfs xs = runEval $ do
+    rs <- evalList rpar $ xs
+    return $ values rs ++ (bfs $ children rs)
 
 splitAll :: SearchTree a -> [a]
 splitAll None         = []
@@ -172,13 +183,15 @@ bfsSearch t = bfs [t]
   bfs [] = []
   bfs ts = values ts ++ bfs (children ts)
 
-  values []           = []
-  values (One x : ts) = x : values ts
-  values (_     : ts) = values ts
+values :: [SearchTree a] -> [a]
+values []           = []
+values (One x : ts) = x : values ts
+values (_     : ts) = values ts
 
-  children []                = []
-  children (Choice x y : ts) = x : y : children ts
-  children (_          : ts) = children ts
+children :: [SearchTree a] -> [SearchTree a]
+children []                = []
+children (Choice x y : ts) = x : y : children ts
+children (_          : ts) = children ts
 
 -- |Depth first search
 dfsSearch :: SearchTree a -> [a]
