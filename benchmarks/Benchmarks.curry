@@ -869,6 +869,7 @@ ghcUniqSupplyBenchmarks = concat
 parallelBenchmarks :: [[Benchmark]]
 parallelBenchmarks =
   [ benchParallelAll $ Goal True "SearchQueens" "main"
+  , benchParallelAll $ Goal True "Queens"       "main"
   --, benchParallelAll $ Goal True "SatSolver" "main"
   , benchParallelAll $ Goal True "EditSeq" "main3"
   , benchParallelBFS $ Goal True "NDNums" "main3" ]
