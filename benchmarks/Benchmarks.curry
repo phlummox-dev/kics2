@@ -770,9 +770,16 @@ benchParallelAll goal =
   ++ concatMap (\n -> kics2 True True n S_GHC (EncCon n) All goal)         threadNumbers
   ++ (benchThreads True True S_GHC EncPar  All goal)
   ++ (benchThreads True True S_GHC EncSAll All goal)
-  ++ concatMap (\n -> benchThreads True True S_GHC (EncSLimit n) All goal) threadNumbers
-  ++ concatMap (\n -> benchThreads True True S_GHC (EncSAlt   n) All goal) threadNumbers
+  ++ concatMap (\n -> benchThreads True True S_GHC (EncSLimit n) All goal) [4,8,12,16,20,24]
+  ++ concatMap (\n -> benchThreads True True S_GHC (EncSAlt   n) All goal) [1,2,4]
   ++ (benchThreads True True S_GHC EncSPow All goal)
+  ++ (benchThreads True True S_GHC EncBFSEval All goal)
+
+benchParallelBFS :: Goal -> [Benchmark]
+benchParallelBFS goal =
+     (kics2 True True 1 S_GHC EncBFS All goal)
+  ++ (benchThreads True True S_GHC EncFair All goal)
+  ++ (benchThreads True True S_GHC EncBFSEval All goal)
 
 threadNumbers :: [Int]
 threadNumbers = [1,2,4,8,12,16,20,23,24]
@@ -827,6 +834,13 @@ allBenchmarks = concat
   , map (benchFLPEncapsSearch . nonDetGoal "main") ["Half", "Last", "PermSort"]
   ]
 
+parallelBenchmarks :: [[Benchmark]]
+parallelBenchmarks =
+  [ benchParallelAll $ Goal True "SearchQueens" "main"
+  --, benchParallelAll $ Goal True "SatSolver" "main"
+  , benchParallelAll $ Goal True "EditSeq" "main3"
+  , benchParallelBFS $ Goal True "NDNums" "main3" ]
+
 unif =
      [
        -- mcc does not support function pattern
@@ -879,10 +893,7 @@ benchSearch = -- map benchFLPSearch searchGoals
 -- main = run 2 benchSearch
 --main = run 1 allBenchmarks
 main = run 3 allBenchmarks
--- main = run 1 $ [ benchParallelAll $ Goal True "Fib" "mexp"
---                , benchParallelAll $ Goal True "SearchQueens" "main"
---                , benchParallelAll $ Goal True "SatSolver" "main"
---                , benchParallelAll $ Goal True "EditSeq" "main3" ]
+--main = run 3 parallelBenchmarks
 --main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueens" "main") (map (*10) [1..100])
 --main = run 1 [benchFLPCompleteSearch "NDNums"]
 --main = run 1 (benchFPWithMain "ShareNonDet" "goal1" : [])
