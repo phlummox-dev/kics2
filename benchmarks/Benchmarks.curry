@@ -666,7 +666,7 @@ benchGhcUniqSupplyComplete goal = concat
                                    , su <- suppls
                                    , go <- [True, False] ]
  where
-  strats = [ IOBFS, MPLUSBFS, EncBFS ]
+  strats = [ MPLUSBFS, EncBFS ]
   suppls = [ S_GHC, S_IORef ]
 
 -- Benchmark higher-order functional programs with kics2/pakcs/mcc/ghc/ghc+
