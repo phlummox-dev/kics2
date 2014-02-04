@@ -168,7 +168,10 @@ timeCmd (cmd, args) = do
   -- create timing process and execute it
   (exitCode, outCnts, errCnts) <- evalCmd timeCommand timeArgs []
   -- extract timing information
-  timingInfo <- words `liftIO` readFile timeFile
+  handle <- openFile timeFile ReadMode
+  contents <- hGetContents handle
+  hClose handle
+  let timingInfo = words contents
   -- remove time file
   silentCmd ("rm", ["-rf", timeFile])
   return (exitCode, outCnts, errCnts, toInfo timingInfo)
