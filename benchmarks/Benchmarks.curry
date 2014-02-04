@@ -405,7 +405,7 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
   searchExpr EncBFSEval       = wrapParEnc $ "bfsParallel"
   wrapEnc strat      = "import qualified Curry_SearchTree as ST\n"
     ++ "main = prdfs print (\\i cov cs -> ST.d_C_" ++ encComb ++ " ST.d_C_" ++ strat
-    ++ " (ST.d_C_someSearchTree (nd_C_" ++ goal ++ " i cov cs) cov cs) cov cs)"
+    ++ " (nd_C_" ++ goal ++ " i cov cs) cov cs)"
   wrapParEnc strat   = "import qualified Curry_ParallelSearch as PS\n"
     ++ "main = printIO print (\\i cov cs -> PS.d_C_" ++ parComb ++ " (PS.d_C_" ++ strat
     ++ " cov cs) (nd_C_" ++ goal ++ " i cov cs) cov cs)"
