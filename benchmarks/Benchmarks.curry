@@ -241,6 +241,16 @@ runAllBenchmarks rpts benchmarks = do
   total    = length (concat benchmarks)
   startnums = scanl (+) 1 $ map length benchmarks
 
+showCSV :: Int -> [[(Int, Either String Float)]] -> String
+showCSV dec table =
+  intercalate "\n" $ map showLine table
+ where
+  showLine :: [(Int, Either String Float)] -> String
+  showLine = (intercalate ";") . (concatMap showEntry)
+
+  showEntry :: (Int, Either String Float) -> [String]
+  showEntry (times, val) = replicate times $ showValue dec val
+
 showTable :: Int -> [[(Int, Either String Float)]] -> String
 showTable dec table =
   intercalate "\n" $ map (showLine sizes) table
@@ -251,7 +261,7 @@ showTable dec table =
     | tl < cl   = zipWith (+) curr (part (cl - tl) n) ++ modSize next cols
     | otherwise = curr                                ++ modSize next cols
    where
-    cl = length $ showValue content
+    cl = length $ showValue dec content
     tl = foldl (+) 0 curr
     (curr, next) = splitAt n old
 
@@ -270,20 +280,20 @@ showTable dec table =
 
   showEntry :: Int -> Either String Float -> String
   showEntry s v =
-    let val = showValue v
+    let val = showValue dec v
     in (replicate (s - length val) ' ') ++ val
 
-  showValue :: Either String Float -> String
-  showValue (Left s)  = s
-  showValue (Right x) =
-    let rounded = round $ x *.(i2f $ 10^dec)
-        rstr    = show rounded
-        po      = reverse $ take dec $ (reverse rstr) ++ (repeat '0')
-        pr      =
-          case reverse $ drop dec $ reverse rstr of
-            "" -> "0"
-            x1 -> x1
-    in  pr ++ "." ++ po
+showValue :: Int -> Either String Float -> String
+showValue _   (Left s)  = s
+showValue dec (Right x) =
+  let rounded = round $ x *.(i2f $ 10^dec)
+      rstr    = show rounded
+      po      = reverse $ take dec $ (reverse rstr) ++ (repeat '0')
+      pr      =
+        case reverse $ drop dec $ reverse rstr of
+          "" -> "0"
+          x1 -> x1
+  in  pr ++ "." ++ po
 
 resultTable :: [BenchResult] -> [[(Int, Either String Float)]]
 resultTable results =
@@ -325,12 +335,29 @@ run rpts benchmarks = do
   info    <- getSystemInfo
   mach    <- getHostName
   let res = "Benchmarks on system " ++ info ++ "\n" ++
-            intercalate "\n\n" (map ((showTable 2) . resultTable) results)
-      raw = show results
+            resContents results
+      csv = csvContents results
+      raw = showQTerm results
   putStrLn $ res
   unless (null args) $ do
     writeFile (outputFile (head args) (init mach) ltime) res
+    writeFile (csvFile    (head args) (init mach) ltime) csv
     writeFile (rawFile    (head args) (init mach) ltime) raw
+
+csvContents :: [[BenchResult]] -> String
+csvContents = contents (showCSV 2)
+
+resContents :: [[BenchResult]] -> String
+resContents = contents (showTable 2)
+
+contents f = (intercalate "\n\n") . (map (f . resultTable))
+
+convertToCSV :: String -> String -> IO ()
+convertToCSV fromF toF = do
+  from <- readFile fromF
+  let benchResults = readQTerm from
+      to = csvContents benchResults
+  writeFile toF to
 
 fileName :: String -> String -> CalendarTime -> String
 fileName name mach (CalendarTime ye mo da ho mi se _) = "../results/"
@@ -344,6 +371,10 @@ outputFile name mach time =
 rawFile :: String -> String -> CalendarTime -> String
 rawFile name mach time =
   fileName name mach time ++ ".raw"
+
+csvFile :: String -> String -> CalendarTime -> String
+csvFile name mach time =
+  fileName name mach time ++ ".csv"
 
 -- ---------------------------------------------------------------------------
 -- Benchmarks for various systems
