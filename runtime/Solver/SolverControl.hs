@@ -10,7 +10,7 @@ import Solver.SatSolver (SatSolver)
 import Types
 
 #ifdef GECODE
-import Solver.GecodeSolver (GecodeSolver)
+import Solver.GecodeSolver (GecodeSearchSolver, GecodeRuntimeSolver)
 #endif
 
 data Solver = forall c s. (WrappableConstraint c, ExternalSolver s) 
@@ -27,7 +27,7 @@ filterCs (wc:wcs) = let (cs,wcs') = filterCs wcs
 -- list of supported constraint solvers
 solvers :: [Solver]
 #ifdef GECODE
-solvers = [Solver gecode, Solver overton, Solver sat]
+solvers = [Solver gecodeSearch, Solver overton, Solver sat]
 #else
 solvers = [Solver overton, Solver sat]
 #endif
@@ -51,9 +51,13 @@ solveAll cd wcs ((Solver solver):solvers) e = case filterCs wcs of
                   return $ guardCons cd bindings e'
 
 #ifdef GECODE
--- Run the Gecode-Solver provided by the MCP framework
-gecode :: Cover -> [FDConstraint] -> GecodeSolver Constraints
-gecode = eval
+-- Run the Gecode-Runtime-Solver provided by the MCP framework
+gecodeRuntime :: Cover -> [FDConstraint] -> GecodeRuntimeSolver Constraints
+gecodeRuntime = eval
+
+-- Run the Gecode-Search-Solver provided by the MCP framework
+gecodeSearch :: Cover -> [FDConstraint] -> GecodeSearchSolver Constraints
+gecodeSearch = eval
 #endif
 
 -- Run the Overton-Solver provided by the MCP framework
