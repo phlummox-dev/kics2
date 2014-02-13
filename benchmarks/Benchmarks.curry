@@ -908,6 +908,40 @@ ghcUniqSupplyBenchmarks = concat
   , map (benchGhcUniqSupply         . nonDetGoal "main") ["LastFunPats", "ExpVarFunPats", "ExpSimpFunPats", "PaliFunPats"]
   ]
 
+ghcUniqSupplySome =
+  map benchUniqSupplyOpt
+  [ Goal False "ReverseUser"    "main"
+  , Goal False "Reverse"        "main"
+  , Goal False "Tak"            "main"
+  , Goal False "TakPeano"       "main"
+  , Goal False "ReverseBuiltin" "main"
+  , Goal False "ReverseHO"      "main"
+  , Goal False "Primes"         "main"
+  , Goal False "PrimesPeano"    "main"
+  , Goal False "PrimesBuiltin"  "main"
+  , Goal True  "Queens"         "main"
+  , Goal True  "QueensUser"     "main"
+  , Goal True  "PermSort"       "main"
+  , Goal True  "PermSortPeano"  "main"
+  , Goal True  "Half"           "main"
+  , Goal False "ShareNonDet"    "goal1"
+  , Goal True  "ShareNonDet"    "goal2"
+  , Goal True  "ShareNonDet"    "goal3"
+  , Goal True  "Last"           "main"
+  , Goal True  "RegExp"         "main"
+  , Goal True  "LastFunPats"    "main"
+  , Goal True  "ExpVarFunPats"  "main"
+  , Goal True  "ExpSimpFunPats" "main"
+  , Goal True  "PaliFunPats"    "main"]
+  ++ [benchGhcUniqSupplyComplete (nonDetGoal "main3" "NDNums")]
+ where
+  benchUniqSupplyOpt goal =
+       kics2 True True  1 S_IORef PRDFS All goal
+    ++ kics2 True False 1 S_IORef PRDFS All goal
+    ++ kics2 True True  1 S_IORef IOBFS All goal
+    ++ kics2 True False 1 S_IORef IOBFS All goal
+
+
 parallelBenchmarks :: [[Benchmark]]
 parallelBenchmarks =
   [ benchParallelAll $ Goal True "SearchQueens" "main"
