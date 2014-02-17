@@ -1005,6 +1005,7 @@ benchSearch = -- map benchFLPSearch searchGoals
 main = run 3 allBenchmarks
 --main = run 5 ghcUniqSupplyBenchmarks
 --main = run 3 parallelBenchmarks
+--main = run 5 ghcUniqSupplySome
 --main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueens" "main") (map (*10) [1..100])
 --main = run 1 [benchFLPCompleteSearch "NDNums"]
 --main = run 1 (benchFPWithMain "ShareNonDet" "goal1" : [])
