@@ -704,7 +704,7 @@ benchGhcUniqSupply goal = concat
 
 benchGhcUniqSupplyComplete :: Goal -> [Benchmark]
 benchGhcUniqSupplyComplete goal = concat
-  [ kics2 True go 1 su st All goal | st <- strats
+  [ kics2 True go 1 su st One goal | st <- strats
                                    , su <- suppls
                                    , go <- [True, False] ]
  where
@@ -837,9 +837,10 @@ benchParallelAll goal =
 
 benchParallelBFS :: Goal -> [Benchmark]
 benchParallelBFS goal =
-     (kics2 True True 1 S_GHC EncBFS All goal)
-  ++ (benchThreads True True S_GHC EncFair All goal)
-  ++ (benchThreads True True S_GHC EncBFSEval All goal)
+     (kics2 True True 1 S_GHC EncBFS One goal)
+  ++ (benchThreads True True S_GHC EncFair One goal)
+  ++ (benchThreads True True S_GHC EncBFSEval One goal)
+  ++ (benchThreads True True S_GHC EncBFSBag One goal)
 
 threadNumbers :: [Int]
 threadNumbers = [1,2,4,8,12,16,20,23,24]
