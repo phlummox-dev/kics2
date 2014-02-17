@@ -840,7 +840,6 @@ benchParallelBFS goal =
      (kics2 True True 1 S_GHC EncBFS One goal)
   ++ (benchThreads True True S_GHC EncFair One goal)
   ++ (benchThreads True True S_GHC EncBFSEval One goal)
-  ++ (benchThreads True True S_GHC EncBFSBag One goal)
 
 threadNumbers :: [Int]
 threadNumbers = [1,2,4,8,12,16,20,23,24]
