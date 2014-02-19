@@ -836,25 +836,25 @@ benchThreads hoOpt ghcOpt idsupply strategy output goal =
 
 benchParallel :: Output -> Goal -> [Benchmark]
 benchParallel out goal =
-     (kics2 True True 1 S_GHC EncDFS out goal)
-  ++ (kics2 True True 1 S_GHC EncBFS out goal)
-  ++ (benchThreads True True S_GHC EncFair out goal)
-  ++ concatMap (\n -> kics2 True True n S_GHC (EncCon n) out goal)         threadNumbers
-  ++ (benchThreads True True S_GHC EncPar  out goal)
-  ++ (benchThreads True True S_GHC EncSAll out goal)
-  ++ concatMap (\n -> benchThreads True True S_GHC (EncSLimit n) out goal) [4,8,12,16,20,24]
-  ++ concatMap (\n -> benchThreads True True S_GHC (EncSAlt   n) out goal) [1,2,4]
-  ++ (benchThreads True True S_GHC EncSPow out goal)
-  ++ (benchThreads True True S_GHC EncBFSEval out goal)
-  ++ concatMap (\s -> benchThreads True True S_GHC (EncDFSBag s) out goal) allSplitStrategies
-  ++ concatMap (\s -> benchThreads True True S_GHC (EncFDFSBag s) out goal) allSplitStrategies
-  ++ concatMap (\s -> benchThreads True True S_GHC (EncBFSBag s) out goal) allSplitStrategies
+     (kics2 True True 1 S_IORef EncDFS out goal)
+  ++ (kics2 True True 1 S_IORef EncBFS out goal)
+  ++ (benchThreads True True S_IORef EncFair out goal)
+  ++ concatMap (\n -> kics2 True True n S_IORef (EncCon n) out goal)         threadNumbers
+  ++ (benchThreads True True S_IORef EncPar  out goal)
+  ++ (benchThreads True True S_IORef EncSAll out goal)
+  ++ concatMap (\n -> benchThreads True True S_IORef (EncSLimit n) out goal) [4,8,12,16,20,24]
+  ++ concatMap (\n -> benchThreads True True S_IORef (EncSAlt   n) out goal) [1,2,4]
+  ++ (benchThreads True True S_IORef EncSPow out goal)
+  ++ (benchThreads True True S_IORef EncBFSEval out goal)
+  ++ concatMap (\s -> benchThreads True True S_IORef (EncDFSBag s) out goal) allSplitStrategies
+  ++ concatMap (\s -> benchThreads True True S_IORef (EncFDFSBag s) out goal) allSplitStrategies
+  ++ concatMap (\s -> benchThreads True True S_IORef (EncBFSBag s) out goal) allSplitStrategies
 
 benchParallelBFS :: Goal -> [Benchmark]
 benchParallelBFS goal =
-     (kics2 True True 1 S_GHC EncBFS One goal)
-  ++ (benchThreads True True S_GHC EncBFSEval One goal)
-  ++ concatMap (\s -> benchThreads True True S_GHC (EncBFSBag s) One goal) allSplitStrategies
+     (kics2 True True 1 S_IORef EncBFS One goal)
+  ++ (benchThreads True True S_IORef EncBFSEval One goal)
+  ++ concatMap (\s -> benchThreads True True S_IORef (EncBFSBag s) One goal) allSplitStrategies
 
 threadNumbers :: [Int]
 threadNumbers = [1,2,4,8,12,16,20,23,24]
