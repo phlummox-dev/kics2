@@ -855,6 +855,7 @@ benchParallelBFS goal =
      (kics2 True True 1 S_IORef EncBFS One goal)
   ++ (benchThreads True True S_IORef EncBFSEval One goal)
   ++ concatMap (\s -> benchThreads True True S_IORef (EncBFSBag s) One goal) allSplitStrategies
+  ++ (benchThreads True True S_IORef EncFair One goal)
 
 threadNumbers :: [Int]
 threadNumbers = [1,2,4,8,12,16,20,23,24]
