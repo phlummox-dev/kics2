@@ -4,6 +4,7 @@ module Strategies
   , idsSearch, idsDefaultDepth, idsDefaultIncr
   , splitAll, splitLimitDepth, splitAlternating, splitPower
   , bfsParallel
+  , dfsBag, fdfsBag, bfsBag, getAllResults, getResult
   ) where
 
 import System.IO (hPutStr, stderr)
@@ -15,6 +16,18 @@ import Data.List (delete)
 import Control.Concurrent (forkIO, myThreadId, ThreadId, killThread)
 import Control.Concurrent.MVar
 import Control.Concurrent.Chan
+import Control.Concurrent.Bag.Safe
+  ( addTask
+  , newTaskBag
+  , BagT
+  , getAllResults
+  , getResult
+  , TaskBufferSTM
+  , Task
+  , SplitFunction )
+import Control.Concurrent.STM (TChan)
+import Control.Concurrent.STM.TStack (TStack)
+import Control.Monad.IO.Class
 import System.Mem.Weak
 
 import MonadSearch
@@ -23,6 +36,32 @@ import MonadList
 instance MonadSearch SearchTree where
   constrainMSearch _ _ x = x
   var              x _   = x
+
+dfsBag :: MonadIO m => Maybe (SplitFunction TStack r) -> SearchTree r -> BagT TStack r m a -> m a
+dfsBag split = (newTaskBag split) . (:[]) . dfsTask
+
+-- | Fake depth-first search
+--   Real depth-first search would use a stack instead of a queue for
+--   the task bag.
+fdfsBag :: MonadIO m => Maybe (SplitFunction TChan r) -> SearchTree r -> BagT TChan r m a -> m a
+fdfsBag split = (newTaskBag split) . (:[]) . dfsTask
+
+dfsTask :: TaskBufferSTM b => SearchTree a -> Task b a (Maybe a)
+dfsTask None         = return   Nothing
+dfsTask (One v)      = return $ Just v
+dfsTask (Choice l r) = do
+  addTask $ dfsTask r
+  dfsTask l
+
+bfsBag :: MonadIO m => Maybe (SplitFunction TChan r) -> SearchTree r -> BagT TChan r m a -> m a
+bfsBag split = (newTaskBag split) . (:[]) . bfs
+ where
+  bfs None         = return   Nothing
+  bfs (One v)      = return $ Just v
+  bfs (Choice l r) = do
+    addTask $ bfs l
+    addTask $ bfs r
+    return Nothing
 
 -- | Parallel Breadth-first search
 bfsParallel :: SearchTree a -> [a]

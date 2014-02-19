@@ -382,6 +382,8 @@ csvFile name mach time =
 
 data Supply   = S_PureIO | S_IORef | S_GHC | S_Integer
 
+data SplitStrategy = CommonBuffer | TakeFirst | SplitVertical | SplitHalf
+
 data Strategy
   = PRDFS -- primitive
   | IODFS    | IOBFS    | IOIDS Int String    | IOIDS2 Int String -- top-level
@@ -390,6 +392,9 @@ data Strategy
   | EncPar   | EncFair  | EncCon Int                              -- parallel encapsulated
   | EncSAll  | EncSLimit Int | EncSAlt Int | EncSPow              -- parallel with Eval
   | EncBFSEval                                                    -- parallel breadth-first-search
+  | EncDFSBag  SplitStrategy
+  | EncFDFSBag SplitStrategy
+  | EncBFSBag  SplitStrategy
 
 data Goal   = Goal Bool String String -- non-det? / module / main-expr
 data Output = All | One | Interactive | Count
@@ -437,6 +442,9 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
   searchExpr (EncSAlt   i)    = wrapParEnc $ "splitAlternating (toCurry (" ++ show i ++ ":: Int))"
   searchExpr EncSPow          = wrapParEnc $ "splitPower"
   searchExpr EncBFSEval       = wrapParEnc $ "bfsParallel"
+  searchExpr (EncDFSBag  sp)  = wrapParEnc $ "dfsBag "  ++ splitExpr sp
+  searchExpr (EncFDFSBag sp)  = wrapParEnc $ "fdfsBag " ++ splitExpr sp
+  searchExpr (EncBFSBag  sp)  = wrapParEnc $ "bfsBag "  ++ splitExpr sp
   wrapEnc strat      =
     case o of
       One ->
@@ -451,6 +459,10 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
   wrapParEnc strat   = "import qualified Curry_ParallelSearch as PS\n"
     ++ "main = printIO print (\\i cov cs -> PS.d_C_" ++ parComb ++ " (PS.d_C_" ++ strat
     ++ " cov cs) (nd_C_" ++ goal ++ " i cov cs) cov cs)"
+  splitExpr CommonBuffer  = "(PS.d_C_commonBuffer  cov cs)"
+  splitExpr TakeFirst     = "(PS.d_C_takeFirst     cov cs)"
+  splitExpr SplitVertical = "(PS.d_C_splitVertical cov cs)"
+  splitExpr SplitHalf     = "(PS.d_C_splitHalf     cov cs)"
   searchComb search  = "main = " ++ comb ++ " " ++ search ++ " $ " ++ "nd_C_" ++ goal
   comb = case o of
     All         -> "printAll"
@@ -822,27 +834,31 @@ benchThreads :: Bool -> Bool -> Supply -> Strategy -> Output -> Goal -> [Benchma
 benchThreads hoOpt ghcOpt idsupply strategy output goal =
   concatMap (\n -> kics2 hoOpt ghcOpt n idsupply strategy output goal) threadNumbers
 
-benchParallelAll :: Goal -> [Benchmark]
-benchParallelAll goal =
-     (kics2 True True 1 S_GHC EncDFS All goal)
-  ++ (kics2 True True 1 S_GHC EncBFS All goal)
-  ++ (benchThreads True True S_GHC EncFair All goal)
-  ++ concatMap (\n -> kics2 True True n S_GHC (EncCon n) All goal)         threadNumbers
-  ++ (benchThreads True True S_GHC EncPar  All goal)
-  ++ (benchThreads True True S_GHC EncSAll All goal)
-  ++ concatMap (\n -> benchThreads True True S_GHC (EncSLimit n) All goal) [4,8,12,16,20,24]
-  ++ concatMap (\n -> benchThreads True True S_GHC (EncSAlt   n) All goal) [1,2,4]
-  ++ (benchThreads True True S_GHC EncSPow All goal)
-  ++ (benchThreads True True S_GHC EncBFSEval All goal)
+benchParallel :: Output -> Goal -> [Benchmark]
+benchParallel out goal =
+     (kics2 True True 1 S_GHC EncDFS out goal)
+  ++ (kics2 True True 1 S_GHC EncBFS out goal)
+  ++ (benchThreads True True S_GHC EncFair out goal)
+  ++ concatMap (\n -> kics2 True True n S_GHC (EncCon n) out goal)         threadNumbers
+  ++ (benchThreads True True S_GHC EncPar  out goal)
+  ++ (benchThreads True True S_GHC EncSAll out goal)
+  ++ concatMap (\n -> benchThreads True True S_GHC (EncSLimit n) out goal) [4,8,12,16,20,24]
+  ++ concatMap (\n -> benchThreads True True S_GHC (EncSAlt   n) out goal) [1,2,4]
+  ++ (benchThreads True True S_GHC EncSPow out goal)
+  ++ (benchThreads True True S_GHC EncBFSEval out goal)
+  ++ concatMap (\s -> benchThreads True True S_GHC (EncDFSBag s) out goal) allSplitStrategies
+  ++ concatMap (\s -> benchThreads True True S_GHC (EncFDFSBag s) out goal) allSplitStrategies
+  ++ concatMap (\s -> benchThreads True True S_GHC (EncBFSBag s) out goal) allSplitStrategies
 
 benchParallelBFS :: Goal -> [Benchmark]
 benchParallelBFS goal =
      (kics2 True True 1 S_GHC EncBFS One goal)
-  ++ (benchThreads True True S_GHC EncFair One goal)
   ++ (benchThreads True True S_GHC EncBFSEval One goal)
+  ++ concatMap (\s -> benchThreads True True S_GHC (EncBFSBag s) One goal) allSplitStrategies
 
 threadNumbers :: [Int]
 threadNumbers = [1,2,4,8,12,16,20,23,24]
+allSplitStrategies = [CommonBuffer, TakeFirst, SplitVertical, SplitHalf]
 
 -- ---------------------------------------------------------------------------
 -- goal collections
@@ -936,18 +952,26 @@ ghcUniqSupplySome =
   ++ [benchGhcUniqSupplyComplete (nonDetGoal "main3" "NDNums")]
  where
   benchUniqSupplyOpt goal =
-       kics2 True True  1 S_IORef PRDFS All goal
-    ++ kics2 True False 1 S_IORef PRDFS All goal
-    ++ kics2 True True  1 S_IORef IOBFS All goal
-    ++ kics2 True False 1 S_IORef IOBFS All goal
+       kics2 True True  1 S_IORef PRDFS One goal
+    ++ kics2 True False 1 S_IORef PRDFS One goal
+    ++ kics2 True True  1 S_IORef IOBFS One goal
+    ++ kics2 True False 1 S_IORef IOBFS One goal
 
 
 parallelBenchmarks :: [[Benchmark]]
 parallelBenchmarks =
-  [ benchParallelAll $ Goal True "SearchQueens" "main"
-  , benchParallelAll $ Goal True "Queens"       "main"
-  --, benchParallelAll $ Goal True "SatSolver" "main"
-  , benchParallelAll $ Goal True "EditSeq" "main3"
+  [ benchParallel One $ Goal True "SearchQueens" "main"
+  , benchParallel All $ Goal True "SearchQueens" "main"
+  , benchParallel One $ Goal True "Queens"       "main"
+  , benchParallel All $ Goal True "Queens"       "main"
+  , benchParallel One $ Goal True "EditSeq" "main3"
+  , benchParallel All $ Goal True "EditSeq" "main3"
+  , benchParallel One $ Goal True "PermSort" "main"
+  , benchParallel All $ Goal True "PermSort" "main"
+  , benchParallel One $ Goal True "Half"     "main"
+  , benchParallel All $ Goal True "Half"     "main"
+  , benchParallel One $ Goal True "Last"     "main"
+  , benchParallel All $ Goal True "Last"     "main"
   , benchParallelBFS $ Goal True "NDNums" "main3" ]
 
 unif =
