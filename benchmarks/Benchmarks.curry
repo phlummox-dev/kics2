@@ -958,13 +958,17 @@ ghcUniqSupplySome =
     ++ kics2 True True  1 S_IORef IOBFS One goal
     ++ kics2 True False 1 S_IORef IOBFS One goal
 
+fairBenchmarks :: [[Benchmarks]]
+fairBenchmarks =
+  [ kics2 True True 2 S_IORef EncFair   One (Goal True "PermSort" "main2")
+  , kics2 True True 2 S_IORef EncFair'  One (Goal True "PermSort" "main2")
+  , kics2 True True 2 S_IORef EncFair'' One (Goal True "PermSort" "main2")
+  ]
 
 parallelBenchmarks :: [[Benchmark]]
 parallelBenchmarks =
   [ benchParallel One $ Goal True "SearchQueens" "main"
   , benchParallel All $ Goal True "SearchQueens" "main"
-  , benchParallel One $ Goal True "Queens"       "main"
-  , benchParallel All $ Goal True "Queens"       "main"
   , benchParallel One $ Goal True "EditSeq" "main3"
   , benchParallel All $ Goal True "EditSeq" "main3"
   , benchParallel One $ Goal True "PermSort" "main"
@@ -1028,7 +1032,7 @@ benchSearch = -- map benchFLPSearch searchGoals
 --main = run 1 allBenchmarks
 main = run 3 allBenchmarks
 --main = run 5 ghcUniqSupplyBenchmarks
---main = run 3 parallelBenchmarks
+--main = run 10 parallelBenchmarks
 --main = run 5 ghcUniqSupplySome
 --main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueens" "main") (map (*10) [1..100])
 --main = run 1 [benchFLPCompleteSearch "NDNums"]
