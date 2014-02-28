@@ -958,13 +958,6 @@ ghcUniqSupplySome =
     ++ kics2 True True  1 S_IORef IOBFS One goal
     ++ kics2 True False 1 S_IORef IOBFS One goal
 
-fairBenchmarks :: [[Benchmarks]]
-fairBenchmarks =
-  [ kics2 True True 2 S_IORef EncFair   One (Goal True "PermSort" "main2")
-  , kics2 True True 2 S_IORef EncFair'  One (Goal True "PermSort" "main2")
-  , kics2 True True 2 S_IORef EncFair'' One (Goal True "PermSort" "main2")
-  ]
-
 parallelBenchmarks :: [[Benchmark]]
 parallelBenchmarks =
   [ benchParallel One $ Goal True "SearchQueens" "main"
