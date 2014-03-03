@@ -399,6 +399,12 @@ data Strategy
 data Goal   = Goal Bool String String -- non-det? / module / main-expr
 data Output = All | One | Interactive | Count
 
+type RuntimeOptions =
+  { stackInitial :: String
+  , stackChunk   :: String
+  , stackBuffer  :: String
+  }
+
 detGoal :: String -> String -> Goal
 detGoal gl mod = Goal False mod gl
 
@@ -479,24 +485,30 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
     One         -> "getOneValue"
 
 --- Create a KiCS2 Benchmark
---- @param tag      - the benchmark's tag to be part of its name
 --- @param hoOpt    - compile with higher-order optimization?
---- @param ghcOpt - compile Haskell target with GHC optimization?
+--- @param ghcOpt   - compile Haskell target with GHC optimization?
+--- @param rts      - runtime options
 --- @param threads  - number of simultaneous threads to use when running the program
 --- @param idsupply - idsupply implementation
 --- @param strategy -
 --- @param output   -
 --- @param gl       - goal to be executed
-kics2 :: Bool -> Bool -> Int -> Supply -> Strategy -> Output -> Goal -> [Benchmark]
-kics2 hoOpt ghcOpt threads idsupply strategy output gl@(Goal _ mod goal)
-  = kics2Benchmark tag hoOpt ghcOpt threads idsupply mod goal (mainExpr strategy output gl)
+kics2 :: Bool -> Bool -> Maybe RuntimeOptions -> Int -> Supply -> Strategy -> Output -> Goal -> [Benchmark]
+kics2 hoOpt ghcOpt rts threads idsupply strategy output gl@(Goal _ mod goal)
+  = kics2Benchmark tag hoOpt ghcOpt rts threads idsupply mod goal (mainExpr strategy output gl)
  where tag = concat [ "KICS2"
                     , if ghcOpt then "+"  else ""
                     , if hoOpt  then "_D" else ""
+                    , case rts of
+                        Nothing -> ""
+                        Just r  -> "_KI" ++ r :> stackInitial
+                                ++ "_KC" ++ r :> stackChunk
+                                ++ "_KB" ++ r :> stackBuffer
                     , case threads of
                         1 -> ""
                         _ -> "_" ++ show threads
                     , '_' : showStrategy strategy
+                    , '_' : show output
                     , '_' : showSupply   idsupply
                     ]
 
@@ -517,19 +529,25 @@ mkTag mod goal comp
 
 --- Create a KiCS2 Benchmark
 --- @param tag      - the benchmark's tag to be part of its name
---- @param hoOpt  - compile with higher-order optimization?
---- @param ghcOpt - compile Haskell target with GHC optimization?
+--- @param hoOpt    - compile with higher-order optimization?
+--- @param ghcOpt   - compile Haskell target with GHC optimization?
+--- @param rts      - runtime options
 --- @param threads  - number of simultaneous threads to use when running the program
 --- @param idsupply - idsupply implementation
 --- @param mod      - module name of the benchmark
 --- @param goal     - name of the goal to be executed
 --- @param mainexp  - main (Haskell!) call
-kics2Benchmark :: String -> Bool -> Bool -> Int -> Supply -> String -> String -> String -> [Benchmark]
-kics2Benchmark tag hoOpt ghcOpt threads idsupply mod goal mainexp =
-  let threaded = threads /= 1 in
+kics2Benchmark :: String -> Bool -> Bool -> Maybe RuntimeOptions -> Int -> Supply -> String -> String -> String -> [Benchmark]
+kics2Benchmark tag hoOpt ghcOpt rts threads idsupply mod goal mainexp =
+  let threaded = threads /= 1
+      r        = fromJust rts
+      rtsOpts  = (if threaded then ["-N" ++ show threads] else [])
+        ++ (if isJust rts then ["-ki" ++ (r :> stackInitial), "-kc" ++ (r :> stackChunk), "-kb" ++ (r :> stackBuffer)] else [])
+      opts     = if not (null rtsOpts) then ["+RTS"] ++ rtsOpts ++ ["-RTS"] else []
+  in
   [ { bmName    := mkTag mod goal tag
     , bmPrepare := kics2Compile mod hoOpt ghcOpt threaded idsupply mainexp
-    , bmCommand := ("./Main", if threads /= 1 then ["+RTS", "-N" ++ show threads , "-RTS"] else [])
+    , bmCommand := ("./Main", opts)
     , bmCleanup := ("rm", ["-f", "Main", "Main.hs", "Main.hi", "Main.o"]) -- , ".curry/" ++ mod ++ ".*", ".curry/kics2/Curry_*"])
     }
   ]
@@ -694,8 +712,8 @@ swiCompile mod = system $ "echo \"compile("++mod++"), qsave_program('"++mod++".s
 -- Benchmark first-order functional programs with kics2/pakcs/mcc/ghc/sicstus/swi
 benchFOFP :: Bool -> Goal -> [Benchmark]
 benchFOFP withMon goal = concatMap ($goal)
-  [ kics2 True False 1 S_Integer PRDFS All
-  , kics2 True True  1 S_Integer PRDFS All
+  [ kics2 True False Nothing 1 S_Integer PRDFS All
+  , kics2 True True  Nothing 1 S_Integer PRDFS All
   , pakcs
   , mcc
   , ghc
@@ -707,18 +725,18 @@ benchFOFP withMon goal = concatMap ($goal)
 
 benchGhcUniqSupply :: Goal -> [Benchmark]
 benchGhcUniqSupply goal = concat
-  [ kics2 True go 1 su st All goal | st <- strats
-                                   , su <- suppls
-                                   , go <- [True, False] ]
+  [ kics2 True go Nothing 1 su st All goal | st <- strats
+                                           , su <- suppls
+                                           , go <- [True, False] ]
  where
   strats = [ PRDFS, IODFS, MPLUSDFS, EncDFS, IOBFS, MPLUSBFS, EncBFS ]
   suppls = [ S_GHC, S_IORef ]
 
 benchGhcUniqSupplyComplete :: Goal -> [Benchmark]
 benchGhcUniqSupplyComplete goal = concat
-  [ kics2 True go 1 su st One goal | st <- strats
-                                   , su <- suppls
-                                   , go <- [True, False] ]
+  [ kics2 True go Nothing 1 su st One goal | st <- strats
+                                           , su <- suppls
+                                           , go <- [True, False] ]
  where
   strats = [ MPLUSBFS, EncBFS ]
   suppls = [ S_GHC, S_IORef ]
@@ -726,8 +744,8 @@ benchGhcUniqSupplyComplete goal = concat
 -- Benchmark higher-order functional programs with kics2/pakcs/mcc/ghc/ghc+
 benchHOFP :: Bool -> Goal -> [Benchmark]
 benchHOFP withMon goal = concatMap ($goal)
-  [ kics2 True False 1 S_Integer PRDFS All
-  , kics2 True True  1 S_Integer PRDFS All
+  [ kics2 True False Nothing 1 S_Integer PRDFS All
+  , kics2 True True  Nothing 1 S_Integer PRDFS All
   , pakcs
   , mcc
   , ghc
@@ -738,9 +756,9 @@ benchHOFP withMon goal = concatMap ($goal)
 -- Benchmarking functional logic programs with kics2/pakcs/mcc in DFS mode
 benchFLPDFS :: Bool -> Goal -> [Benchmark]
 benchFLPDFS withMon goal = concatMap ($goal)
-  [ kics2 True False 1 S_Integer PRDFS All
-  , kics2 True True  1 S_Integer PRDFS All
-  , kics2 True True  1 S_PureIO  PRDFS All
+  [ kics2 True False Nothing 1 S_Integer PRDFS All
+  , kics2 True True  Nothing 1 S_Integer PRDFS All
+  , kics2 True True  Nothing 1 S_PureIO  PRDFS All
   , pakcs
   , mcc
   , if withMon then monc else skip
@@ -749,8 +767,8 @@ benchFLPDFS withMon goal = concatMap ($goal)
 -- Benchmarking functional logic programs with unification with kics2/pakcs/mcc
 benchFLPDFSU :: Goal -> [Benchmark]
 benchFLPDFSU goal = concatMap ($goal)
-  [ kics2 True True 1 S_PureIO PRDFS All
-  , kics2 True True 1 S_PureIO IODFS All
+  [ kics2 True True Nothing 1 S_PureIO PRDFS All
+  , kics2 True True Nothing 1 S_PureIO IODFS All
   , pakcs
   , mcc
   ]
@@ -758,8 +776,8 @@ benchFLPDFSU goal = concatMap ($goal)
 -- Benchmarking functional patterns with kics2/pakcs
 benchFunPats :: Goal -> [Benchmark]
 benchFunPats goal = concatMap ($goal)
-  [ kics2 True True 1 S_PureIO PRDFS All
-  , kics2 True True 1 S_PureIO IODFS All
+  [ kics2 True True Nothing 1 S_PureIO PRDFS All
+  , kics2 True True Nothing 1 S_PureIO IODFS All
   , pakcs
   ]
 
@@ -767,15 +785,15 @@ benchFunPats goal = concatMap ($goal)
 -- with a given name for the main operation
 benchFPWithMain :: Goal -> [Benchmark]
 benchFPWithMain goal = concatMap ($goal)
-  [ kics2 True True 1 S_Integer IODFS All, pakcs, mcc ]
+  [ kics2 True True Nothing 1 S_Integer IODFS All, pakcs, mcc ]
 
 -- Benchmarking functional logic programs with kics2/pakcs/mcc in DFS mode
 -- with a given name for the main operation
 benchFLPDFSWithMain :: Goal -> [Benchmark]
 benchFLPDFSWithMain goal = concatMap ($goal)
-  [ kics2 True False 1 S_Integer PRDFS All
-  , kics2 True True  1 S_Integer PRDFS All
-  , kics2 True True  1 S_PureIO  PRDFS All
+  [ kics2 True False Nothing 1 S_Integer PRDFS All
+  , kics2 True True  Nothing 1 S_Integer PRDFS All
+  , kics2 True True  Nothing 1 S_PureIO  PRDFS All
   , pakcs
   , mcc
   ]
@@ -783,21 +801,21 @@ benchFLPDFSWithMain goal = concatMap ($goal)
 -- Benchmark different ID-Supplies with different DFS implementations
 benchIDSupplies :: Goal -> [Benchmark]
 benchIDSupplies goal = concat
-  [ kics2 True True 1 su st All goal | st <- strats, su <- suppls ]
+  [ kics2 True True Nothing 1 su st All goal | st <- strats, su <- suppls ]
   where
     strats = [PRDFS, IODFS, MPLUSDFS]
     suppls = [S_PureIO, S_IORef, S_GHC, S_Integer]
 
 -- Benchmarking functional logic programs with different search strategies
 benchFLPSearch :: Goal -> [Benchmark]
-benchFLPSearch prog = concatMap (\st -> kics2 True True 1 S_IORef st All prog)
+benchFLPSearch prog = concatMap (\st -> kics2 True True Nothing 1 S_IORef st All prog)
   [ PRDFS, IODFS, IOIDS 10 "(+1)", IOIDS 10 "(*2)", IOIDS2 10 "(+1)", IOIDS2 10 "(*2)" -- , IOBFS is too slow
   , MPLUSDFS, MPLUSBFS, MPLUSIDS 10 "(+1)", MPLUSIDS 10 "(*2)", MPLUSPar]
 
 -- Benchmarking functional logic programs with different search strategies
 -- extracting only the first result
 benchFLPFirst :: Goal -> [Benchmark]
-benchFLPFirst prog = concatMap (\st -> kics2 True True 1 S_IORef st One prog)
+benchFLPFirst prog = concatMap (\st -> kics2 True True Nothing 1 S_IORef st One prog)
   [ PRDFS, IODFS, IOIDS 10 "(+1)", IOIDS 10 "(*2)", IOIDS2 10 "(+1)", IOIDS2 10 "(*2)" -- , IOBFS is too slow
   , MPLUSDFS, MPLUSBFS, MPLUSIDS 10 "(+1)", MPLUSIDS 10 "(*2)", MPLUSPar]
 
@@ -805,21 +823,21 @@ benchFLPFirst prog = concatMap (\st -> kics2 True True 1 S_IORef st One prog)
 -- Benchmarking FL programs that require complete search strategy
 benchFLPCompleteSearch :: Goal -> [Benchmark]
 benchFLPCompleteSearch goal = concatMap
-  (\st -> kics2 True True 1 S_IORef st One goal)
+  (\st -> kics2 True True Nothing 1 S_IORef st One goal)
   [IOBFS, IOIDS 100 "(*2)"]
 
 -- Benchmarking functional logic programs with different search strategies
 -- for "main" operations and goals for encapsulated search strategies
 benchFLPEncapsSearch :: Goal -> [Benchmark]
 benchFLPEncapsSearch goal = concatMap
-  (\st -> kics2 True True 1 S_IORef st All goal)
+  (\st -> kics2 True True Nothing 1 S_IORef st All goal)
   [IODFS, IOBFS, IOIDS 100 "(*2)", EncDFS, EncBFS, EncIDS]
 
 -- Benchmarking =:<=, =:= and ==
 benchFLPDFSKiCS2WithMain :: Bool -> Bool -> Goal -> [Benchmark]
 benchFLPDFSKiCS2WithMain withPakcs withMcc goal = concatMap ($goal)
-  [ kics2 True True 1 S_PureIO PRDFS All
-  , kics2 True True 1 S_PureIO IODFS All
+  [ kics2 True True Nothing 1 S_PureIO PRDFS All
+  , kics2 True True Nothing 1 S_PureIO IODFS All
   , if withPakcs then pakcs else skip
   , if withMcc   then mcc   else skip
   ]
@@ -827,35 +845,39 @@ benchFLPDFSKiCS2WithMain withPakcs withMcc goal = concatMap ($goal)
 -- Benchmarking FL programs that require complete search strategy
 benchIDSSearch :: Goal -> [Benchmark]
 benchIDSSearch prog = concatMap
-  (\st -> kics2 True True 1 S_IORef st Count prog)
+  (\st -> kics2 True True Nothing 1 S_IORef st Count prog)
   [IOIDS 100 "(*2)", IOIDS 100 "(+1)", IOIDS2 100 "(+1)"]
 
-benchThreads :: Bool -> Bool -> Supply -> Strategy -> Output -> Goal -> [Benchmark]
-benchThreads hoOpt ghcOpt idsupply strategy output goal =
-  concatMap (\n -> kics2 hoOpt ghcOpt n idsupply strategy output goal) threadNumbers
+benchThreads :: Bool -> Bool -> Maybe RuntimeOptions -> Supply -> Strategy -> Output -> Goal -> [Benchmark]
+benchThreads hoOpt ghcOpt rts idsupply strategy output goal =
+  concatMap (\n -> kics2 hoOpt ghcOpt rts n idsupply strategy output goal) threadNumbers
 
 benchParallel :: Output -> Goal -> [Benchmark]
 benchParallel out goal =
-     (kics2 True True 1 S_IORef EncDFS out goal)
-  ++ (kics2 True True 1 S_IORef EncBFS out goal)
-  ++ (benchThreads True True S_IORef EncFair out goal)
-  ++ concatMap (\n -> kics2 True True n S_IORef (EncCon n) out goal)         threadNumbers
-  ++ (benchThreads True True S_IORef EncPar  out goal)
-  ++ (benchThreads True True S_IORef EncSAll out goal)
-  ++ concatMap (\n -> benchThreads True True S_IORef (EncSLimit n) out goal) [4,8,12,16,20,24]
-  ++ concatMap (\n -> benchThreads True True S_IORef (EncSAlt   n) out goal) [1,2,4]
-  ++ (benchThreads True True S_IORef EncSPow out goal)
-  ++ (benchThreads True True S_IORef EncBFSEval out goal)
-  ++ concatMap (\s -> benchThreads True True S_IORef (EncDFSBag s) out goal) allSplitStrategies
-  ++ concatMap (\s -> benchThreads True True S_IORef (EncFDFSBag s) out goal) allSplitStrategies
-  ++ concatMap (\s -> benchThreads True True S_IORef (EncBFSBag s) out goal) allSplitStrategies
+     (kics2 True True Nothing 1 S_IORef EncDFS out goal)
+  ++ (kics2 True True Nothing 1 S_IORef EncBFS out goal)
+  ++ (benchThreads True True Nothing S_IORef EncFair out goal)
+  ++ concatMap (\n -> kics2 True True Nothing n S_IORef (EncCon n) out goal)         threadNumbers
+  ++ (benchThreads True True Nothing S_IORef EncPar  out goal)
+  ++ (benchThreads True True Nothing S_IORef EncSAll out goal)
+  ++ concatMap (\n -> benchThreads True True Nothing S_IORef (EncSLimit n) out goal) [4,8,12,16,20,24]
+  ++ concatMap (\n -> benchThreads True True Nothing S_IORef (EncSAlt   n) out goal) [1,2,4]
+  ++ (benchThreads True True Nothing S_IORef EncSPow out goal)
+  ++ (benchThreads True True Nothing S_IORef EncBFSEval out goal)
+  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncDFSBag s) out goal) allSplitStrategies
+  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncFDFSBag s) out goal) allSplitStrategies
+  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncBFSBag s) out goal) allSplitStrategies
 
 benchParallelBFS :: Goal -> [Benchmark]
 benchParallelBFS goal =
-     (kics2 True True 1 S_IORef EncBFS One goal)
-  ++ (benchThreads True True S_IORef EncBFSEval One goal)
-  ++ concatMap (\s -> benchThreads True True S_IORef (EncBFSBag s) One goal) allSplitStrategies
-  ++ (benchThreads True True S_IORef EncFair One goal)
+     (kics2 True True Nothing 1 S_IORef EncBFS One goal)
+  ++ (benchThreads True True Nothing S_IORef EncBFSEval One goal)
+  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncBFSBag s) One goal) allSplitStrategies
+  ++ (benchThreads True True Nothing S_IORef EncFair One goal)
+
+benchStackSize :: Output -> Goal -> [Benchmark]
+benchStackSize output goal = concat
+  [ kics2 True True (Just {stackInitial := init, stackChunk := chun, stackBuffer := buff}) 12 S_IORef EncFair output goal | init <- ["1024", "1280", "1536", "1792", "2048", "3072", "4096"], chun <- ["32k"], buff <- ["1k"] ]
 
 threadNumbers :: [Int]
 threadNumbers = [1,2,4,8,12,16,20,23,24]
@@ -953,10 +975,10 @@ ghcUniqSupplySome =
   ++ [benchGhcUniqSupplyComplete (nonDetGoal "main3" "NDNums")]
  where
   benchUniqSupplyOpt goal =
-       kics2 True True  1 S_IORef PRDFS One goal
-    ++ kics2 True False 1 S_IORef PRDFS One goal
-    ++ kics2 True True  1 S_IORef IOBFS One goal
-    ++ kics2 True False 1 S_IORef IOBFS One goal
+       kics2 True True  Nothing 1 S_IORef PRDFS One goal
+    ++ kics2 True False Nothing 1 S_IORef PRDFS One goal
+    ++ kics2 True True  Nothing 1 S_IORef IOBFS One goal
+    ++ kics2 True False Nothing 1 S_IORef IOBFS One goal
 
 parallelBenchmarks :: [[Benchmark]]
 parallelBenchmarks =
@@ -971,6 +993,18 @@ parallelBenchmarks =
   , benchParallel One $ Goal True "Last"     "main"
   , benchParallel All $ Goal True "Last"     "main"
   , benchParallelBFS $ Goal True "NDNums" "main3" ]
+
+fairStackSize :: [[Benchmark]]
+fairStackSize =
+  [ benchStackSize One $ Goal True "SearchQueens" "main"
+  , benchStackSize All $ Goal True "SearchQueens" "main"
+  , benchStackSize One $ Goal True "PermSort" "main"
+  , benchStackSize All $ Goal True "PermSort" "main"
+  , benchStackSize One $ Goal True "Half"     "main"
+  , benchStackSize All $ Goal True "Half"     "main"
+  , benchStackSize One $ Goal True "Last"     "main"
+  , benchStackSize All $ Goal True "Last"     "main"
+  , benchStackSize One $ Goal True "NDNums" "main3" ]
 
 unif =
      [
@@ -1027,6 +1061,7 @@ main = run 3 allBenchmarks
 --main = run 5 ghcUniqSupplyBenchmarks
 --main = run 10 parallelBenchmarks
 --main = run 5 ghcUniqSupplySome
+--main = run 4 fairStackSize
 --main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueens" "main") (map (*10) [1..100])
 --main = run 1 [benchFLPCompleteSearch "NDNums"]
 --main = run 1 (benchFPWithMain "ShareNonDet" "goal1" : [])
