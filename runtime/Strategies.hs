@@ -199,8 +199,8 @@ conSearch i tree = do
         searchThread threadVar chan tree
       Executing n tids -> do
         newTid <- forkIO $ do
-          tid <- myThreadId
           searchThread threadVar chan tree
+          tid <- myThreadId
           writeChan chan $ ThreadStopped tid
         putMVar threadVar $ Executing (n-1) $ newTid:tids
 
