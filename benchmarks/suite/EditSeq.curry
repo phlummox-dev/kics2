@@ -8,6 +8,7 @@
 import ParallelSearch
 import SetFunctions
 import RedBlackTree
+import List
 
 --- Representation of edit operations to align strings
 data Edit = Rep Letter Letter Edit
@@ -92,11 +93,17 @@ main4 = let s = set0 main3
 -->(3,(Rep A D (Rep I A (Rep R R (Rep L L (Rep I I (Rep N N (Rep E G Mty))))))))
 -->(3,(Ins D (Rep A A (Del I (Rep R R (Rep L L (Rep I I (Rep N N (Rep E G Mty)))))))))
 
-main5 = do
-  vlist <- getAllValues fairSearch main3
-  let (m:_) = sort (\x y -> fst x <= fst y) vlist
+main_par_lazy = do
+  vlist <- getLazyValues splitAll main3
+  let ms@(m:_) = sortBy (\x y -> fst x <= fst y) vlist
   putStrLn $ "Minimum: " ++ show (fst m)
-  putStrLn (unlines (map show (filter (\x -> (fst x) == (fst m)) vlist)))
+  putStrLn (unlines (map show (takeWhile (\x -> (fst x) == (fst m)) ms)))
+
+main_par_strict = do
+  vlist <- getAllValues splitAll main3
+  let ms@(m:_) = sortBy (\x y -> fst x <= fst y) vlist
+  putStrLn $ "Minimum: " ++ show (fst m)
+  putStrLn (unlines (map show (takeWhile (\x -> (fst x) == (fst m)) ms)))
 
 {-
 Benchmarks on lafite (Intel i5, 1.2GHz) with KiCS2 in seconds:
