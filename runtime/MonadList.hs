@@ -7,12 +7,13 @@ module MonadList
     MList, mnil, msingleton, mcons, abort, (|<), (+++), (++++), fromList
     -- * list evaluation
   , IOList, MoreDefault (..), countValues, printOneValue, printAllValues
-  , printValsOnDemand, evalIOList, listIOToMaybe
+  , printValsOnDemand, evalIOList, listIOToMaybe, listIOToLazy
   ) where
 
 import Data.Char (toLower)
 import System.IO (hFlush, stdin, stdout, hGetEcho, hSetEcho,
                   hGetBuffering, hSetBuffering, BufferMode (..))
+import System.IO.Unsafe
 
 -- |Monadic lists as a general representation of values obtained in a
 -- monadic manner.
@@ -194,4 +195,12 @@ listIOToMaybe Nil         = return Nothing
 listIOToMaybe Abort       = warnAbort >> return Nothing
 listIOToMaybe (Cons x _)  = return $ Just x
 listIOToMaybe (Reset l _) = l >>= listIOToMaybe
-  
+
+listIOToLazy :: MList IO a -> [a]
+listIOToLazy list =
+  unsafePerformIO $ do
+    l <- list
+    case l of
+      Nil       -> return   []
+      Abort     -> warnAbort >> return []
+      Cons x xs -> return $ x : listIOToLazy xs
