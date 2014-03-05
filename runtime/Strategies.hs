@@ -169,7 +169,7 @@ conSearch i tree = do
       Stopped ->
         hPutStr stderr "Execution already stopped!"
       Executing _ tids ->
-        mapM_ killThread tids
+        mapM_ (forkIO . killThread) tids
     putMVar threadVar Stopped
 
   handleResults :: IORef () -> MVar ExecutionState -> Chan (ThreadResult a) -> MList IO a
