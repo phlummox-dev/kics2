@@ -1,9 +1,12 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE MagicHash, UnboxedTuples #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Strategies
   ( bfsSearch, dfsSearch, parSearch, fairSearch, conSearch
   , idsSearch, idsDefaultDepth, idsDefaultIncr
   , splitAll, splitLimitDepth, splitAlternating, splitPower
-  , bfsParallel
+  , bfsParallel, bfsParallel'
   , dfsBag, fdfsBag, bfsBag, getAllResults, getResult
   ) where
 
@@ -72,6 +75,16 @@ bfsParallel t = bfs [t]
   bfs xs = runEval $ do
     rs <- evalList rpar $ xs
     return $ values rs ++ (bfs $ children rs)
+
+bfsParallel' :: SearchTree a -> [a]
+bfsParallel' t =
+  bfsSearch (t `using` bfsTree)
+ where
+  bfsTree (Choice l r) = do
+    l' <- (rpar `dot` bfsTree) l
+    r' <- (rpar `dot` bfsTree) r
+    return (Choice l' r')
+  bfsTree t = r0 t
 
 splitAll :: SearchTree a -> [a]
 splitAll None         = []
