@@ -196,11 +196,13 @@ listIOToMaybe Abort       = warnAbort >> return Nothing
 listIOToMaybe (Cons x _)  = return $ Just x
 listIOToMaybe (Reset l _) = l >>= listIOToMaybe
 
-listIOToLazy :: MList IO a -> [a]
+listIOToLazy :: MList IO a -> IO [a]
 listIOToLazy list =
-  unsafePerformIO $ do
+  unsafeInterleaveIO $ do
     l <- list
     case l of
       Nil       -> return   []
       Abort     -> warnAbort >> return []
-      Cons x xs -> return $ x : listIOToLazy xs
+      Cons x rest -> do
+        xs <- listIOToLazy rest
+        return $ x : xs
