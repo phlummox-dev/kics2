@@ -35,12 +35,14 @@ module Solver.Overton.OvertonFD (
     addSum,
     addSub,
     addMult,
+    addAbs,
     sumList,
     updateSolver,
     FDState (..),
     initFDState,
     lookupDomain,
-    (.<=.)
+    (.<=.),
+    osuccess
     ) where
 
 import Debug.Trace
@@ -70,8 +72,12 @@ data FDState = FDState
      { varSupply :: VarSupply, varMap :: VarMap, curryVarMap :: CurryVarMap }
 
 -- Run the FD monad and produce a lazy list of possible solutions.
-runFD :: OvertonFD a -> FDState -> [a]
+--runFD :: OvertonFD a -> FDState -> [a]
+runFD :: OvertonFD [Int] -> FDState -> [[Int]]
 runFD fd state = evalStateT (unFD fd) state
+
+osuccess :: OvertonFD ()
+osuccess = return ()
 
 updateSolver :: OvertonFD a -> FDState -> [FDState]
 updateSolver fd state = execStateT (unFD fd) state
@@ -203,7 +209,7 @@ labelling = mapM label where
 -- Label variables using a depth-first left-to-right search.
 labelling :: [FDVar] -> OvertonFD [Int]
 labelling vars = do
-  labelingWith vars firstFail
+  labelingWith vars inOrder
   assignments vars
 
 -- Label variables using the given strategy.
@@ -260,6 +266,23 @@ addArithmeticConstraint getXDomain getYDomain getZDomain x y = do
   addConstraint y xConstraint
   return z
 
+-- Add constraint (z = op x) for var z
+addUnaryArithmeticConstraint :: (Domain -> Domain) -> (Domain -> Domain) -> FDVar -> OvertonFD FDVar
+addUnaryArithmeticConstraint getZDomain getXDomain x = do
+    xv <- lookupDomain x
+    z  <- newVar (getZDomain xv)
+    let constraint z x getDomain = do
+        xv <- lookupDomain x
+        zv <- lookupDomain z
+        let zv' = intersection zv (getDomain xv)
+        guard $ not $ null zv'
+        when (zv /= zv') $ update z zv'
+    let zConstraint = constraint z x getZDomain
+        xConstraint = constraint x z getXDomain
+    addConstraint z xConstraint
+    addConstraint x zConstraint
+    return z
+
 -- helper function
 constraint :: DomainUpdate -> FDVar -> FDVar -> FDVar -> OvertonFD ()
 constraint getDomain x y z = do
@@ -270,6 +293,7 @@ constraint getDomain x y z = do
   guard $ not $ null zv'
   when (zv /= zv') $ update z zv'
 
+{-
 -- arithmetic constraints
 addSum = addArithmeticConstraint getDomainMinus getDomainMinus getDomainPlus
 
@@ -277,12 +301,26 @@ addSub = addArithmeticConstraint getDomainPlus (flip getDomainMinus) getDomainMi
 
 addMult = addArithmeticConstraint getDomainDiv getDomainDiv getDomainMult
 
+addAbs = addUnaryArithmeticConstraint absDomain (\z -> mapDomain z (\i -> [i,-i]))
+-}
+
+-- arithmetic constraints
+addSum = addArithmeticConstraint (-) (-) (+)
+
+addSub = addArithmeticConstraint (+) (flip (-)) (-)
+
+addMult = addArithmeticConstraint getDomainDiv getDomainDiv (*)
+
+addAbs = addUnaryArithmeticConstraint abs (\z -> mapDomain z (\i -> [i,-i]))
+
+
 sumList :: [FDVar] -> OvertonFD FDVar
 sumList xs = do
   z <- newVar 0
   foldM addSum z xs
 
 -- interval arithmetic
+{-
 getDomainPlus :: Domain -> Domain -> Domain
 getDomainPlus xs ys = toDomain (a,b)
  where
@@ -301,6 +339,7 @@ getDomainMult xs ys = toDomain (a,b)
   a        = minimum products
   b        = maximum products
   products = [x * y | x <- [findMin xs, findMax xs], y <- [findMin ys, findMax ys]]
+-}
 
 getDomainDiv :: Domain -> Domain -> Domain
 getDomainDiv xs ys = toDomain (a,b)
@@ -310,3 +349,5 @@ getDomainDiv xs ys = toDomain (a,b)
   quotients z = [if y /= 0 then x `div` y else z |
                   x <- [findMin xs, findMax xs]
                 , y <- [findMin ys, findMax ys]]
+
+

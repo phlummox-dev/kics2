@@ -8,7 +8,7 @@ import Solver.Constraints (FDConstraint (..), RelOp (..), ArithOp (..))
 import Solver.States (fdState)
 import Solver.Interface
 import Solver.Overton.OvertonFD ( OvertonFD, FDVar, FDState (..), newVar, lookupDomain
-                                , same, different, (.<.), (.<=.), allDifferent
+                                , same, different, (.<.), (.<=.), allDifferent, addAbs
                                 , addSum, addSub, addMult, sumList, labelling, runFD, updateSolver )
 import Solver.Overton.OvertonDomain (ToDomain, findMin, findMax)
 import Types
@@ -86,7 +86,8 @@ getUB v@(Var i) = do
   return $ findMax dom
 getUB (Const c) = return c
 
-
+-- translate KiCS2 internal FD constraint representation
+-- to constraint computation in Overton monad
 addConstr :: FDConstraint -> OvertonFD ()
 addConstr (FDRel op x y) = do
   x' <- translateTerm x
@@ -110,6 +111,12 @@ addConstr (FDArith op x y r) = do
   matchArithOp Plus  = addSum
   matchArithOp Minus = addSub
   matchArithOp Mult  = addMult
+
+addConstr (FDAbs x r) = do
+  x' <- translateTerm x
+  r' <- translateTerm r
+  z  <- addAbs x'
+  same r' z
 
 addConstr (FDSum vs r) = do
   vs' <- mapM translateTerm vs

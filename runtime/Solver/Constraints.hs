@@ -36,6 +36,7 @@ narrowIfFree2 x y contFree contVal cd cs = narrowIfFree x (\x' cd' cs' -> narrow
 data FDConstraint
   = FDRel RelOp (Term Int) (Term Int)
   | FDArith ArithOp (Term Int) (Term Int) (Term Int)
+  | FDAbs (Term Int) (Term Int)
   | FDSum [Term Int] (Term Int)
   | FDAllDifferent [Term Int]
   | FDDomain [Term Int] (Term Int) (Term Int)
@@ -66,6 +67,10 @@ updateFDConstr update (FDArith arithOp t1 t2 r) = do
   t2' <- update t2
   r'  <- update r
   return $ FDArith arithOp t1' t2' r'
+updateFDConstr update (FDAbs t r) = do
+  t' <- update t
+  r' <- update r
+  return $ FDAbs t' r'
 updateFDConstr update (FDSum vs r) = do
   vs' <- mapM update vs
   r'  <- update r
