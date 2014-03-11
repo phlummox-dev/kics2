@@ -8,6 +8,7 @@ module Strategies
   , splitAll, splitLimitDepth, splitAlternating, splitPower
   , bfsParallel, bfsParallel'
   , dfsBag, fdfsBag, bfsBag, getAllResults, getResult
+  , dfsBagLazy, fdfsBagLazy, bfsBagLazy
   ) where
 
 import System.IO (hPutStr, stderr)
@@ -50,11 +51,17 @@ instance MonadSearch SearchTree where
 dfsBag :: MonadIO m => Maybe (SplitFunction TStack r) -> SearchTree r -> BagT TStack r m a -> m a
 dfsBag split = (newTaskBag split) . (:[]) . dfsTask
 
+dfsBagLazy :: Maybe (SplitFunction TStack r) -> SearchTree r -> IO [r]
+dfsBagLazy split = (Implicit.newTaskBag split) . (:[]) . dfsTask
+
 -- | Fake depth-first search
 --   Real depth-first search would use a stack instead of a queue for
 --   the task bag.
 fdfsBag :: MonadIO m => Maybe (SplitFunction TChan r) -> SearchTree r -> BagT TChan r m a -> m a
 fdfsBag split = (newTaskBag split) . (:[]) . dfsTask
+
+fdfsBagLazy :: Maybe (SplitFunction TChan r) -> SearchTree r -> IO [r]
+fdfsBagLazy split = (Implicit.newTaskBag split) . (:[]) . dfsTask
 
 dfsTask :: SearchTree a -> TaskIO a (Maybe a)
 dfsTask None         = return   Nothing
@@ -62,6 +69,9 @@ dfsTask (One v)      = return $ Just v
 dfsTask (Choice l r) = do
   addTaskIO $ dfsTask r
   dfsTask l
+
+bfsBagLazy :: Maybe (SplitFunction TChan r) -> SearchTree r -> IO [r]
+bfsBagLazy split = (Implicit.newInterruptibleBag split) . (:[]) . bfsTask
 
 bfsBag :: MonadIO m => Maybe (SplitFunction TChan r) -> SearchTree r -> BagT TChan r m a -> m a
 bfsBag split = (newInterruptibleBag split) . (:[]) . bfsTask
