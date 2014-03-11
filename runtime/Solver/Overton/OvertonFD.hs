@@ -215,11 +215,12 @@ labelling vars = do
 -- Label variables using the given strategy.
 labelingWith :: [FDVar] -> ([FDVar] -> OvertonFD [FDVar]) -> OvertonFD ()
 labelingWith [] _ = return ()
-labelingWith (v:vs) strategy = do
-  labelVar v
-  vs' <- strategy vs
-  labelingWith vs' strategy
-  return ()
+labelingWith vars strategy = do
+  vars' <- strategy vars
+  case vars' of
+    []     -> return ()
+    (v:vs) -> do labelVar v
+                 labelingWith vs strategy
 
 -- Label FD variable using a depth-first left-to-right search.
 labelVar :: FDVar -> OvertonFD Int
@@ -293,61 +294,18 @@ constraint getDomain x y z = do
   guard $ not $ null zv'
   when (zv /= zv') $ update z zv'
 
-{-
--- arithmetic constraints
-addSum = addArithmeticConstraint getDomainMinus getDomainMinus getDomainPlus
-
-addSub = addArithmeticConstraint getDomainPlus (flip getDomainMinus) getDomainMinus
-
-addMult = addArithmeticConstraint getDomainDiv getDomainDiv getDomainMult
-
-addAbs = addUnaryArithmeticConstraint absDomain (\z -> mapDomain z (\i -> [i,-i]))
--}
-
 -- arithmetic constraints
 addSum = addArithmeticConstraint (-) (-) (+)
 
 addSub = addArithmeticConstraint (+) (flip (-)) (-)
 
-addMult = addArithmeticConstraint getDomainDiv getDomainDiv (*)
+addMult = addArithmeticConstraint (./.) (./.) (*)
 
 addAbs = addUnaryArithmeticConstraint abs (\z -> mapDomain z (\i -> [i,-i]))
 
-
+-- compute sum of given FD variables
 sumList :: [FDVar] -> OvertonFD FDVar
 sumList xs = do
   z <- newVar 0
   foldM addSum z xs
-
--- interval arithmetic
-{-
-getDomainPlus :: Domain -> Domain -> Domain
-getDomainPlus xs ys = toDomain (a,b)
- where
-  a = findMin xs + findMin ys
-  b = findMax xs + findMax ys
-
-getDomainMinus :: Domain -> Domain -> Domain
-getDomainMinus xs ys = toDomain (a,b)
- where
-  a = findMin xs - findMax ys
-  b = findMax xs - findMin ys
-
-getDomainMult :: Domain -> Domain -> Domain
-getDomainMult xs ys = toDomain (a,b)
- where
-  a        = minimum products
-  b        = maximum products
-  products = [x * y | x <- [findMin xs, findMax xs], y <- [findMin ys, findMax ys]]
--}
-
-getDomainDiv :: Domain -> Domain -> Domain
-getDomainDiv xs ys = toDomain (a,b)
- where
-  a        = minimum (quotients minBound)
-  b        = maximum (quotients maxBound)
-  quotients z = [if y /= 0 then x `div` y else z |
-                  x <- [findMin xs, findMax xs]
-                , y <- [findMin ys, findMax ys]]
-
 

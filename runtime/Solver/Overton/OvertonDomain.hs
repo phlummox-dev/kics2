@@ -21,11 +21,17 @@ module Solver.Overton.OvertonDomain
   ( Domain, ToDomain (..)
   , member, singleton, isSingleton, isSubsetOf, null
   , intersection, difference, filterLessThan, filterGreaterThan
-  , findMin, findMax, elems, size ) where
+  , findMin, findMax, elems, size
+  , mapDomain
+  , (./.) ) where
 
 import qualified Data.IntSet as IntSet
 import Data.IntSet (IntSet)
 import Prelude hiding (null)
+
+import Debug.Trace
+
+infixl 7 ./.
 
 data Domain
   = Range !Int !Int
@@ -56,6 +62,20 @@ instance Integral a => ToDomain a where
 instance Eq Domain where
   (Range l1 u1) == (Range l2 u2) = l1 == l2 && u1 == u2
   xs            == ys            = elems xs == elems ys
+
+instance Ord Domain where
+  (Range l1 u1) <= (Range l2 u2) = l1 <= l2 && u1 <= u2
+  (Set xs)      <= (Set ys)      = xs <= ys
+  (Set xs)      <= (Range l u)   = xs <= IntSet.fromList [l..u]
+  (Range l u)   <= (Set ys)      = IntSet.fromList [l..u] <= ys
+
+instance Num Domain where
+  (+)         = chooseDomOp domainPlusC domainPlusI
+  (-)         = chooseDomOp domainMinusC domainMinusI
+  (*)         = chooseDomOp domainMultC domainMultI
+  abs         = domainAbs
+  signum      = domainSignum
+  fromInteger = toDomain
 
 size :: Domain -> Int
 size (Range l u) = u - l + 1
@@ -136,3 +156,78 @@ findMin :: Domain -> Int
 findMin (Set xs)      = IntSet.findMin xs
 findMin (Range xl xh) = xl
 
+mapDomain :: Domain -> (Int -> [Int]) -> Domain
+mapDomain d f = Set $ IntSet.fromList $ concatMap f $ elems d
+
+-- type for interval operations on FD domains
+type IntervalOp = Domain -> Domain -> Domain
+ 
+chooseDomOp :: IntervalOp -> IntervalOp -> Domain -> Domain -> Domain
+chooseDomOp crossOp intervalOp domA domB
+  | size domA * size domB <= 1000 = crossOp domA domB
+  | otherwise                     = intervalOp domA domB
+
+-- arithmetic operations on FD domains
+
+-- interval arithmetic
+domainPlusI :: IntervalOp
+domainPlusI xs ys = toDomain (a,b)
+ where
+  a = findMin xs + findMin ys
+  b = findMax xs + findMax ys
+
+domainMinusI :: IntervalOp
+domainMinusI xs ys = toDomain (a,b)
+ where
+  a = findMin xs - findMax ys
+  b = findMax xs - findMin ys
+
+domainMultI :: IntervalOp
+domainMultI xs ys = toDomain (a,b)
+ where
+  a        = minimum products
+  b        = maximum products
+  products = [x * y | x <- [findMin xs, findMax xs], y <- [findMin ys, findMax ys]]
+
+domainDivI :: Domain -> Domain -> Domain
+domainDivI xs ys = toDomain (a,b)
+ where
+  a        = minimum (quotients minBound)
+  b        = maximum (quotients maxBound)
+  quotients z = [if y /= 0 then x `div` y else z |
+                  x <- [findMin xs, findMax xs]
+                , y <- [findMin ys, findMax ys]]
+
+-- compute exact set for resulting FD domain
+domainPlusC :: Domain -> Domain -> Domain
+domainPlusC domA domB = Set $ IntSet.fromList $ crossOp (+) (elems domA) (elems domB)
+
+domainMinusC :: Domain -> Domain -> Domain
+domainMinusC domA domB = Set $ IntSet.fromList $ crossOp (-) (elems domA) (elems domB)
+
+domainMultC :: Domain -> Domain -> Domain
+domainMultC domA domB = Set $ IntSet.fromList $ crossOp (*) (elems domA) (elems domB)
+
+domainDivC :: Domain -> Domain -> Domain
+domainDivC domA domB = Set $ IntSet.fromList $ crossOp div (elems domA) (filter (/=0) (elems domB))
+
+(./.) :: Domain -> Domain -> Domain
+(./.) = chooseDomOp domainDivI domainDivI
+
+-- abs on domains
+domainAbs :: Domain -> Domain
+domainAbs d@(Range l u)  | l >= 0     = d
+                         | u <  0     = Range (abs u) (abs l)
+                         | otherwise  = Range 0 (max (abs l) u)
+domainAbs d@(Set s)      | findMin d >= 0  = d
+                         | otherwise       = Set $ IntSet.map abs s
+
+-- signum on domains
+domainSignum (Range l u) = Range (signum l) (signum u)
+domainSignum set         = Range (signum l) (signum u)
+ where
+  l = findMin set
+  u = findMax set
+
+crossOp :: (a -> b -> c) -> [a] -> [b] -> [c]
+crossOp op xs ys = [op x y | x <- xs, y <- ys]
