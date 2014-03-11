@@ -19,15 +19,22 @@ import Data.List (delete)
 import Control.Concurrent (forkIO, myThreadId, ThreadId, killThread)
 import Control.Concurrent.MVar
 import Control.Concurrent.Chan
+import Control.Concurrent.Bag.TaskBuffer
+  ( TaskBufferSTM
+  , SplitFunction )
+import Control.Concurrent.Bag.Task
+  ( TaskIO
+  , addTaskIO
+  , Interruptible (..) )
+import qualified Control.Concurrent.Bag.Implicit as Implicit
+  ( newTaskBag
+  , newInterruptibleBag )
 import Control.Concurrent.Bag.Safe
-  ( addTask
-  , newTaskBag
+  ( newTaskBag
+  , newInterruptibleBag
   , BagT
   , getAllResults
-  , getResult
-  , TaskBufferSTM
-  , Task
-  , SplitFunction )
+  , getResult )
 import Control.Concurrent.STM (TChan)
 import Control.Concurrent.STM.TStack (TStack)
 import Control.Monad.IO.Class
@@ -49,22 +56,19 @@ dfsBag split = (newTaskBag split) . (:[]) . dfsTask
 fdfsBag :: MonadIO m => Maybe (SplitFunction TChan r) -> SearchTree r -> BagT TChan r m a -> m a
 fdfsBag split = (newTaskBag split) . (:[]) . dfsTask
 
-dfsTask :: TaskBufferSTM b => SearchTree a -> Task b a (Maybe a)
+dfsTask :: SearchTree a -> TaskIO a (Maybe a)
 dfsTask None         = return   Nothing
 dfsTask (One v)      = return $ Just v
 dfsTask (Choice l r) = do
-  addTask $ dfsTask r
+  addTaskIO $ dfsTask r
   dfsTask l
 
 bfsBag :: MonadIO m => Maybe (SplitFunction TChan r) -> SearchTree r -> BagT TChan r m a -> m a
-bfsBag split = (newTaskBag split) . (:[]) . bfs
- where
-  bfs None         = return   Nothing
-  bfs (One v)      = return $ Just v
-  bfs (Choice l r) = do
-    addTask $ bfs l
-    addTask $ bfs r
-    return Nothing
+bfsBag split = (newInterruptibleBag split) . (:[]) . bfsTask
+
+bfsTask None         = NoResult
+bfsTask (One v)      = OneResult v
+bfsTask (Choice l r) = AddInterruptibles [bfsTask l, bfsTask r]
 
 -- | Parallel Breadth-first search
 bfsParallel :: SearchTree a -> [a]
