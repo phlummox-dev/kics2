@@ -7,8 +7,8 @@ module Strategies
   , idsSearch, idsDefaultDepth, idsDefaultIncr
   , splitAll, splitLimitDepth, splitAlternating, splitPower
   , bfsParallel, bfsParallel'
-  , dfsBag, fdfsBag, bfsBag, getAllResults, getResult
-  , dfsBagLazy, fdfsBagLazy, bfsBagLazy
+  , dfsBag, fdfsBag, bfsBag, fairBag, getAllResults, getResult
+  , dfsBagLazy, fdfsBagLazy, bfsBagLazy, fairBagLazy
   ) where
 
 import System.IO (hPutStr, stderr)
@@ -29,9 +29,11 @@ import Control.Concurrent.Bag.Task
   , Interruptible (..) )
 import qualified Control.Concurrent.Bag.Implicit as Implicit
   ( newTaskBag
-  , newInterruptibleBag )
+  , newInterruptibleBag
+  , newInterruptingBag )
 import Control.Concurrent.Bag.Safe
   ( newTaskBag
+  , newInterruptingBag
   , newInterruptibleBag
   , BagT
   , getAllResults
@@ -79,6 +81,12 @@ bfsBag split = (newInterruptibleBag split) . (:[]) . bfsTask
 bfsTask None         = NoResult
 bfsTask (One v)      = OneResult v
 bfsTask (Choice l r) = AddInterruptibles [bfsTask l, bfsTask r]
+
+fairBagLazy :: Maybe (SplitFunction TChan r) -> SearchTree r -> IO [r]
+fairBagLazy split = (Implicit.newInterruptingBag split) . (:[]) . bfsTask
+
+fairBag :: MonadIO m => Maybe (SplitFunction TChan r) -> SearchTree r -> BagT TChan r m a -> m a
+fairBag split = (newInterruptingBag split) . (:[]) . bfsTask
 
 -- | Parallel Breadth-first search
 bfsParallel :: SearchTree a -> [a]
