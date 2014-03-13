@@ -7,6 +7,7 @@ module Strategies
   , idsSearch, idsDefaultDepth, idsDefaultIncr
   , splitAll, splitLimitDepth, splitAlternating, splitPower
   , bfsParallel, bfsParallel'
+  , fairSearch', fairSearch''
   , dfsBag, fdfsBag, bfsBag, fairBag, getAllResults, getResult
   , dfsBagLazy, fdfsBagLazy, bfsBagLazy, fairBagLazy
   ) where
@@ -17,7 +18,10 @@ import Control.Parallel.TreeSearch (parSearch)
 import Control.Parallel.Strategies
 import Data.IORef (newIORef, mkWeakIORef, IORef, writeIORef)
 import Data.List (delete)
-import Control.Concurrent (forkIO, myThreadId, ThreadId, killThread)
+import Data.Typeable (Typeable)
+import Control.Monad (liftM, void)
+import Control.Exception (Exception, uninterruptibleMask_, throwTo, catch, catches, try, evaluate, Handler (..))
+import Control.Concurrent (forkIO, myThreadId, ThreadId, killThread, forkIOWithUnmask)
 import Control.Concurrent.MVar
 import Control.Concurrent.Chan
 import Control.Concurrent.Bag.TaskBuffer
@@ -249,6 +253,115 @@ conSearch i tree = do
       Choice x y -> do
         startSearchThread threadVar resultChan y
         searchThread      threadVar resultChan x
+
+data Stop = Stop
+  deriving (Typeable, Show)
+
+instance Exception Stop
+
+fairSearch' :: SearchTree a -> MList IO a
+fairSearch' tree = do
+  chan  <- newChan
+  root  <- uninterruptibleMask_ $ forkIOWithUnmask (\restore -> searchThread restore chan tree)
+  dummy <- newIORef ()
+  _     <- mkWeakIORef dummy $ void $ forkIO $ throwTo root Stop
+  handleResults chan dummy
+ where
+  handleResults chan dummy = do
+    ans <- readChan chan
+    case ans of
+      ThreadStopped _ -> do
+        writeIORef dummy ()
+        mnil
+      Value v         -> mcons v $ handleResults chan dummy
+
+  fin parent = do
+    tid <- myThreadId
+    writeChan parent $ ThreadStopped tid
+
+  searchThread :: (forall a. IO a -> IO a) -> Chan (ThreadResult b) -> SearchTree b -> IO ()
+  searchThread restore parent tree = do
+    tree' <- restore (evaluate tree) `catch` (\Stop -> return None)
+    case tree' of
+      None  ->
+        fin parent
+      One v -> do
+        writeChan parent $ Value v
+        fin parent
+      Choice l r -> do
+        chan <- newChan
+        t1   <- forkIO $ searchThread restore chan l
+        t2   <- forkIO $ searchThread restore chan r
+        listenChan restore [t1,t2] chan parent
+   where
+    listenChan _       []  _    parent = do
+      fin parent
+    listenChan restore ts chan parent = do
+      ans <- restore (liftM Just $ readChan chan) `catch` (\Stop -> do
+        mapM_ (\t -> throwTo t Stop) ts
+        return Nothing)
+      case ans of
+        Just (ThreadStopped t) -> listenChan restore (delete t ts) chan parent
+        Just value             -> do
+          writeChan parent value
+          listenChan restore ts chan parent
+        Nothing                -> return ()
+
+data ThreadResult' a = Value' a
+                     | AllStopped
+
+data StoppedSearch = StoppedSearch ThreadId
+  deriving (Typeable, Show)
+
+instance Exception StoppedSearch
+
+fairSearch'' :: SearchTree a -> MList IO a
+fairSearch'' tree = do
+  chan <- newChan
+  root <- uninterruptibleMask_ $ forkIOWithUnmask $ \restore -> searchThread restore (writeChan chan AllStopped) chan [] tree
+  dummy <- newIORef ()
+  _     <- mkWeakIORef dummy $ throwTo root Stop
+  handleResults chan dummy
+ where
+  handleResults chan dummy = do
+    ans <- readChan chan
+    case ans of
+      AllStopped ->
+        writeIORef dummy () >> mnil
+      Value' v   ->
+        mcons v $ handleResults chan dummy
+
+  fin :: (forall a. IO a -> IO a) -> IO () -> [ThreadId] -> IO ()
+  fin restore end []      =
+    end
+  fin restore end threads = do
+    m <- newEmptyMVar
+    restore (void $ takeMVar m) `catches`
+      [Handler (\Stop        -> stopChildren end threads),
+       Handler (\(StoppedSearch tid) -> fin restore end (tid `delete` threads))]
+
+  stopChildren :: IO () -> [ThreadId] -> IO ()
+  stopChildren end threads = mapM_ (\t -> throwTo t Stop) threads >> end
+
+  searchThread :: (forall a. IO a -> IO a) -> IO () -> Chan (ThreadResult' b) -> [ThreadId] -> SearchTree b -> IO ()
+  searchThread restore end chan threads tree = do
+    r <- try (try (restore $ evaluate tree))
+    case r of
+      Left Stop                  -> stopChildren end threads
+      Right (Left (StoppedSearch tid)) -> searchThread restore end chan (tid `delete` threads) tree
+      Right (Right t)            ->
+        case t of
+          None  -> fin restore end threads
+          One v -> do
+            -- v is already normal form
+            tr <- try (restore $ writeChan chan $ Value' v)
+            case tr of
+              Left  Stop -> stopChildren end threads
+              Right ()   -> fin restore end threads
+          Choice l r -> do
+            tid <- myThreadId
+            child <- forkIO $ searchThread restore (myThreadId >>= (throwTo tid) . StoppedSearch) chan [] r
+            searchThread restore end chan (child:threads) l
 
 -- |Breadth-first search
 bfsSearch :: SearchTree a -> [a]
