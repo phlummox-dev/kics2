@@ -22,6 +22,8 @@ queens n | allSafe qs = qs where qs = permute [1..n]
 
 main = queens 8
 
+main2 = queens 7
+
 test = do
   vals <- getAllValues (conSearch 20) $ queens 8
   putStrLn $ "RESULT: " ++ (show $ length vals)

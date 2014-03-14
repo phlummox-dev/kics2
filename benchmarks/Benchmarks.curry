@@ -389,7 +389,8 @@ data Strategy
   | IODFS    | IOBFS    | IOIDS Int String    | IOIDS2 Int String -- top-level
   | MPLUSDFS | MPLUSBFS | MPLUSIDS Int String | MPLUSPar          -- MonadPlus
   | EncDFS   | EncBFS   | EncIDS                                  -- encapsulated
-  | EncPar   | EncFair  | EncCon Int                              -- parallel encapsulated
+  | EncPar   | EncCon Int                                         -- parallel encapsulated
+  | EncFair  | EncFair' | EncFair'' | EncFairBag SplitStrategy    -- fair strategies
   | EncSAll  | EncSLimit Int | EncSAlt Int | EncSPow              -- parallel with Eval
   | EncBFSEval                                                    -- parallel breadth-first-search
   | EncDFSBag  SplitStrategy
@@ -442,6 +443,9 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
   searchExpr EncIDS           = wrapEnc "idsStrategy"
   searchExpr EncPar           = wrapParEnc "parSearch"
   searchExpr EncFair          = wrapParEnc "fairSearch"
+  searchExpr EncFair'         = wrapParEnc "fairSearch'"
+  searchExpr EncFair''        = wrapParEnc "fairSearch''"
+  searchExpr (EncFairBag sp)  = wrapParEnc $ "fairBag " ++ splitExpr sp
   searchExpr (EncCon i)       = wrapParEnc $ "conSearch (toCurry (" ++ show i ++ ":: Int))"
   searchExpr EncSAll          = wrapParEnc "splitAll"
   searchExpr (EncSLimit i)    = wrapParEnc $ "splitLimitDepth (toCurry (" ++ show i ++ ":: Int))"
@@ -875,9 +879,9 @@ benchParallelBFS goal =
   ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncBFSBag s) One goal) allSplitStrategies
   ++ (benchThreads True True Nothing S_IORef EncFair One goal)
 
-benchStackSize :: Output -> Goal -> [Benchmark]
-benchStackSize output goal = concat
-  [ kics2 True True (Just {stackInitial := init, stackChunk := chun, stackBuffer := buff}) 12 S_IORef EncFair output goal | init <- ["1024", "1280", "1536", "1792", "2048", "3072", "4096"], chun <- ["32k"], buff <- ["1k"] ]
+benchStackSize :: Strategy -> Output -> Goal -> [Benchmark]
+benchStackSize strat output goal = concat
+  [ kics2 True True (Just {stackInitial := init, stackChunk := chun, stackBuffer := buff}) 12 S_IORef strat output goal | init <- ["1024", "1280", "1536", "1792", "2048", "3072", "4096"], chun <- ["32k"], buff <- ["1k"] ]
 
 threadNumbers :: [Int]
 threadNumbers = [1,2,4,8,12,16,20,23,24]
@@ -996,15 +1000,39 @@ parallelBenchmarks =
 
 fairStackSize :: [[Benchmark]]
 fairStackSize =
-  [ benchStackSize One $ Goal True "SearchQueens" "main"
-  , benchStackSize All $ Goal True "SearchQueens" "main"
-  , benchStackSize One $ Goal True "PermSort" "main"
-  , benchStackSize All $ Goal True "PermSort" "main"
-  , benchStackSize One $ Goal True "Half"     "main"
-  , benchStackSize All $ Goal True "Half"     "main"
-  , benchStackSize One $ Goal True "Last"     "main"
-  , benchStackSize All $ Goal True "Last"     "main"
-  , benchStackSize One $ Goal True "NDNums" "main3" ]
+  [ benchStackSize EncFair One $ Goal True "SearchQueens" "main2"
+  , benchStackSize EncFair All $ Goal True "SearchQueens" "main2"
+  , benchStackSize EncFair One $ Goal True "PermSort" "main2"
+  , benchStackSize EncFair All $ Goal True "PermSort" "main2"
+  , benchStackSize EncFair One $ Goal True "Half"     "main"
+  , benchStackSize EncFair All $ Goal True "Half"     "main"
+  , benchStackSize EncFair One $ Goal True "Last"     "main"
+  , benchStackSize EncFair All $ Goal True "Last"     "main"
+  , benchStackSize EncFair One $ Goal True "NDNums" "main3" ]
+
+fair'StackSize :: [[Benchmark]]
+fair'StackSize =
+  [ benchStackSize EncFair' One $ Goal True "SearchQueens" "main2"
+  , benchStackSize EncFair' All $ Goal True "SearchQueens" "main2"
+  , benchStackSize EncFair' One $ Goal True "PermSort" "main2"
+  , benchStackSize EncFair' All $ Goal True "PermSort" "main2"
+  , benchStackSize EncFair' One $ Goal True "Half"     "main"
+  , benchStackSize EncFair' All $ Goal True "Half"     "main"
+  , benchStackSize EncFair' One $ Goal True "Last"     "main"
+  , benchStackSize EncFair' All $ Goal True "Last"     "main"
+  , benchStackSize EncFair' One $ Goal True "NDNums" "main3" ]
+
+fair''StackSize :: [[Benchmark]]
+fair''StackSize =
+  [ benchStackSize EncFair'' One $ Goal True "SearchQueens" "main2"
+  , benchStackSize EncFair'' All $ Goal True "SearchQueens" "main2"
+  , benchStackSize EncFair'' One $ Goal True "PermSort" "main2"
+  , benchStackSize EncFair'' All $ Goal True "PermSort" "main2"
+  , benchStackSize EncFair'' One $ Goal True "Half"     "main"
+  , benchStackSize EncFair'' All $ Goal True "Half"     "main"
+  , benchStackSize EncFair'' One $ Goal True "Last"     "main"
+  , benchStackSize EncFair'' All $ Goal True "Last"     "main"
+  , benchStackSize EncFair'' One $ Goal True "NDNums" "main3" ]
 
 unif =
      [
@@ -1062,6 +1090,8 @@ main = run 3 allBenchmarks
 --main = run 10 parallelBenchmarks
 --main = run 5 ghcUniqSupplySome
 --main = run 4 fairStackSize
+--main = run 4 fair'StackSize
+--main = run 4 fair''StackSize
 --main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueens" "main") (map (*10) [1..100])
 --main = run 1 [benchFLPCompleteSearch "NDNums"]
 --main = run 1 (benchFPWithMain "ShareNonDet" "goal1" : [])
