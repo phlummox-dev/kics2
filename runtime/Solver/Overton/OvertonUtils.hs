@@ -9,7 +9,7 @@ import Solver.States (fdState)
 import Solver.Interface
 import Solver.Overton.OvertonFD ( OvertonFD, FDVar, FDState (..), newVar, lookupDomain
                                 , same, different, (.<.), (.<=.), allDifferent, addAbs
-                                , addSum, addSub, addMult, sumList, labelling, runFD, updateSolver )
+                                , addSum, addSub, addMult, addDiv, sumList, labelling, runFD, updateSolver )
 import Solver.Overton.OvertonDomain (ToDomain, findMin, findMax)
 import Types
 
@@ -39,7 +39,7 @@ setFDState state = do ss <- getSolverStates
                       setSolverStates ss { fdState = state }
 
 processFDConstr :: (Store m, NonDet a) => Overton -> Cover -> FDConstraint -> a -> Solution m a
-processFDConstr solver cd (FDLabeling vs i) val = do
+processFDConstr solver cd c@(FDLabeling vs i) val = do
   state <- getState solver
   let labelAction = mapM translateTerm vs >>= labelling
   case runFD labelAction state of
@@ -71,6 +71,11 @@ lookupOrCreateFDVar dom (Var i)   = do
 
 translateTerm :: Term Int -> OvertonFD FDVar
 translateTerm = lookupOrCreateFDVar ()
+
+-- get integer value for given term
+getVal :: Term Int -> OvertonFD Int
+getVal (Const c) = return c
+getVal (Var _)   = error "OvertonUtils.getVal: Expected integer constant but got FDVar"
  
 -- get lower boundary for given term
 getLB :: Term Int -> OvertonFD Int
@@ -111,6 +116,7 @@ addConstr (FDArith op x y r) = do
   matchArithOp Plus  = addSum
   matchArithOp Minus = addSub
   matchArithOp Mult  = addMult
+  matchArithOp Div   = addDiv
 
 addConstr (FDAbs x r) = do
   x' <- translateTerm x
@@ -128,10 +134,14 @@ addConstr (FDAllDifferent vs) = do
   vs' <- mapM translateTerm vs
   allDifferent vs'
 
-addConstr (FDDomain vs l u) = do
+addConstr (FDDomRange vs l u) = do
   lb <- getLB l
   ub <- getUB u
   mapM_ (lookupOrCreateFDVar (lb,ub)) vs
+
+addConstr (FDDomSet vs dom) = do
+  dom' <- mapM getVal dom
+  mapM_ (lookupOrCreateFDVar dom') vs
 
 bindSolution :: (Unifiable a, NonDet b) => Cover -> [Term Int] -> [a] -> ID -> b -> b
 bindSolution cd vs solution i val = mkGuardExt cd (ValConstr i solution (concat (zipWith (bindValue cd) vs solution))) val

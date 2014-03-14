@@ -35,6 +35,7 @@ module Solver.Overton.OvertonFD (
     addSum,
     addSub,
     addMult,
+    addDiv,
     addAbs,
     sumList,
     updateSolver,
@@ -44,8 +45,6 @@ module Solver.Overton.OvertonFD (
     (.<=.),
     osuccess
     ) where
-
-import Debug.Trace
 
 import Prelude hiding (null)
 import Control.Monad.State.Lazy
@@ -195,7 +194,7 @@ allDifferent _ = return ()
   guard $ not $ null yv'
   when (xv /= xv') $ update x xv' 
   when (yv /= yv') $ update y yv'
-{-
+
 -- Label variables using a depth-first left-to-right search.
 labelling :: [FDVar] -> OvertonFD [Int]
 labelling = mapM label where
@@ -204,14 +203,14 @@ labelling = mapM label where
     val <- FD . lift $ elems vals
     var `hasValue` val
     return val
--}
 
+{-
 -- Label variables using a depth-first left-to-right search.
 labelling :: [FDVar] -> OvertonFD [Int]
 labelling vars = do
   labelingWith vars inOrder
   assignments vars
-
+-}
 -- Label variables using the given strategy.
 labelingWith :: [FDVar] -> ([FDVar] -> OvertonFD [FDVar]) -> OvertonFD ()
 labelingWith [] _ = return ()
@@ -299,7 +298,10 @@ addSum = addArithmeticConstraint (-) (-) (+)
 
 addSub = addArithmeticConstraint (+) (flip (-)) (-)
 
-addMult = addArithmeticConstraint (./.) (./.) (*)
+-- TODO: Verify that (.*/.) hack works
+addMult = addArithmeticConstraint (.*/.) (.*/.) (*)
+
+addDiv = addArithmeticConstraint (*) (flip (./.)) (./.)
 
 addAbs = addUnaryArithmeticConstraint abs (\z -> mapDomain z (\i -> [i,-i]))
 

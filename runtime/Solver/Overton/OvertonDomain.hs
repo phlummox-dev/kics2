@@ -23,15 +23,13 @@ module Solver.Overton.OvertonDomain
   , intersection, difference, filterLessThan, filterGreaterThan
   , findMin, findMax, elems, size
   , mapDomain
-  , (./.) ) where
+  , (./.), (.*/.) ) where
 
 import qualified Data.IntSet as IntSet
 import Data.IntSet (IntSet)
 import Prelude hiding (null)
 
-import Debug.Trace
-
-infixl 7 ./.
+infixl 7 ./., .*/.
 
 data Domain
   = Range !Int !Int
@@ -189,12 +187,15 @@ domainMultI xs ys = toDomain (a,b)
   b        = maximum products
   products = [x * y | x <- [findMin xs, findMax xs], y <- [findMin ys, findMax ys]]
 
+-- TODO: Solution for domains ranging over negative and positive integer number
+--       and ranges containing zero
 domainDivI :: Domain -> Domain -> Domain
 domainDivI xs ys = toDomain (a,b)
  where
   a        = minimum (quotients minBound)
   b        = maximum (quotients maxBound)
   quotients z = [if y /= 0 then x `div` y else z |
+                --[if 0 `member` ys then z else x `div` y |
                   x <- [findMin xs, findMax xs]
                 , y <- [findMin ys, findMax ys]]
 
@@ -212,7 +213,10 @@ domainDivC :: Domain -> Domain -> Domain
 domainDivC domA domB = Set $ IntSet.fromList $ crossOp div (elems domA) (filter (/=0) (elems domB))
 
 (./.) :: Domain -> Domain -> Domain
-(./.) = chooseDomOp domainDivI domainDivI
+(./.) = chooseDomOp domainDivC domainDivI
+
+(.*/.) :: Domain -> Domain -> Domain
+domA .*/. domB = union (singleton 0) $ domA ./. domB
 
 -- abs on domains
 domainAbs :: Domain -> Domain
@@ -229,5 +233,7 @@ domainSignum set         = Range (signum l) (signum u)
   l = findMin set
   u = findMax set
 
+-- combine all elements of the first list with all elements of the second list
+-- using the given operation
 crossOp :: (a -> b -> c) -> [a] -> [b] -> [c]
 crossOp op xs ys = [op x y | x <- xs, y <- ys]

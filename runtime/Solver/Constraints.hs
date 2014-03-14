@@ -39,14 +39,16 @@ data FDConstraint
   | FDAbs (Term Int) (Term Int)
   | FDSum [Term Int] (Term Int)
   | FDAllDifferent [Term Int]
-  | FDDomain [Term Int] (Term Int) (Term Int)
+  | FDDomRange [Term Int] (Term Int) (Term Int)
+  | FDDomSet [Term Int] [Term Int]
   | FDLabeling [Term Int] ID
  deriving (Eq,Show,Typeable)
 
 data ArithOp 
   = Plus 
   | Minus 
-  | Mult 
+  | Mult
+  | Div
  deriving (Eq,Show)
 
 data RelOp 
@@ -78,11 +80,15 @@ updateFDConstr update (FDSum vs r) = do
 updateFDConstr update (FDAllDifferent vs) = do
   vs' <- mapM update vs
   return $ FDAllDifferent vs'
-updateFDConstr update (FDDomain vs l u) = do
+updateFDConstr update (FDDomRange vs l u) = do
   vs' <- mapM update vs
   l'  <- update l
   u'  <- update u
-  return $ FDDomain vs' l' u'
+  return $ FDDomRange vs' l' u'
+updateFDConstr update (FDDomSet vs dom) = do
+  vs'  <- mapM update vs
+  dom' <- mapM update dom
+  return $ FDDomSet vs' dom'
 updateFDConstr update (FDLabeling vs j) = do
   vs' <- mapM update vs
   return $ FDLabeling vs' j
