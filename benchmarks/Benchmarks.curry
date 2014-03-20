@@ -879,6 +879,10 @@ benchParallelBFS goal =
   ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncBFSBag s) One goal) allSplitStrategies
   ++ (benchThreads True True Nothing S_IORef EncFair One goal)
 
+benchFair :: Output -> Goal -> [Benchmark]
+benchFair output goal = concat
+  [ kics2 True True (Just {stackInitial := "1536", stackChunk := "32k", stackBuffer := "1k"}) 12 S_IORef strat output goal | strat <- [EncFair, EncFair', EncFair''] ]
+
 benchStackSize :: Strategy -> Output -> Goal -> [Benchmark]
 benchStackSize strat output goal = concat
   [ kics2 True True (Just {stackInitial := init, stackChunk := chun, stackBuffer := buff}) 12 S_IORef strat output goal | init <- ["1024", "1280", "1536", "1792", "2048", "3072", "4096"], chun <- ["32k"], buff <- ["1k"] ]
@@ -998,6 +1002,25 @@ parallelBenchmarks =
   , benchParallel All $ Goal True "Last"     "main"
   , benchParallelBFS $ Goal True "NDNums" "main3" ]
 
+fairOneBenchmarks :: [[Benchmark]]
+fairOneBenchmarks =
+  [ benchFair One $ Goal True "SearchQueens" "main"
+  , benchFair One $ Goal True "EditSeq" "main3"
+  , benchFair One $ Goal True "PermSort" "main"
+  , benchFair One $ Goal True "Half"     "main"
+  , benchFair One $ Goal True "Last"     "main"
+  , benchFair One $ Goal True "NDNums" "main3"
+  ]
+
+fairAllBenchmarks :: [[Benchmark]]
+fairAllBenchmarks =
+  [ benchFair All $ Goal True "SearchQueens" "main"
+  , benchFair All $ Goal True "EditSeq" "main3"
+  , benchFair All $ Goal True "PermSort" "main"
+  , benchFair All $ Goal True "Half"     "main"
+  , benchFair All $ Goal True "Last"     "main"
+  ]
+
 fairStackSize :: [[Benchmark]]
 fairStackSize =
   [ benchStackSize EncFair One $ Goal True "SearchQueens" "main2"
@@ -1089,6 +1112,8 @@ main = run 3 allBenchmarks
 --main = run 5 ghcUniqSupplyBenchmarks
 --main = run 10 parallelBenchmarks
 --main = run 5 ghcUniqSupplySome
+--main = run 11 fairOneBenchmarks
+--main = run 4 fairAllBenchmarks
 --main = run 4 fairStackSize
 --main = run 4 fair'StackSize
 --main = run 4 fair''StackSize
