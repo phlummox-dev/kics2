@@ -392,7 +392,7 @@ data Strategy
   | EncPar   | EncCon Int                                         -- parallel encapsulated
   | EncFair  | EncFair' | EncFair'' | EncFairBag SplitStrategy    -- fair strategies
   | EncSAll  | EncSLimit Int | EncSAlt Int | EncSPow              -- parallel with Eval
-  | EncBFSEval                                                    -- parallel breadth-first-search
+  | EncBFSEval | EncBFSEval'                                      -- parallel breadth-first-search
   | EncDFSBag  SplitStrategy
   | EncFDFSBag SplitStrategy
   | EncBFSBag  SplitStrategy
@@ -452,6 +452,7 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
   searchExpr (EncSAlt   i)    = wrapParEnc $ "splitAlternating (toCurry (" ++ show i ++ ":: Int))"
   searchExpr EncSPow          = wrapParEnc $ "splitPower"
   searchExpr EncBFSEval       = wrapParEnc $ "bfsParallel"
+  searchExpr EncBFSEval'      = wrapParEnc $ "bfsParallel'"
   searchExpr (EncDFSBag  sp)  = wrapParEnc $ "dfsBag "  ++ splitExpr sp
   searchExpr (EncFDFSBag sp)  = wrapParEnc $ "fdfsBag " ++ splitExpr sp
   searchExpr (EncBFSBag  sp)  = wrapParEnc $ "bfsBag "  ++ splitExpr sp
@@ -883,6 +884,10 @@ benchFair :: Output -> Goal -> [Benchmark]
 benchFair output goal = concat
   [ kics2 True True (Just {stackInitial := "1536", stackChunk := "32k", stackBuffer := "1k"}) 12 S_IORef strat output goal | strat <- [EncFair, EncFair', EncFair''] ]
 
+benchEncBFSEval :: Output -> Goal -> [Benchmark]
+benchEncBFSEval output goal = concat
+  [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncBFSEval, EncBFSEval'] ]
+
 benchStackSize :: Strategy -> Output -> Goal -> [Benchmark]
 benchStackSize strat output goal = concat
   [ kics2 True True (Just {stackInitial := init, stackChunk := chun, stackBuffer := buff}) 12 S_IORef strat output goal | init <- ["1024", "1280", "1536", "1792", "2048", "3072", "4096"], chun <- ["32k"], buff <- ["1k"] ]
@@ -1002,6 +1007,20 @@ parallelBenchmarks =
   , benchParallel All $ Goal True "Last"     "main"
   , benchParallelBFS $ Goal True "NDNums" "main3" ]
 
+encBFSEvalBenchmarks :: [[Benchmark]]
+encBFSEvalBenchmarks =
+  [ benchEncBFSEval One $ Goal True "SearchQueens" "main"
+  , benchEncBFSEval All $ Goal True "SearchQueens" "main"
+  , benchEncBFSEval One $ Goal True "EditSeq" "main3"
+  , benchEncBFSEval All $ Goal True "EditSeq" "main3"
+  , benchEncBFSEval One $ Goal True "PermSort" "main"
+  , benchEncBFSEval All $ Goal True "PermSort" "main"
+  , benchEncBFSEval One $ Goal True "Half"     "main"
+  , benchEncBFSEval All $ Goal True "Half"     "main"
+  , benchEncBFSEval One $ Goal True "Last"     "main"
+  , benchEncBFSEval All $ Goal True "Last"     "main"
+  , benchEncBFSEval One $ Goal True "NDNums" "main3" ]
+
 fairOneBenchmarks :: [[Benchmark]]
 fairOneBenchmarks =
   [ benchFair One $ Goal True "SearchQueens" "main"
@@ -1117,6 +1136,7 @@ main = run 3 allBenchmarks
 --main = run 4 fairStackSize
 --main = run 4 fair'StackSize
 --main = run 4 fair''StackSize
+--main = run 4 encBFSEvalBenchmarks
 --main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueens" "main") (map (*10) [1..100])
 --main = run 1 [benchFLPCompleteSearch "NDNums"]
 --main = run 1 (benchFPWithMain "ShareNonDet" "goal1" : [])
