@@ -890,8 +890,8 @@ benchEncDFSEval output goal = (kics2 True True Nothing 1 S_IORef EncDFS output g
   (concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncPar, EncSAll, EncSAll'] ])
 
 benchEncBFSEval :: Output -> Goal -> [Benchmark]
-benchEncBFSEval output goal = concat
-  [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncBFSEval, EncBFSEval'] ]
+benchEncBFSEval output goal = (kics2 True True Nothing 1 S_IORef EncBFS output goal) ++
+  (concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncBFSEval, EncBFSEval'] ])
 
 benchStackSize :: Strategy -> Output -> Goal -> [Benchmark]
 benchStackSize strat output goal = concat
