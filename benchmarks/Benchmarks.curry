@@ -885,6 +885,10 @@ benchFair :: Output -> Goal -> [Benchmark]
 benchFair output goal = concat
   [ kics2 True True (Just {stackInitial := "1536", stackChunk := "32k", stackBuffer := "1k"}) 12 S_IORef strat output goal | strat <- [EncFair, EncFair', EncFair''] ]
 
+benchEncDFSEval :: Output -> Goal -> [Benchmark]
+benchEncDFSEval output goal = (kics2 True True Nothing 1 S_IORef EncDFS output goal) ++
+  (concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncPar, EncSAll, EncSAll'] ])
+
 benchEncBFSEval :: Output -> Goal -> [Benchmark]
 benchEncBFSEval output goal = concat
   [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncBFSEval, EncBFSEval'] ]
@@ -1007,6 +1011,19 @@ parallelBenchmarks =
   , benchParallel One $ Goal True "Last"     "main"
   , benchParallel All $ Goal True "Last"     "main"
   , benchParallelBFS $ Goal True "NDNums" "main3" ]
+
+encDFSEvalBenchmarks :: [[Benchmark]]
+encDFSEvalBenchmarks =
+  [ benchEncDFSEval One $ Goal True "SearchQueens" "main"
+  , benchEncDFSEval All $ Goal True "SearchQueens" "main"
+  , benchEncDFSEval One $ Goal True "EditSeq" "main3"
+  , benchEncDFSEval All $ Goal True "EditSeq" "main3"
+  , benchEncDFSEval One $ Goal True "PermSort" "main"
+  , benchEncDFSEval All $ Goal True "PermSort" "main"
+  , benchEncDFSEval One $ Goal True "Half"     "main"
+  , benchEncDFSEval All $ Goal True "Half"     "main"
+  , benchEncDFSEval One $ Goal True "Last"     "main"
+  , benchEncDFSEval All $ Goal True "Last"     "main" ]
 
 encBFSEvalBenchmarks :: [[Benchmark]]
 encBFSEvalBenchmarks =
@@ -1138,6 +1155,7 @@ main = run 3 allBenchmarks
 --main = run 4 fair'StackSize
 --main = run 4 fair''StackSize
 --main = run 4 encBFSEvalBenchmarks
+--main = run 4 encDFSEvalBenchmarks
 --main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueens" "main") (map (*10) [1..100])
 --main = run 1 [benchFLPCompleteSearch "NDNums"]
 --main = run 1 (benchFPWithMain "ShareNonDet" "goal1" : [])
