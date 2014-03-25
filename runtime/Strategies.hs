@@ -6,6 +6,7 @@ module Strategies
   ( bfsSearch, dfsSearch, parSearch, fairSearch, conSearch
   , idsSearch, idsDefaultDepth, idsDefaultIncr
   , splitAll, splitLimitDepth, splitAlternating, splitPower
+  , splitAll'
   , bfsParallel, bfsParallel'
   , fairSearch', fairSearch''
   , dfsBag, fdfsBag, bfsBag, fairBag, getAllResults, getResult
@@ -104,13 +105,17 @@ bfsParallel t = bfs [t]
 
 bfsParallel' :: SearchTree a -> [a]
 bfsParallel' t =
-  bfsSearch (t `using` bfsTree)
- where
-  bfsTree (Choice l r) = do
-    l' <- (rpar `dot` bfsTree) l
-    r' <- (rpar `dot` bfsTree) r
-    return (Choice l' r')
-  bfsTree t = r0 t
+  bfsSearch (t `using` parTree)
+
+parTree :: SearchTree a -> Eval (SearchTree a)
+parTree t = do
+  t' <- rseq t
+  case t' of
+    Choice l r -> do
+      l' <- (rpar `dot` parTree) l
+      r' <- (rpar `dot` parTree) r
+      return (Choice l' r')
+    _          -> r0 t
 
 splitAll :: SearchTree a -> [a]
 splitAll None         = []
@@ -119,6 +124,9 @@ splitAll (Choice l r) = runEval $ do
   rs <- rpar $ splitAll r
   ls <- rseq $ splitAll l
   return $ ls ++ rs
+
+splitAll' :: SearchTree a -> [a]
+splitAll' t = dfsSearch (t `using` parTree)
 
 splitLimitDepth :: Int -> SearchTree a -> [a]
 splitLimitDepth _ None           = []

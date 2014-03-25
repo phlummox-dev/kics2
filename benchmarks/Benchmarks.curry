@@ -391,7 +391,7 @@ data Strategy
   | EncDFS   | EncBFS   | EncIDS                                  -- encapsulated
   | EncPar   | EncCon Int                                         -- parallel encapsulated
   | EncFair  | EncFair' | EncFair'' | EncFairBag SplitStrategy    -- fair strategies
-  | EncSAll  | EncSLimit Int | EncSAlt Int | EncSPow              -- parallel with Eval
+  | EncSAll  | EncSAll' | EncSLimit Int | EncSAlt Int | EncSPow   -- parallel with Eval
   | EncBFSEval | EncBFSEval'                                      -- parallel breadth-first-search
   | EncDFSBag  SplitStrategy
   | EncFDFSBag SplitStrategy
@@ -448,6 +448,7 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
   searchExpr (EncFairBag sp)  = wrapParEnc $ "fairBag " ++ splitExpr sp
   searchExpr (EncCon i)       = wrapParEnc $ "conSearch (toCurry (" ++ show i ++ ":: Int))"
   searchExpr EncSAll          = wrapParEnc "splitAll"
+  searchExpr EncSAll'         = wrapParEnc "splitAll'"
   searchExpr (EncSLimit i)    = wrapParEnc $ "splitLimitDepth (toCurry (" ++ show i ++ ":: Int))"
   searchExpr (EncSAlt   i)    = wrapParEnc $ "splitAlternating (toCurry (" ++ show i ++ ":: Int))"
   searchExpr EncSPow          = wrapParEnc $ "splitPower"
