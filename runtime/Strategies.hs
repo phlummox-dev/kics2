@@ -27,7 +27,8 @@ import Control.Concurrent.MVar
 import Control.Concurrent.Chan
 import Control.Concurrent.Bag.TaskBuffer
   ( TaskBufferSTM
-  , SplitFunction )
+  , SplitFunction
+  , BufferType (..) )
 import Control.Concurrent.Bag.Task
   ( TaskIO
   , addTaskIO
@@ -55,20 +56,20 @@ instance MonadSearch SearchTree where
   constrainMSearch _ _ x = x
   var              x _   = x
 
-dfsBag :: MonadIO m => Maybe (SplitFunction TStack r) -> SearchTree r -> BagT TStack r m a -> m a
-dfsBag split = (newTaskBag split) . (:[]) . dfsTask
+dfsBag :: MonadIO m => Maybe (SplitFunction r) -> SearchTree r -> BagT r m a -> m a
+dfsBag split = (newTaskBag Stack split) . (:[]) . dfsTask
 
-dfsBagLazy :: Maybe (SplitFunction TStack r) -> SearchTree r -> IO [r]
-dfsBagLazy split = (Implicit.newTaskBag split) . (:[]) . dfsTask
+dfsBagLazy :: Maybe (SplitFunction r) -> SearchTree r -> IO [r]
+dfsBagLazy split = (Implicit.newTaskBag Stack split) . (:[]) . dfsTask
 
 -- | Fake depth-first search
 --   Real depth-first search would use a stack instead of a queue for
 --   the task bag.
-fdfsBag :: MonadIO m => Maybe (SplitFunction TChan r) -> SearchTree r -> BagT TChan r m a -> m a
-fdfsBag split = (newTaskBag split) . (:[]) . dfsTask
+fdfsBag :: MonadIO m => Maybe (SplitFunction r) -> SearchTree r -> BagT r m a -> m a
+fdfsBag split = (newTaskBag Queue split) . (:[]) . dfsTask
 
-fdfsBagLazy :: Maybe (SplitFunction TChan r) -> SearchTree r -> IO [r]
-fdfsBagLazy split = (Implicit.newTaskBag split) . (:[]) . dfsTask
+fdfsBagLazy :: Maybe (SplitFunction r) -> SearchTree r -> IO [r]
+fdfsBagLazy split = (Implicit.newTaskBag Queue split) . (:[]) . dfsTask
 
 dfsTask :: SearchTree a -> TaskIO a (Maybe a)
 dfsTask None         = return   Nothing
@@ -77,21 +78,21 @@ dfsTask (Choice l r) = do
   addTaskIO $ dfsTask r
   dfsTask l
 
-bfsBagLazy :: Maybe (SplitFunction TChan r) -> SearchTree r -> IO [r]
-bfsBagLazy split = (Implicit.newInterruptibleBag split) . (:[]) . bfsTask
+bfsBagLazy :: Maybe (SplitFunction r) -> SearchTree r -> IO [r]
+bfsBagLazy split = (Implicit.newInterruptibleBag Queue split) . (:[]) . bfsTask
 
-bfsBag :: MonadIO m => Maybe (SplitFunction TChan r) -> SearchTree r -> BagT TChan r m a -> m a
-bfsBag split = (newInterruptibleBag split) . (:[]) . bfsTask
+bfsBag :: MonadIO m => Maybe (SplitFunction r) -> SearchTree r -> BagT r m a -> m a
+bfsBag split = (newInterruptibleBag Queue split) . (:[]) . bfsTask
 
 bfsTask None         = NoResult
 bfsTask (One v)      = OneResult v
 bfsTask (Choice l r) = AddInterruptibles [bfsTask l, bfsTask r]
 
-fairBagLazy :: Maybe (SplitFunction TChan r) -> SearchTree r -> IO [r]
-fairBagLazy split = (Implicit.newInterruptingBag split) . (:[]) . bfsTask
+fairBagLazy :: Maybe (SplitFunction r) -> SearchTree r -> IO [r]
+fairBagLazy split = (Implicit.newInterruptingBag Queue split) . (:[]) . bfsTask
 
-fairBag :: MonadIO m => Maybe (SplitFunction TChan r) -> SearchTree r -> BagT TChan r m a -> m a
-fairBag split = (newInterruptingBag split) . (:[]) . bfsTask
+fairBag :: MonadIO m => Maybe (SplitFunction r) -> SearchTree r -> BagT r m a -> m a
+fairBag split = (newInterruptingBag Queue split) . (:[]) . bfsTask
 
 -- | Parallel Breadth-first search
 bfsParallel :: SearchTree a -> [a]
