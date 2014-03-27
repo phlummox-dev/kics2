@@ -100,9 +100,11 @@ bfsParallel t = bfs [t]
  where
   bfs :: [SearchTree a] -> [a]
   bfs [] = []
-  bfs xs = runEval $ do
-    rs <- evalList rpar $ xs
-    return $ values rs ++ (bfs $ children rs)
+  bfs (x:xs) = runEval $ do
+    rs <- parList rseq xs
+    r  <- rseq x
+    let rss = r:rs
+    return $ values rss ++ (bfs $ children rss)
 
 bfsParallel' :: SearchTree a -> [a]
 bfsParallel' t =
