@@ -122,7 +122,7 @@ parTree t = do
 
 splitAll :: SearchTree a -> [a]
 splitAll None         = []
-splitAll (One x )     = [x]
+splitAll (One x)      = [x]
 splitAll (Choice l r) = runEval $ do
   rs <- rpar $ splitAll r
   ls <- rseq $ splitAll l
