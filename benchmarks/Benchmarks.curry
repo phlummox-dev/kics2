@@ -1000,10 +1000,9 @@ ghcUniqSupplySome =
 
 parallelBenchmarks :: [[Benchmark]]
 parallelBenchmarks =
-  [ benchParallel One $ Goal True "SearchQueens" "main"
-  , benchParallel All $ Goal True "SearchQueens" "main"
-  , benchParallel One $ Goal True "EditSeq" "main3"
-  , benchParallel All $ Goal True "EditSeq" "main3"
+  [ benchParallel One $ Goal True "SearchQueensLess" "main"
+  , benchParallel All $ Goal True "SearchQueensLess" "main"
+  , benchParallel All $ Goal True "EditSeq"  "main3" -- EditSeq One is very fast
   , benchParallel One $ Goal True "PermSort" "main"
   , benchParallel All $ Goal True "PermSort" "main"
   , benchParallel One $ Goal True "Half"     "main"
@@ -1014,10 +1013,9 @@ parallelBenchmarks =
 
 encDFSEvalBenchmarks :: [[Benchmark]]
 encDFSEvalBenchmarks =
-  [ benchEncDFSEval One $ Goal True "SearchQueens" "main"
-  , benchEncDFSEval All $ Goal True "SearchQueens" "main"
-  , benchEncDFSEval One $ Goal True "EditSeq" "main3"
-  , benchEncDFSEval All $ Goal True "EditSeq" "main3"
+  [ benchEncDFSEval One $ Goal True "SearchQueensLess" "main"
+  , benchEncDFSEval All $ Goal True "SearchQueensLess" "main"
+  , benchEncDFSEval All $ Goal True "EditSeq"  "main3" -- EditSeq One is very fast
   , benchEncDFSEval One $ Goal True "PermSort" "main"
   , benchEncDFSEval All $ Goal True "PermSort" "main"
   , benchEncDFSEval One $ Goal True "Half"     "main"
@@ -1027,10 +1025,9 @@ encDFSEvalBenchmarks =
 
 encBFSEvalBenchmarks :: [[Benchmark]]
 encBFSEvalBenchmarks =
-  [ benchEncBFSEval One $ Goal True "SearchQueens" "main"
-  , benchEncBFSEval All $ Goal True "SearchQueens" "main"
-  , benchEncBFSEval One $ Goal True "EditSeq" "main3"
-  , benchEncBFSEval All $ Goal True "EditSeq" "main3"
+  [ benchEncBFSEval One $ Goal True "SearchQueensLess" "main"
+  , benchEncBFSEval All $ Goal True "SearchQueensLess" "main"
+  , benchEncBFSEval All $ Goal True "EditSeq"  "main3" -- EditSeq One is very fast
   , benchEncBFSEval One $ Goal True "PermSort" "main"
   , benchEncBFSEval All $ Goal True "PermSort" "main"
   , benchEncBFSEval One $ Goal True "Half"     "main"
@@ -1041,8 +1038,8 @@ encBFSEvalBenchmarks =
 
 fairOneBenchmarks :: [[Benchmark]]
 fairOneBenchmarks =
-  [ benchFair One $ Goal True "SearchQueens" "main"
-  , benchFair One $ Goal True "EditSeq" "main3"
+  [ benchFair One $ Goal True "SearchQueensLess" "main"
+  , benchFair One $ Goal True "EditSeq"  "main3"
   , benchFair One $ Goal True "PermSort" "main"
   , benchFair One $ Goal True "Half"     "main"
   , benchFair One $ Goal True "Last"     "main"
@@ -1051,8 +1048,7 @@ fairOneBenchmarks =
 
 fairAllBenchmarks :: [[Benchmark]]
 fairAllBenchmarks =
-  [ benchFair All $ Goal True "SearchQueens" "main"
-  , benchFair All $ Goal True "EditSeq" "main3"
+  [ benchFair All $ Goal True "SearchQueensLess" "main"
   , benchFair All $ Goal True "PermSort" "main"
   , benchFair All $ Goal True "Half"     "main"
   , benchFair All $ Goal True "Last"     "main"
@@ -1060,8 +1056,8 @@ fairAllBenchmarks =
 
 fairStackSize :: [[Benchmark]]
 fairStackSize =
-  [ benchStackSize EncFair One $ Goal True "SearchQueens" "main2"
-  , benchStackSize EncFair All $ Goal True "SearchQueens" "main2"
+  [ benchStackSize EncFair One $ Goal True "SearchQueensLess" "main"
+  , benchStackSize EncFair All $ Goal True "SearchQueensLess" "main"
   , benchStackSize EncFair One $ Goal True "PermSort" "main2"
   , benchStackSize EncFair All $ Goal True "PermSort" "main2"
   , benchStackSize EncFair One $ Goal True "Half"     "main"
@@ -1072,8 +1068,8 @@ fairStackSize =
 
 fair'StackSize :: [[Benchmark]]
 fair'StackSize =
-  [ benchStackSize EncFair' One $ Goal True "SearchQueens" "main2"
-  , benchStackSize EncFair' All $ Goal True "SearchQueens" "main2"
+  [ benchStackSize EncFair' One $ Goal True "SearchQueensLess" "main"
+  , benchStackSize EncFair' All $ Goal True "SearchQueensLess" "main"
   , benchStackSize EncFair' One $ Goal True "PermSort" "main2"
   , benchStackSize EncFair' All $ Goal True "PermSort" "main2"
   , benchStackSize EncFair' One $ Goal True "Half"     "main"
@@ -1084,8 +1080,8 @@ fair'StackSize =
 
 fair''StackSize :: [[Benchmark]]
 fair''StackSize =
-  [ benchStackSize EncFair'' One $ Goal True "SearchQueens" "main2"
-  , benchStackSize EncFair'' All $ Goal True "SearchQueens" "main2"
+  [ benchStackSize EncFair'' One $ Goal True "SearchQueensLess" "main"
+  , benchStackSize EncFair'' All $ Goal True "SearchQueensLess" "main"
   , benchStackSize EncFair'' One $ Goal True "PermSort" "main2"
   , benchStackSize EncFair'' All $ Goal True "PermSort" "main2"
   , benchStackSize EncFair'' One $ Goal True "Half"     "main"
@@ -1156,7 +1152,7 @@ main = run 3 allBenchmarks
 --main = run 4 fair''StackSize
 --main = run 4 encBFSEvalBenchmarks
 --main = run 4 encDFSEvalBenchmarks
---main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueens" "main") (map (*10) [1..100])
+--main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueensLess" "main") (map (*10) [1..100])
 --main = run 1 [benchFLPCompleteSearch "NDNums"]
 --main = run 1 (benchFPWithMain "ShareNonDet" "goal1" : [])
 --           map (\g -> benchFLPDFSWithMain "ShareNonDet" g) ["goal2","goal3"])
