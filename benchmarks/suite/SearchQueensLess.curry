@@ -1,6 +1,8 @@
 insert :: a -> [a] -> [a]
-insert x []     = [x]
-insert x (y:ys) = x : (y:ys) ? y : (insert x ys)
+insert x xs =
+  x : xs ?
+  case xs of
+    z:zs -> z : insert x zs
 
 permute :: [a] -> [a]
 permute []     = []
