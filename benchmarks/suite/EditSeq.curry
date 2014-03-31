@@ -1,20 +1,21 @@
 -------------------------------------------------------------------
 --- Executable specification of sequence comparison
 ---
---- @author Michael Hanus, Robert Giegerich
---- @version January 2013
+--- @author Michael Hanus, Robert Giegerich, Bastian Holst
+--- @version March 2014
 -------------------------------------------------------------------
 
 import ParallelSearch
 import SetFunctions
+import SearchTree
 import RedBlackTree
 import List
 
 --- Representation of edit operations to align strings
-data Edit = Rep Letter Letter Edit
-          | Del Letter Edit
-          | Ins Letter Edit
-          | Mty
+data Edit = Rep Letter Letter Edit -- replace a letter with the same or another letter
+          | Del Letter Edit        -- delete  a letter
+          | Ins Letter Edit        -- insert  a letter
+          | Mty                    -- the end
 
 -- Generator for tree of edit operations up to a given maximal length.
 editMax m =
