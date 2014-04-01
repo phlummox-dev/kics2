@@ -396,6 +396,7 @@ data Strategy
   | EncDFSBag  SplitStrategy
   | EncFDFSBag SplitStrategy
   | EncBFSBag  SplitStrategy
+  | EncDFSBagCon | EncFDFSBagCon | EncBFSBagCon | EncFairBagCon
 
 data Goal   = Goal Bool String String -- non-det? / module / main-expr
 data Output = All | One | Interactive | Count
@@ -457,6 +458,10 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
   searchExpr (EncDFSBag  sp)  = wrapParEnc $ "dfsBag "  ++ splitExpr sp
   searchExpr (EncFDFSBag sp)  = wrapParEnc $ "fdfsBag " ++ splitExpr sp
   searchExpr (EncBFSBag  sp)  = wrapParEnc $ "bfsBag "  ++ splitExpr sp
+  searchExpr EncDFSBagCon     = wrapParEnc $ "dfsBagCon"
+  searchExpr EncFDFSBagCon    = wrapParEnc $ "fdfsBagCon"
+  searchExpr EncBFSBagCon     = wrapParEnc $ "bfsBagCon"
+  searchExpr EncFairBagCon    = wrapParEnc $ "fairBagCon"
   wrapEnc strat      =
     case o of
       One ->
@@ -1036,6 +1041,18 @@ encBFSEvalBenchmarks =
   , benchEncBFSEval All $ Goal True "Last"     "main"
   , benchEncBFSEval One $ Goal True "NDNums" "main3" ]
 
+encBagConBenchmarks :: [[Benchmark]]
+encBagConBenchmarks =
+  [ benchEncBagCon One $ Goal True "SearchQueensLess" "main"
+  , benchEncBagCon All $ Goal True "SearchQueensLess" "main"
+  , benchEncBagCon All $ Goal True "EditSeq"  "main3" -- EditSeq One is very fast
+  , benchEncBagCon One $ Goal True "PermSort" "main"
+  , benchEncBagCon All $ Goal True "PermSort" "main"
+  , benchEncBagCon One $ Goal True "Half"     "main"
+  , benchEncBagCon All $ Goal True "Half"     "main"
+  , benchEncBagCon One $ Goal True "Last"     "main"
+  , benchEncBagCon All $ Goal True "Last"     "main" ]
+
 fairOneBenchmarks :: [[Benchmark]]
 fairOneBenchmarks =
   [ benchFair One $ Goal True "SearchQueensLess" "main"
@@ -1152,6 +1169,7 @@ main = run 3 allBenchmarks
 --main = run 4 fair''StackSize
 --main = run 4 encBFSEvalBenchmarks
 --main = run 4 encDFSEvalBenchmarks
+--main = run 11 encBagConBenchmarks
 --main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueensLess" "main") (map (*10) [1..100])
 --main = run 1 [benchFLPCompleteSearch "NDNums"]
 --main = run 1 (benchFPWithMain "ShareNonDet" "goal1" : [])

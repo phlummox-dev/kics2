@@ -11,6 +11,8 @@ module Strategies
   , fairSearch', fairSearch''
   , dfsBag, fdfsBag, bfsBag, fairBag, getAllResults, getResult
   , dfsBagLazy, fdfsBagLazy, bfsBagLazy, fairBagLazy
+  , dfsBagCon, fdfsBagCon, bfsBagCon, fairBagCon
+  , dfsBagConLazy, fdfsBagConLazy, bfsBagConLazy, fairBagConLazy
   ) where
 
 import System.IO (hPutStr, stderr)
@@ -25,10 +27,11 @@ import Control.Exception (Exception, uninterruptibleMask_, throwTo, catch, catch
 import Control.Concurrent (forkIO, myThreadId, ThreadId, killThread, forkIOWithUnmask)
 import Control.Concurrent.MVar
 import Control.Concurrent.Chan
-import Control.Concurrent.Bag.TaskBuffer
+import Control.Concurrent.Bag.BufferType
+  ( BufferType (..) )
+import Control.Concurrent.Bag.TaskBufferSTM
   ( TaskBufferSTM
-  , SplitFunction
-  , BufferType (..) )
+  , SplitFunction )
 import Control.Concurrent.Bag.Task
   ( TaskIO
   , addTaskIO
@@ -37,13 +40,22 @@ import qualified Control.Concurrent.Bag.Implicit as Implicit
   ( newTaskBag
   , newInterruptibleBag
   , newInterruptingBag )
+import Control.Concurrent.Bag.BagT
+  ( BagT
+  , getAllResults
+  , getResult )
 import Control.Concurrent.Bag.Safe
   ( newTaskBag
   , newInterruptingBag
+  , newInterruptibleBag )
+import qualified Control.Concurrent.Bag.ImplicitConcurrent as ImplicitConcurrent
+  ( newTaskBag
   , newInterruptibleBag
-  , BagT
-  , getAllResults
-  , getResult )
+  , newInterruptingBag )
+import qualified Control.Concurrent.Bag.SafeConcurrent as SafeConcurrent
+  ( newTaskBag
+  , newInterruptingBag
+  , newInterruptibleBag )
 import Control.Concurrent.STM (TChan)
 import Control.Concurrent.STM.TStack (TStack)
 import Control.Monad.IO.Class
@@ -62,6 +74,12 @@ dfsBag split = (newTaskBag Stack split) . (:[]) . dfsTask
 dfsBagLazy :: Maybe (SplitFunction r) -> SearchTree r -> IO [r]
 dfsBagLazy split = (Implicit.newTaskBag Stack split) . (:[]) . dfsTask
 
+dfsBagCon :: MonadIO m => SearchTree r -> BagT r m a -> m a
+dfsBagCon = (SafeConcurrent.newTaskBag Stack) . (:[]) . dfsTask
+
+dfsBagConLazy :: SearchTree r -> IO [r]
+dfsBagConLazy = (ImplicitConcurrent.newTaskBag Stack) . (:[]) . dfsTask
+
 -- | Fake depth-first search
 --   Real depth-first search would use a stack instead of a queue for
 --   the task bag.
@@ -70,6 +88,12 @@ fdfsBag split = (newTaskBag Queue split) . (:[]) . dfsTask
 
 fdfsBagLazy :: Maybe (SplitFunction r) -> SearchTree r -> IO [r]
 fdfsBagLazy split = (Implicit.newTaskBag Queue split) . (:[]) . dfsTask
+
+fdfsBagCon :: MonadIO m => SearchTree r -> BagT r m a -> m a
+fdfsBagCon = (SafeConcurrent.newTaskBag Queue) . (:[]) . dfsTask
+
+fdfsBagConLazy :: SearchTree r -> IO [r]
+fdfsBagConLazy = (ImplicitConcurrent.newTaskBag Queue) . (:[]) . dfsTask
 
 dfsTask :: SearchTree a -> TaskIO a (Maybe a)
 dfsTask None         = return   Nothing
@@ -84,6 +108,12 @@ bfsBagLazy split = (Implicit.newInterruptibleBag Queue split) . (:[]) . bfsTask
 bfsBag :: MonadIO m => Maybe (SplitFunction r) -> SearchTree r -> BagT r m a -> m a
 bfsBag split = (newInterruptibleBag Queue split) . (:[]) . bfsTask
 
+bfsBagCon :: MonadIO m => SearchTree r -> BagT r m a -> m a
+bfsBagCon = (SafeConcurrent.newInterruptibleBag Queue) . (:[]) . bfsTask
+
+bfsBagConLazy :: SearchTree r -> IO [r]
+bfsBagConLazy = (ImplicitConcurrent.newInterruptibleBag Queue) . (:[]) . bfsTask
+
 bfsTask None         = NoResult
 bfsTask (One v)      = OneResult v
 bfsTask (Choice l r) = AddInterruptibles [bfsTask l, bfsTask r]
@@ -93,6 +123,12 @@ fairBagLazy split = (Implicit.newInterruptingBag Queue split) . (:[]) . bfsTask
 
 fairBag :: MonadIO m => Maybe (SplitFunction r) -> SearchTree r -> BagT r m a -> m a
 fairBag split = (newInterruptingBag Queue split) . (:[]) . bfsTask
+
+fairBagCon :: MonadIO m => SearchTree r -> BagT r m a -> m a
+fairBagCon = (SafeConcurrent.newInterruptingBag Queue) . (:[]) . bfsTask
+
+fairBagConLazy :: SearchTree r -> IO [r]
+fairBagConLazy = (ImplicitConcurrent.newInterruptingBag Queue) . (:[]) . bfsTask
 
 -- | Parallel Breadth-first search
 bfsParallel :: SearchTree a -> [a]
