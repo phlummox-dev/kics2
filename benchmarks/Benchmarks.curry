@@ -898,6 +898,10 @@ benchEncBFSEval :: Output -> Goal -> [Benchmark]
 benchEncBFSEval output goal = (kics2 True True Nothing 1 S_IORef EncBFS output goal) ++
   (concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncBFSEval, EncBFSEval'] ])
 
+benchEncBagCon :: Output -> Goal -> [Benchmark]
+benchEncBagCon output goal =
+  concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncDFSBag CommonBuffer, EncDFSBagCon, EncFDFSBag CommonBuffer, EncFDFSBagCon, EncBFSBag CommonBuffer, EncBFSBagCon, EncFairBag CommonBuffer, EncFairBagCon ] ]
+
 benchStackSize :: Strategy -> Output -> Goal -> [Benchmark]
 benchStackSize strat output goal = concat
   [ kics2 True True (Just {stackInitial := init, stackChunk := chun, stackBuffer := buff}) 12 S_IORef strat output goal | init <- ["1024", "1280", "1536", "1792", "2048", "3072", "4096"], chun <- ["32k"], buff <- ["1k"] ]
