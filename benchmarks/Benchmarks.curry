@@ -1077,9 +1077,9 @@ fair'StackSize =
 
 fair''StackSize :: [[Benchmark]]
 fair''StackSize =
-  [ benchStackSize EncFair' out goal | goal <- oneAndAllGoals, out <- [One, All] ] ++
-  [ benchStackSize EncFair' All goal | goal <- allOnlyGoals ] ++
-  [ benchStackSize EncFair' One goal | goal <- bfsOnlyGoals ]
+  [ benchStackSize EncFair'' out goal | goal <- oneAndAllGoals, out <- [One, All] ] ++
+  [ benchStackSize EncFair'' All goal | goal <- allOnlyGoals ] ++
+  [ benchStackSize EncFair'' One goal | goal <- bfsOnlyGoals ]
 
 --------------------------------------------------------------------------------
 
