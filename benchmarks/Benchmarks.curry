@@ -863,49 +863,6 @@ benchThreads :: Bool -> Bool -> Maybe RuntimeOptions -> Supply -> Strategy -> Ou
 benchThreads hoOpt ghcOpt rts idsupply strategy output goal =
   concatMap (\n -> kics2 hoOpt ghcOpt rts n idsupply strategy output goal) threadNumbers
 
-benchParallel :: Output -> Goal -> [Benchmark]
-benchParallel out goal =
-     (kics2 True True Nothing 1 S_IORef EncDFS out goal)
-  ++ (kics2 True True Nothing 1 S_IORef EncBFS out goal)
-  ++ (benchThreads True True Nothing S_IORef EncFair out goal)
-  ++ concatMap (\n -> kics2 True True Nothing n S_IORef (EncCon n) out goal)         threadNumbers
-  ++ (benchThreads True True Nothing S_IORef EncPar  out goal)
-  ++ (benchThreads True True Nothing S_IORef EncSAll out goal)
-  ++ concatMap (\n -> benchThreads True True Nothing S_IORef (EncSLimit n) out goal) [4,8,12,16,20,24]
-  ++ concatMap (\n -> benchThreads True True Nothing S_IORef (EncSAlt   n) out goal) [1,2,4]
-  ++ (benchThreads True True Nothing S_IORef EncSPow out goal)
-  ++ (benchThreads True True Nothing S_IORef EncBFSEval out goal)
-  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncDFSBag s) out goal) allSplitStrategies
-  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncFDFSBag s) out goal) allSplitStrategies
-  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncBFSBag s) out goal) allSplitStrategies
-
-benchParallelBFS :: Goal -> [Benchmark]
-benchParallelBFS goal =
-     (kics2 True True Nothing 1 S_IORef EncBFS One goal)
-  ++ (benchThreads True True Nothing S_IORef EncBFSEval One goal)
-  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncBFSBag s) One goal) allSplitStrategies
-  ++ (benchThreads True True Nothing S_IORef EncFair One goal)
-
-benchFair :: Output -> Goal -> [Benchmark]
-benchFair output goal = concat
-  [ kics2 True True (Just {stackInitial := "1536", stackChunk := "32k", stackBuffer := "1k"}) 12 S_IORef strat output goal | strat <- [EncFair, EncFair', EncFair''] ]
-
-benchEncDFSEval :: Output -> Goal -> [Benchmark]
-benchEncDFSEval output goal = (kics2 True True Nothing 1 S_IORef EncDFS output goal) ++
-  (concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncPar, EncSAll, EncSAll'] ])
-
-benchEncBFSEval :: Output -> Goal -> [Benchmark]
-benchEncBFSEval output goal = (kics2 True True Nothing 1 S_IORef EncBFS output goal) ++
-  (concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncBFSEval, EncBFSEval'] ])
-
-benchEncBagCon :: Output -> Goal -> [Benchmark]
-benchEncBagCon output goal =
-  concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncDFSBag CommonBuffer, EncDFSBagCon, EncFDFSBag CommonBuffer, EncFDFSBagCon, EncBFSBag CommonBuffer, EncBFSBagCon, EncFairBag CommonBuffer, EncFairBagCon ] ]
-
-benchStackSize :: Strategy -> Output -> Goal -> [Benchmark]
-benchStackSize strat output goal = concat
-  [ kics2 True True (Just {stackInitial := init, stackChunk := chun, stackBuffer := buff}) 12 S_IORef strat output goal | init <- ["1024", "1280", "1536", "1792", "2048", "3072", "4096"], chun <- ["32k"], buff <- ["1k"] ]
-
 threadNumbers :: [Int]
 threadNumbers = [1,2,4,8,12,16,20,23,24]
 allSplitStrategies = [CommonBuffer, TakeFirst, SplitVertical, SplitHalf]
@@ -1007,109 +964,121 @@ ghcUniqSupplySome =
     ++ kics2 True True  Nothing 1 S_IORef IOBFS One goal
     ++ kics2 True False Nothing 1 S_IORef IOBFS One goal
 
+oneAndAllGoals = [ Goal True "SearchQueensLess" "main"
+                 , Goal True "PermSort"         "main"
+                 , Goal True "Half"             "main"
+                 , Goal True "Last"             "main" ]
+
+allOnlyGoals = [ Goal True "EditSeq" "main3" ]
+
+bfsOnlyGoals = [ Goal True "NDNums"  "main3" ]
+
+--------------------------------------------------------------------------------
+
+benchParallel :: Output -> Goal -> [Benchmark]
+benchParallel out goal =
+     (kics2 True True Nothing 1 S_IORef EncDFS out goal)
+  ++ (kics2 True True Nothing 1 S_IORef EncBFS out goal)
+  ++ (benchThreads True True Nothing S_IORef EncFair out goal)
+  ++ concatMap (\n -> kics2 True True Nothing n S_IORef (EncCon n) out goal)         threadNumbers
+  ++ (benchThreads True True Nothing S_IORef EncPar  out goal)
+  ++ (benchThreads True True Nothing S_IORef EncSAll out goal)
+  ++ concatMap (\n -> benchThreads True True Nothing S_IORef (EncSLimit n) out goal) [4,8,12,16,20,24]
+  ++ concatMap (\n -> benchThreads True True Nothing S_IORef (EncSAlt   n) out goal) [1,2,4]
+  ++ (benchThreads True True Nothing S_IORef EncSPow out goal)
+  ++ (benchThreads True True Nothing S_IORef EncBFSEval out goal)
+  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncDFSBag s) out goal) allSplitStrategies
+  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncFDFSBag s) out goal) allSplitStrategies
+  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncBFSBag s) out goal) allSplitStrategies
+
+benchParallelBFS :: Goal -> [Benchmark]
+benchParallelBFS goal =
+     (kics2 True True Nothing 1 S_IORef EncBFS One goal)
+  ++ (benchThreads True True Nothing S_IORef EncBFSEval One goal)
+  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncBFSBag s) One goal) allSplitStrategies
+  ++ (benchThreads True True Nothing S_IORef EncFair One goal)
+
 parallelBenchmarks :: [[Benchmark]]
 parallelBenchmarks =
-  [ benchParallel One $ Goal True "SearchQueensLess" "main"
-  , benchParallel All $ Goal True "SearchQueensLess" "main"
-  , benchParallel All $ Goal True "EditSeq"  "main3" -- EditSeq One is very fast
-  , benchParallel One $ Goal True "PermSort" "main"
-  , benchParallel All $ Goal True "PermSort" "main"
-  , benchParallel One $ Goal True "Half"     "main"
-  , benchParallel All $ Goal True "Half"     "main"
-  , benchParallel One $ Goal True "Last"     "main"
-  , benchParallel All $ Goal True "Last"     "main"
-  , benchParallelBFS $ Goal True "NDNums" "main3" ]
+  [ benchParallel out goal | goal <- oneAndAllGoals, out <- [One, All] ] ++
+  [ benchParallel All goal | goal <- allOnlyGoals ] ++
+  [ benchParallelBFS  goal | goal <- bfsOnlyGoals ]
+
+--------------------------------------------------------------------------------
+
+benchEncDFSEval :: Output -> Goal -> [Benchmark]
+benchEncDFSEval output goal = (kics2 True True Nothing 1 S_IORef EncDFS output goal) ++
+  (concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncPar, EncSAll, EncSAll'] ])
 
 encDFSEvalBenchmarks :: [[Benchmark]]
 encDFSEvalBenchmarks =
-  [ benchEncDFSEval One $ Goal True "SearchQueensLess" "main"
-  , benchEncDFSEval All $ Goal True "SearchQueensLess" "main"
-  , benchEncDFSEval All $ Goal True "EditSeq"  "main3" -- EditSeq One is very fast
-  , benchEncDFSEval One $ Goal True "PermSort" "main"
-  , benchEncDFSEval All $ Goal True "PermSort" "main"
-  , benchEncDFSEval One $ Goal True "Half"     "main"
-  , benchEncDFSEval All $ Goal True "Half"     "main"
-  , benchEncDFSEval One $ Goal True "Last"     "main"
-  , benchEncDFSEval All $ Goal True "Last"     "main" ]
+  [ benchEncDFSEval out goal | goal <- oneAndAllGoals, out <- [One, All] ] ++
+  [ benchEncDFSEval All goal | goal <- allOnlyGoals ]
+
+--------------------------------------------------------------------------------
+
+benchEncBFSEval :: Output -> Goal -> [Benchmark]
+benchEncBFSEval output goal = (kics2 True True Nothing 1 S_IORef EncBFS output goal) ++
+  (concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncBFSEval, EncBFSEval'] ])
 
 encBFSEvalBenchmarks :: [[Benchmark]]
 encBFSEvalBenchmarks =
-  [ benchEncBFSEval One $ Goal True "SearchQueensLess" "main"
-  , benchEncBFSEval All $ Goal True "SearchQueensLess" "main"
-  , benchEncBFSEval All $ Goal True "EditSeq"  "main3" -- EditSeq One is very fast
-  , benchEncBFSEval One $ Goal True "PermSort" "main"
-  , benchEncBFSEval All $ Goal True "PermSort" "main"
-  , benchEncBFSEval One $ Goal True "Half"     "main"
-  , benchEncBFSEval All $ Goal True "Half"     "main"
-  , benchEncBFSEval One $ Goal True "Last"     "main"
-  , benchEncBFSEval All $ Goal True "Last"     "main"
-  , benchEncBFSEval One $ Goal True "NDNums" "main3" ]
+  [ benchEncBFSEval out goal | goal <- oneAndAllGoals, out <- [One, All] ] ++
+  [ benchEncBFSEval All goal | goal <- allOnlyGoals ] ++
+  [ benchEncBFSEval One goal | goal <- bfsOnlyGoals ]
+
+--------------------------------------------------------------------------------
+
+benchEncBagCon :: Output -> Goal -> [Benchmark]
+benchEncBagCon output goal =
+  concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncDFSBag CommonBuffer, EncDFSBagCon, EncFDFSBag CommonBuffer, EncFDFSBagCon, EncBFSBag CommonBuffer, EncBFSBagCon, EncFairBag CommonBuffer, EncFairBagCon ] ]
 
 encBagConBenchmarks :: [[Benchmark]]
 encBagConBenchmarks =
-  [ benchEncBagCon One $ Goal True "SearchQueensLess" "main"
-  , benchEncBagCon All $ Goal True "SearchQueensLess" "main"
-  , benchEncBagCon All $ Goal True "EditSeq"  "main3" -- EditSeq One is very fast
-  , benchEncBagCon One $ Goal True "PermSort" "main"
-  , benchEncBagCon All $ Goal True "PermSort" "main"
-  , benchEncBagCon One $ Goal True "Half"     "main"
-  , benchEncBagCon All $ Goal True "Half"     "main"
-  , benchEncBagCon One $ Goal True "Last"     "main"
-  , benchEncBagCon All $ Goal True "Last"     "main" ]
+  [ benchEncBagCon out goal | goal <- oneAndAllGoals, out <- [One, All] ] ++
+  [ benchEncBagCon All goal | goal <- allOnlyGoals ]
+
+--------------------------------------------------------------------------------
+
+benchFair :: Output -> Goal -> [Benchmark]
+benchFair output goal = concat
+  [ kics2 True True (Just {stackInitial := "1536", stackChunk := "32k", stackBuffer := "1k"}) 12 S_IORef strat output goal | strat <- [EncFair, EncFair', EncFair''] ]
 
 fairOneBenchmarks :: [[Benchmark]]
 fairOneBenchmarks =
-  [ benchFair One $ Goal True "SearchQueensLess" "main"
-  , benchFair One $ Goal True "EditSeq"  "main3"
-  , benchFair One $ Goal True "PermSort" "main"
-  , benchFair One $ Goal True "Half"     "main"
-  , benchFair One $ Goal True "Last"     "main"
-  , benchFair One $ Goal True "NDNums" "main3"
-  ]
+  [ benchFair One goal | goal <- oneAndAllGoals ] ++
+  [ benchFair One goal | goal <- bfsOnlyGoals ]
 
 fairAllBenchmarks :: [[Benchmark]]
 fairAllBenchmarks =
-  [ benchFair All $ Goal True "SearchQueensLess" "main"
-  , benchFair All $ Goal True "PermSort" "main"
-  , benchFair All $ Goal True "Half"     "main"
-  , benchFair All $ Goal True "Last"     "main"
-  ]
+  [ benchFair All goal | goal <- oneAndAllGoals ] ++
+  [ benchFair All goal | goal <- allOnlyGoals ]
+
+--------------------------------------------------------------------------------
+
+benchStackSize :: Strategy -> Output -> Goal -> [Benchmark]
+benchStackSize strat output goal = concat
+  [ kics2 True True (Just {stackInitial := init, stackChunk := chun, stackBuffer := buff}) 12 S_IORef strat output goal | init <- ["1024", "1280", "1536", "1792", "2048", "3072", "4096"], chun <- ["32k"], buff <- ["1k"] ]
 
 fairStackSize :: [[Benchmark]]
 fairStackSize =
-  [ benchStackSize EncFair One $ Goal True "SearchQueensLess" "main"
-  , benchStackSize EncFair All $ Goal True "SearchQueensLess" "main"
-  , benchStackSize EncFair One $ Goal True "PermSort" "main2"
-  , benchStackSize EncFair All $ Goal True "PermSort" "main2"
-  , benchStackSize EncFair One $ Goal True "Half"     "main"
-  , benchStackSize EncFair All $ Goal True "Half"     "main"
-  , benchStackSize EncFair One $ Goal True "Last"     "main"
-  , benchStackSize EncFair All $ Goal True "Last"     "main"
-  , benchStackSize EncFair One $ Goal True "NDNums" "main3" ]
+  [ benchStackSize EncFair out goal | goal <- oneAndAllGoals, out <- [One, All] ] ++
+  [ benchStackSize EncFair All goal | goal <- allOnlyGoals ] ++
+  [ benchStackSize EncFair One goal | goal <- bfsOnlyGoals ]
 
 fair'StackSize :: [[Benchmark]]
 fair'StackSize =
-  [ benchStackSize EncFair' One $ Goal True "SearchQueensLess" "main"
-  , benchStackSize EncFair' All $ Goal True "SearchQueensLess" "main"
-  , benchStackSize EncFair' One $ Goal True "PermSort" "main2"
-  , benchStackSize EncFair' All $ Goal True "PermSort" "main2"
-  , benchStackSize EncFair' One $ Goal True "Half"     "main"
-  , benchStackSize EncFair' All $ Goal True "Half"     "main"
-  , benchStackSize EncFair' One $ Goal True "Last"     "main"
-  , benchStackSize EncFair' All $ Goal True "Last"     "main"
-  , benchStackSize EncFair' One $ Goal True "NDNums" "main3" ]
+  [ benchStackSize EncFair' out goal | goal <- oneAndAllGoals, out <- [One, All] ] ++
+  [ benchStackSize EncFair' All goal | goal <- allOnlyGoals ] ++
+  [ benchStackSize EncFair' One goal | goal <- bfsOnlyGoals ]
 
 fair''StackSize :: [[Benchmark]]
 fair''StackSize =
-  [ benchStackSize EncFair'' One $ Goal True "SearchQueensLess" "main"
-  , benchStackSize EncFair'' All $ Goal True "SearchQueensLess" "main"
-  , benchStackSize EncFair'' One $ Goal True "PermSort" "main2"
-  , benchStackSize EncFair'' All $ Goal True "PermSort" "main2"
-  , benchStackSize EncFair'' One $ Goal True "Half"     "main"
-  , benchStackSize EncFair'' All $ Goal True "Half"     "main"
-  , benchStackSize EncFair'' One $ Goal True "Last"     "main"
-  , benchStackSize EncFair'' All $ Goal True "Last"     "main"
-  , benchStackSize EncFair'' One $ Goal True "NDNums" "main3" ]
+  [ benchStackSize EncFair' out goal | goal <- oneAndAllGoals, out <- [One, All] ] ++
+  [ benchStackSize EncFair' All goal | goal <- allOnlyGoals ] ++
+  [ benchStackSize EncFair' One goal | goal <- bfsOnlyGoals ]
+
+--------------------------------------------------------------------------------
 
 unif =
      [
