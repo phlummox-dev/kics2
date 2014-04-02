@@ -976,6 +976,7 @@ allOnlyGoals = [ Goal True "EditSeq" "main3" ]
 bfsOnlyGoals = [ Goal True "NDNums"  "main3" ]
 
 --------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 benchParallel :: Output -> Goal -> [Benchmark]
 benchParallel out goal =
@@ -1090,6 +1091,7 @@ encDfsBagLimit =
   [ benchThreads True True Nothing S_IORef s All goal | goal <- oneAndAllGoals, s <- strats ] ++
   [ benchThreads True True Nothing S_IORef s One goal | goal <- oneAndAllGoals, s <- strats ]
 
+--------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
 unif =
