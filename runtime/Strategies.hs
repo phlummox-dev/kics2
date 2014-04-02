@@ -13,6 +13,7 @@ module Strategies
   , dfsBagLazy, fdfsBagLazy, bfsBagLazy, fairBagLazy
   , dfsBagCon, fdfsBagCon, bfsBagCon, fairBagCon
   , dfsBagConLazy, fdfsBagConLazy, bfsBagConLazy, fairBagConLazy
+  , dfsBagLimit, dfsBagLimitLazy
   ) where
 
 import System.IO (hPutStr, stderr)
@@ -35,6 +36,7 @@ import Control.Concurrent.Bag.TaskBufferSTM
 import Control.Concurrent.Bag.Task
   ( TaskIO
   , addTaskIO
+  , writeResult
   , Interruptible (..) )
 import qualified Control.Concurrent.Bag.Implicit as Implicit
   ( newTaskBag
@@ -129,6 +131,22 @@ fairBagCon = (SafeConcurrent.newInterruptingBag Queue) . (:[]) . bfsTask
 
 fairBagConLazy :: SearchTree r -> IO [r]
 fairBagConLazy = (ImplicitConcurrent.newInterruptingBag Queue) . (:[]) . bfsTask
+
+dfsBagLimit :: MonadIO m => Maybe (SplitFunction r) -> Int -> SearchTree r -> BagT r m a -> m a
+dfsBagLimit split n tree = newTaskBag Stack split [dfsTaskLimit n tree]
+
+dfsBagLimitLazy :: Maybe (SplitFunction r) -> Int -> SearchTree r -> IO [r]
+dfsBagLimitLazy split n tree = Implicit.newTaskBag Stack split [dfsTaskLimit n tree]
+
+dfsTaskLimit :: Int -> SearchTree a -> TaskIO a (Maybe a)
+dfsTaskLimit n None    = return   Nothing
+dfsTaskLimit n (One x) = return $ Just x
+dfsTaskLimit 0 t@(Choice _ _) = do
+  mapM_ writeResult $ dfsSearch t
+  return Nothing
+dfsTaskLimit n   (Choice l r) = do
+  addTaskIO $ dfsTaskLimit (n-1) r
+  dfsTaskLimit (n-1) l
 
 -- | Parallel Breadth-first search
 bfsParallel :: SearchTree a -> [a]

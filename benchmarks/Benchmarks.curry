@@ -397,6 +397,7 @@ data Strategy
   | EncFDFSBag SplitStrategy
   | EncBFSBag  SplitStrategy
   | EncDFSBagCon | EncFDFSBagCon | EncBFSBagCon | EncFairBagCon
+  | EncDFSBagLimit SplitStrategy Int
 
 data Goal   = Goal Bool String String -- non-det? / module / main-expr
 data Output = All | One | Interactive | Count
@@ -458,6 +459,7 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
   searchExpr (EncDFSBag  sp)  = wrapParEnc $ "dfsBag "  ++ splitExpr sp
   searchExpr (EncFDFSBag sp)  = wrapParEnc $ "fdfsBag " ++ splitExpr sp
   searchExpr (EncBFSBag  sp)  = wrapParEnc $ "bfsBag "  ++ splitExpr sp
+  searchExpr (EncDFSBagLimit sp n) = wrapParEnc $ "dfsBagLimit " ++ splitExpr sp ++ " (toCurry (" ++ show n ++ ":: Int))"
   searchExpr EncDFSBagCon     = wrapParEnc $ "dfsBagCon"
   searchExpr EncFDFSBagCon    = wrapParEnc $ "fdfsBagCon"
   searchExpr EncBFSBagCon     = wrapParEnc $ "bfsBagCon"
@@ -1080,6 +1082,16 @@ fair''StackSize =
 
 --------------------------------------------------------------------------------
 
+encDfsBagLimit :: [[Benchmark]]
+encDfsBagLimit =
+  let strats = (EncDFSBag TakeFirst) : [ EncDFSBagLimit TakeFirst n | n <- [4,8,12,16,20,24] ]
+  in
+  [ benchThreads True True Nothing S_IORef s out goal | goal <- oneAndAllGoals, out <- [One, All], s <- strats ] ++
+  [ benchThreads True True Nothing S_IORef s All goal | goal <- oneAndAllGoals, s <- strats ] ++
+  [ benchThreads True True Nothing S_IORef s One goal | goal <- oneAndAllGoals, s <- strats ]
+
+--------------------------------------------------------------------------------
+
 unif =
      [
        -- mcc does not support function pattern
@@ -1143,6 +1155,7 @@ main = run 3 allBenchmarks
 --main = run 4 encBFSEvalBenchmarks
 --main = run 4 encDFSEvalBenchmarks
 --main = run 11 encBagConBenchmarks
+--main = run 11 encDfsBagLimit
 --main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueensLess" "main") (map (*10) [1..100])
 --main = run 1 [benchFLPCompleteSearch "NDNums"]
 --main = run 1 (benchFPWithMain "ShareNonDet" "goal1" : [])
