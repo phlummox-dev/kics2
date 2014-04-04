@@ -1,0 +1,631 @@
+Spielplanerstellung
+===================
+
+Zum Planen einer Sportsaison, in der jede Mannschaft zweimal gegen
+jede spielt (Hin- und Rückspiel).
+
+Ein Constraint Solver hilft bei der Erstellung.
+
+> import CLPFD
+>
+> import AllSolutions ( getOneSolution )
+> import Char         ( isSpace )
+> import Constraint   ( allC, andC )
+> import Integer      ( maxlist )
+> import IO           ( hFlush, stdout )
+> import List         ( group, intersect, intersperse, last, 
+>                       nub, sortBy, transpose, (\\) )
+> import Maybe        ( fromJust, (>>-) )
+
+Die Eingabe ist eine Liste, die jedem Team eine Liste von
+Heimspielterminen zuordnet. Termine werden mit Kalenderwochen
+indiziert, da Teams pro Woche nur ein Spiel machen sollen.
+
+> type Team termin  = (Name, [termin])
+> type Name         = String
+> type Termin       = (KW, String)
+> type KW           = Int
+
+Die Ausgabe ist eine quadratische Tabelle von Kalenderwochen. Die
+Zeile kennzeichnet das Heim-Team, die Spalte das Gast-Team und der
+Eintrag den Spiel-Termin. Die Reihenfolge der Einträge entspricht der
+Reihenfolge der Teams aus der Eingabe.
+
+> type Spielplan = [[KW]]
+>
+> showPlan :: Spielplan -> String
+> showPlan = unlines . map showKWs
+>  where
+>   showKWs = concatMap (padLeft 4 . show)
+>
+> padLeft :: Int -> String -> String
+> padLeft n s = replicate (n - length s) ' ' ++ s
+>
+> padRight :: Int -> String -> String
+> padRight n s = s ++ replicate (n - length s) ' '
+
+Hier die gemeldeten Hallenzeiten:
+
+> (:::) :: a -> b -> (a,b)
+> x ::: y = (x,y)
+>
+> kreisliga :: [Team Termin]
+> kreisliga =
+>   [altenholz3, damp, concordia, molfsee, bokhorst2, gettorf2, holtenau]
+>
+> altenholz3 :: Team Termin
+> altenholz3 = "TSV Altenholz 3" ::: -- auch Sonntage
+>   [ 42 ::: "Sa. 19.10.2013 15:00"
+>   , 44 ::: "Sa. 02.11.2013 15:00"
+>   , 45 ::: "Sa. 09.11.2013 15:00"
+>   , 48 ::: "Sa. 30.11.2013 15:00"
+>   ,  6 ::: "Sa. 08.02.2014 15:00"
+>   ,  9 ::: "Sa. 01.03.2014 15:00"
+>   ]
+>
+> damp :: Team Termin
+> damp = "SG Damp/Loose 1" :::
+>   -- [ 34 ::: "24.08.2013 15:30"
+>   [ 44 ::: "Sa. 02.11.2013 15:30"
+>   , 45 ::: "Sa. 09.11.2013 15:30"
+>   , 49 ::: "Sa. 07.12.2013 15:30"
+>   ,  2 ::: "Sa. 11.01.2014 15:30"
+>   ,  4 ::: "Sa. 25.01.2014 15:30"
+>   ,  6 ::: "Sa. 08.02.2014 15:30"
+>   ,  8 ::: "Sa. 22.02.2014 15:30"
+>   ,  9 ::: "Sa. 01.03.2014 15:30"
+>   , 11 ::: "Sa. 15.03.2014 15:30"
+>   ]
+>
+> concordia :: Team Termin
+> concordia = "TSG Conc. Schönkirchen 1" :::
+>   -- [ 34 ::: "Sa. 24.08.2013 15:00"
+>   -- , 36 ::: "Sa. 07.09.2013 15:00"
+>   [ 42 ::: "Sa. 19.10.2013 15:00"
+>   , 44 ::: "Sa. 02.11.2013 15:00"
+>   , 46 ::: "Sa. 16.11.2013 15:00"
+>   ,  4 ::: "Sa. 25.01.2014 15:00"
+>   ,  5 ::: "Sa. 01.02.2014 15:00"
+>   ,  7 ::: "Sa. 15.02.2014 15:00"
+>   , 12 ::: "Sa. 22.03.2014 15:00"
+>   ]
+>
+> molfsee :: Team Termin
+> molfsee = "SpVg. Eidertal Molfsee 1" :::
+>   -- zwei vorher
+>   [ 37 ::: "So. 15.09.2013 10:00"
+>   , 43 ::: "Sa. 26.10.2013 15:00"
+>   , 45 ::: "Sa. 09.11.2013 15:00"
+>   ,  2 ::: "Sa. 11.01.2014 15:00"
+>   ,  4 ::: "So. 26.01.2014 10:00"
+>   ,  7 ::: "Sa. 15.02.2014 15:00"
+>   , 11 ::: "Sa. 15.03.2014 15:00"
+>   , 12 ::: "So. 23.03.2014 10:00"
+>   , 13 ::: "Sa. 29.03.2014 15:00"
+>   ]
+>
+> bokhorst2 :: Team Termin
+> bokhorst2 = "SG Bokhorst/Wankendorf 2" :::
+>   [ 37 ::: "Sa. 14.09.2013 17:00"
+>   , 44 ::: "Sa. 02.11.2013 17:00"
+>   , 45 ::: "Sa. 09.11.2013 17:00"
+>   , 48 ::: "Sa. 30.11.2013 17:00"
+>   , 50 ::: "Sa. 14.12.2013 17:00"
+>   ,  5 ::: "Sa. 01.02.2014 17:00"
+>   ,  7 ::: "Sa. 15.02.2014 17:00"
+>   ,  8 ::: "Sa. 22.02.2014 17:00"
+>   ,  9 ::: "Sa. 01.03.2014 17:00"
+>   ]
+>
+> gettorf2 :: Team Termin
+> gettorf2 = "Gettorfer SC 2" :::
+>   [ 37 ::: "Sa. 14.09.2013 17:00"
+>   , 43 ::: "Sa. 26.10.2013 17:00"
+>   , 44 ::: "So. 03.11.2013 11:30"
+>   , 45 ::: "Sa. 09.11.2013 17:00"
+>   , 48 ::: "Sa. 30.11.2013 17:00"
+>   ,  2 ::: "Sa. 11.01.2014 17:00"
+>   ,  5 ::: "So. 02.02.2014 10:30"
+>   ,  7 ::: "So. 16.02.2014 11:30"
+>   ,  8 ::: "Sa. 22.02.2014 17:00"
+>   ]
+>
+> holtenau :: Team Termin
+> holtenau = "SG Flintbek/Holtenau 1" :::
+>   -- [ 34 ::: "Sa. 24:08.2013 16:00"
+>   -- , 35 ::: "Sa. 31.08.2013 16:00"
+>   -- , 36 ::: "So. 08.09.2013 10:00"
+>   [ 37 ::: "Sa. 14.09.2013 16:00"
+>   , 38 ::: "Sa. 21.09.2013 16:00"
+>   , 43 ::: "Sa. 26.10.2013 16:00"
+>   , 45 ::: "Sa. 09.11.2013 16:00"
+>   , 49 ::: "Sa. 07.12.2013 16:00"
+>   ,  2 ::: "Sa. 11.01.2014 16:00"
+>   ,  4 ::: "Sa. 25.01.2014 16:00"
+>   ,  5 ::: "So. 02.02.2014 10:00"
+>   ,  6 ::: "Sa. 08.02.2014 16:00"
+>   ,  7 ::: "Sa. 15.02.2014 16:00"
+>   ,  9 ::: "Sa. 01.03.2014 16:00"
+>   -- noch drei mehr
+>   ]
+
+
+> kreisklasseA :: [Team Termin]
+> kreisklasseA =
+>   [suchsdorf, preetz, eckernfoerde, kiel, wittorf6, einfeld]
+>
+> suchsdorf :: Team Termin
+> suchsdorf = "Suchsdorfer SV 1" :::
+>   -- [ 36 ::: "Sa. 07.09.2013 16:00"
+>   [ 43 ::: "Sa. 26.10.2013 16:00"
+>   , 44 ::: "Sa. 02.11.2013 16:00"
+>   , 50 ::: "Sa. 14.12.2013 16:00"
+>   ,  6 ::: "Sa. 08.02.2014 16:00"
+>   ,  8 ::: "Sa. 22.02.2014 16:00"
+>   -- , 19 ::: "Sa. 10.05.2014 16:00"
+>   ]
+>
+> preetz :: Team Termin
+> preetz = "SG Preetz/ Probsteierhagen 1" :::
+>   [ 44 ::: "Sa. 02.11.2013 16:00"
+>   , 48 ::: "Sa. 30.11.2013 16:00"
+>   ,  4 ::: "Sa. 25.01.2014 16:00"
+>   ,  6 ::: "Sa. 08.02.2014 16:00"
+>   ,  7 ::: "Sa. 15.02.2014 16:00"
+>   ,  9 ::: "Sa. 01.03.2014 16:00"
+>   , 13 ::: "Sa. 29.03.2014 16:00"
+>   ]
+>
+> eckernfoerde :: Team Termin
+> eckernfoerde = "Eckernförder MTV 1" :::
+>   [ 42 ::: "Sa. 19.10.2013 17:00"
+>   , 44 ::: "Sa. 02.11.2013 17:00"
+>   , 46 ::: "Sa. 16.11.2013 17:00"
+>   , 49 ::: "Sa. 07.12.2013 17:00"
+>   ,  8 ::: "Sa. 22.02.2014 17:00"
+>   , 13 ::: "Sa. 29.03.2014 17:00"
+>   ] -- noch einer mehr
+>
+> kiel :: Team Termin -- nicht Herbstferien (40-41), nicht Advent, nicht 22.2. (8)
+> kiel = "Kieler TV 1" :::
+>   [ 37 ::: "Sa. 14.09.2013 15:30"
+>   , 38 ::: "Sa. 21.09.2013 15:30"
+>   , 43 ::: "Sa. 26.10.2013 15:30"
+>   , 45 ::: "Sa. 09.11.2013 15:30"
+>   ,  2 ::: "Sa. 11.01.2014 15:30"
+>   ,  4 ::: "Sa. 25.01.2014 15:30"
+>   ,  5 ::: "Sa. 01.02.2014 15:30"
+>   ,  7 ::: "So. 16.02.2014 15:30"
+>   ]
+>
+> wittorf6 :: Team Termin
+> wittorf6 = "BW Wittorf NMS 6" :::
+>   [ 38 ::: "So. 22.09.2013 10:00"
+>   , 44 ::: "Sa. 02.11.2013 18:00"
+>   , 48 ::: "Sa. 30.11.2013 18:00"
+>   , 49 ::: "Sa. 07.12.2013 15:00"
+>   ,  2 ::: "Sa. 11.01.2014 18:00"
+>   ,  5 ::: "Sa. 01.02.2014 18:00"
+>   ,  8 ::: "So. 23.02.2014 10:00"
+>   ]
+>
+> einfeld :: Team Termin -- nicht Sonntag 08.12. (49), wenig im Dezember (48-52)
+> einfeld = "TS Einfeld 1" :::
+>   [ 38 ::: "So. 22.09.2013 10:00"
+>   , 43 ::: "So. 27.10.2013 10:00"
+>   , 45 ::: "So. 10.11.2013 10:00"
+>   , 46 ::: "So. 17.11.2013 10:00"
+>   ,  2 ::: "So. 12.01.2014 10:00"
+>   ,  5 ::: "So. 02.02.2014 10:00"
+>   ,  6 ::: "So. 09.02.2014 10:00"
+>   , 11 ::: "So. 16.03.2014 10:00"
+>   ]
+
+
+> kreisklasseB :: [Team Termin]
+> kreisklasseB =
+>   [suchsdorf2, damp2, bokhorst3, kronshagen, jahn, bordesholm]
+>
+> suchsdorf2 :: Team Termin
+> suchsdorf2 = "Suchsdorfer SV 2" :::
+>   -- [ 36 ::: "Sa. 07.09.2013 16:00" -- Kappeln, aber wegen fehlender Termine von Jahn nötig.
+>   [ 43 ::: "Sa. 26.10.2013 16:00"
+>   , 44 ::: "Sa. 02.11.2013 16:00"
+>   , 50 ::: "Sa. 14.12.2013 16:00"
+>   ,  6 ::: "Sa. 08.02.2014 16:00"
+>   ,  8 ::: "Sa. 22.02.2014 16:00"
+>   -- , 19 ::: "Sa. 10.05.2014 16:00"
+>   ]
+>
+> damp2 :: Team Termin
+> damp2 = "SG Damp/Loose 2" :::
+>   -- [ 34 ::: "24.08.2013 16:30"
+>   [ 44 ::: "Sa. 02.11.2013 16:30"
+>   , 45 ::: "Sa. 09.11.2013 16:30"
+>   , 49 ::: "Sa. 07.12.2013 16:30"
+>   ,  2 ::: "Sa. 11.01.2014 16:30"
+>   ,  4 ::: "Sa. 25.01.2014 16:30"
+>   ,  6 ::: "Sa. 08.02.2014 16:30"
+>   ,  8 ::: "Sa. 22.02.2014 16:30"
+>   ,  9 ::: "Sa. 01.03.2014 16:30"
+>   , 11 ::: "Sa. 15.03.2014 16:30"
+>   ]
+>
+> bokhorst3 :: Team Termin
+> bokhorst3 = "SG Bokhorst/Wankendorf 3" :::
+>   [ 37 ::: "Sa. 14.09.2013 17:00"
+>   , 44 ::: "Sa. 02.11.2013 17:00"
+>   , 45 ::: "Sa. 09.11.2013 17:00"
+>   , 48 ::: "Sa. 30.11.2013 17:00"
+>   , 50 ::: "Sa. 14.12.2013 17:00"
+>   ,  5 ::: "Sa. 01.02.2014 17:00"
+>   ,  7 ::: "Sa. 15.02.2014 17:00"
+>   ,  8 ::: "Sa. 22.02.2014 17:00"
+>   ,  9 ::: "Sa. 01.03.2014 17:00"
+>   ]
+>
+> kronshagen :: Team Termin
+> kronshagen = "SV Vorwärts Kronshagen 1" :::
+>   -- [ 36 ::: "Sa. 07.09.2013 17:30"
+>   [ 38 ::: "Sa. 21.09.2013 17:30"
+>   , 46 ::: "So. 17.11.2013 10:00"
+>   , 48 ::: "Sa. 30.11.2013 14:15"
+>   , 49 ::: "So. 08.12.2013 10:00"
+>   , 51 ::: "Sa. 21.12.2013 17:30"
+>   ,  4 ::: "So. 26.01.2014 10:00"
+>   ,  6 ::: "Sa. 08.02.2014 17:30"
+>   , 11 ::: "Sa. 15.03.2014 17:30"
+>   ]
+>
+> jahn :: Team Termin
+> jahn = "TV Jahn 2" :::
+>   [ 42 ::: "Sa. 19.10.2013 15:00 (Halle 2)"
+>   , 44 ::: "Sa. 02.11.2013 15:45 (Halle 1)"
+>   , 48 ::: "Sa. 01.12.2013 10:00 (Halle 2)"
+>   , 49 ::: "Sa. 07.12.2013 15:00 (Halle 1)"
+>   ,  7 ::: "Sa. 15.02.2014 16:00 (Halle 2)"
+>   ,  8 ::: "Sa. 22.02.2014 15:15 (Halle 1)"
+>   , 13 ::: "Sa. 29.03.2014 16:00 (Halle 2)"
+>   ]
+>
+> bordesholm :: Team Termin
+> bordesholm = "TSV Bordesholm 1" :::
+>   -- [ 35 ::: "So. 01.09.2013 11:00"
+>   -- , 36 ::: "So. 08.09.2013 11:00"
+>   [ 38 ::: "So. 22.09.2013 11:00"
+>   , 42 ::: "So. 20.10.2013 11:00"
+>   , 43 ::: "So. 27.10.2013 11:00"
+>   , 44 ::: "So. 03.11.2013 11:00"
+>   , 45 ::: "So. 10.11.2013 11:00"
+>   , 46 ::: "So. 17.11.2013 11:00"
+>   , 49 ::: "So. 08.12.2013 11:00"
+>   ,  2 ::: "So. 12.01.2014 11:00"
+>   ,  4 ::: "So. 26.01.2014 11:00"
+>   ,  5 ::: "So. 02.02.2014 11:00"
+>   ,  6 ::: "So. 09.02.2014 11:00"
+>   ,  7 ::: "So. 16.02.2014 11:00"
+>   ,  8 ::: "So. 23.02.2014 11:00"
+>   ,  9 ::: "So. 02.03.2014 11:00"
+>   , 11 ::: "So. 16.03.2014 11:00"
+>   , 12 ::: "So. 23.03.2014 11:00"
+>   ]
+
+
+
+Aus einer Liste von Teams wird ein Spielplan erstellt, der für jede
+Kombination von Teams angibt, in welcher Kalenderwoche sie
+gegeneinander spielen. Um Sonderwünsche berücksichtigen zu können,
+definieren wir ein Spielplan-Constraint, das mit anderen kombiniert
+werden kann.
+
+> spielplan :: [Team KW] -> Spielplan -> Success
+> spielplan teams plan
+>   = plan =:= planOfSize (length teams)
+>   & andC (zipWith (heimTermin (map snd teams)) [0..] plan)
+
+>   -- Die Spiele jedes Teams finden an verschiedenen Wochenenden statt
+>   & allC allDifferent (alleSpiele plan)
+>
+>   -- Spielfrei für alle an ausgewählten Terminen
+>   & keinSpiel [40,41,51,52] (unknownsIn plan)
+>
+>   -- Von den zwei Begegnungen jeder Kombination muss eine in der Hinrunde
+>   -- und eine in der Rückrunde stattfinden. Das können wir daran erkennen,
+>   -- dass die Differenz der Kalenderwochen mehr als 25 beträgt. Da es keinen
+>   -- Absolutbetrag gibt, berechnen wir das Quadrat der Differenz.
+>   & allC ((># (25*25)) . squareFD . uncurry (-#))
+>          (hinUndRueck plan (transpose plan))
+
+> planOfSize :: Int -> Spielplan
+> planOfSize n = 
+>   [ [ if i==j then 0 else unknown | i <- [1..n] ] | j <- [1..n] ]
+
+> alleSpiele :: Spielplan -> Spielplan
+> alleSpiele plan = zipWith (++) (spiele plan) (spiele (transpose plan))
+
+> spiele :: Spielplan -> Spielplan
+> spiele = zipWith allBut [0..]
+
+> unknownsIn :: Spielplan -> [KW]
+> unknownsIn plan = concat [ allBut i kws | (i,kws) <- zip [0..] plan ]
+
+> allBut :: Int -> [KW] -> [KW]
+> allBut i kws = [ kw | (j,kw) <- zip [0..] kws, i /= j ]
+
+> heimTermin :: [[KW]] -> Int -> [KW] -> Success
+> heimTermin termine i kws =
+>   andC [ listDomain kw (if null heim then termine!!j else heim)
+>          | (j,kw) <- zip [0..] kws, i /= j ]
+>  where
+>   heim = termine !! i
+
+> hinUndRueck :: Spielplan -> Spielplan -> [(KW,KW)]
+> hinUndRueck heim gast = concat
+>   [ [ (hkw,gkw) | (i,hkw,gkw) <- zip3 [0..] hkws gkws, i > j ]
+>     | (j,hkws,gkws) <- zip3 [0..] heim gast ]
+
+> keinSpiel :: [KW] -> [KW] -> Success
+> keinSpiel kws = allC (\kw -> allC (kw /=#) kws)
+
+
+> listDomain :: Int -> [Int] -> Success
+> listDomain var vals
+>   = domain [var] min max & allC (var/=#) ([min .. max] \\ sorted)
+>  where
+>   sorted = sortBy (<) vals
+>   min    = head sorted
+>   max    = last sorted
+
+> sumFD :: [Int] -> Int
+> sumFD = foldr (+#) 0
+
+> squareFD :: Int -> Int
+> squareFD x = x *# x
+
+Zur Erstellung aller Spielpläne der Saison werden diese mit den
+Sonderwünschen kombiniert.
+
+> liga :: (Team Termin -> Team KW) -> Spielplan -> Success
+> liga getKW plan
+>   = spielplan (map getKW kreisliga) plan
+>
+>   -- Gettorf nicht bei Turnieren und in den Herbstferien
+>   & keinSpiel ([38]++[40..42]++[46,6,12])
+>       (alleSpiele plan !! indexOf gettorf2 kreisliga)
+>
+>   -- Bokhorst nicht am 14.9.
+>   -- zu spät gemeldet, hat zu viele Änderungen zur Folge
+>   -- & keinSpiel [37] (alleSpiele plan !! indexOf bokhorst2 kreisliga)
+>
+>   & balancedDates 100 plan
+>
+>   & planSetzen plan
+>
+> klasseA :: (Team Termin -> Team KW) -> Spielplan -> Success
+> klasseA getKW plan
+>   = spielplan (map getKW kreisklasseA) plan
+>
+>   -- kein spiel bei Bezirkstranglisten
+>   & keinSpiel [12,38] (unknownsIn plan)
+>
+>   -- Einfeld nicht am 8.12. (KW 49), nicht im Dezember (48/49-52)
+>   & keinSpiel [48..52] (alleSpiele plan !! indexOf einfeld kreisklasseA)
+>
+>   -- Kiel nicht in den Herbstferien (40-42), 
+>   -- nicht im Dezember (48/49-52), nicht 22.2. (8)
+>   & keinSpiel ([8]++[40..42]++[48..52])
+>       (alleSpiele plan !! indexOf kiel kreisklasseA)
+>
+>   & balancedDates 80 plan
+>
+>   & planSetzen plan
+>
+> klasseB :: (Team Termin -> Team KW) -> Spielplan -> Success
+> klasseB getKW plan
+>   = spielplan (map getKW kreisklasseB) plan
+>
+>   -- Damp keine Spiele im September
+>   & keinSpiel [35..39] (alleSpiele plan !! indexOf damp2 kreisklasseB)
+>
+>   & balancedDates 80 plan
+>
+>   & planSetzen plan
+
+> balancedDates :: Int -> Spielplan -> Success
+> balancedDates kwSum plan
+>   = allC ((># kwSum) . sumFD) plan
+>   & allC ((># kwSum) . sumFD) (transpose plan)
+
+> planSetzen :: Spielplan -> Success
+> planSetzen plan = labeling (unknownsIn plan)
+
+> indexOf :: a -> [a] -> Int
+> indexOf x (y:ys)
+>   | x == y    = 0
+>   | otherwise = 1 + indexOf x ys
+
+> dropDate :: Team Termin -> Team KW
+> dropDate (name, termine) = (name, map fst termine)
+
+> spielplaene :: [Spielplan] -> Success
+> spielplaene [kl, kka, kkb]
+>   = klasseA dropDate kka
+>   & (liga dropDate kl &> 
+>      klasseB (gemeinsam damp2 damp kreisliga kl
+>                (gemeinsam bokhorst3 bokhorst2 kreisliga kl dropDate))
+>              kkb)
+
+> gemeinsam :: Team Termin -> Team Termin -> [Team Termim] -> Spielplan
+>          -> (Team Termin -> Team KW)
+>          -> (Team Termin -> Team KW)
+> gemeinsam (name,_) (other,_) staffel plan getKW team
+>   | name == fst team =
+>       maybe (getKW team) 
+>         (\kws -> (name,(filter (/= 0)) $## kws))
+>         (lookup other (zipWith ((,) . fst) staffel plan))
+>   | otherwise        = getKW team
+
+Die CSV Bibliothek von Curry erlaubt zwar, das Trennzeichen beim Lesen
+selbst zu wählen - nicht aber beim Schreiben. Deshalb hier einfache
+Hilfsfunktionen zum Lesen und Schreiben von CSV mit Semikolons. Ich
+verzichte auf die Behandlung von Sonderfällen, die in der Datei, die
+ich bearbeiten will, nicht vorkommen.
+
+> type CSV = [[String]]
+>
+> readCSV :: String -> CSV
+> readCSV = map cells . lines
+>
+> cells :: String -> [String]
+> cells s
+>   | null s    = []
+>   | otherwise = case cs of
+>                   ""   -> [c]
+>                   _:s' -> c : cells s'
+>  where
+>   (c,cs) = break (';' ==) s
+>
+> showCSV :: CSV -> String
+> showCSV = unlines . map (concat . intersperse ";")
+
+> orElse :: Maybe a -> Maybe a -> Maybe a
+> Nothing `orElse` x = x
+> Just x  `orElse` _ = Just x
+>
+> type Match = (Name,Name)
+> type Date  = (Int,String)
+>
+> matchDates :: [Team Termin] -> Spielplan -> [(Match,Date)]
+> matchDates teams plan = 
+>   [ ((heim, gast), (kw, date))
+>     | (heim, kws) <- zip names plan
+>     , (gast, kw) <- zip names kws, kw /= 0
+>     , let Just date = (lookup heim teams >>- lookup kw)
+>              `orElse` (lookup gast teams >>- lookup kw) ]
+>  where
+>   names = map fst teams
+>
+> kwsToDays :: [(Match,Date)] -> [(Match,Date)]
+> kwsToDays dates = map (\(m,(kw,d)) -> (m,(getDay kw,d))) dates
+>  where
+>   days        = map head . group . sortBy (<) $ map (fst . snd) dates
+>   (rueck,hin) = span (<30) days
+>   getDay kw   = fromJust . lookup kw $ zip (hin++rueck) [1..]
+>
+> terminTabelle :: [(Match,Date)] -> [[String]]
+> terminTabelle = map makeRow . sortOn snd
+>  where
+>   makeRow ((heim,gast),(_,date)) = [date, heim, gast]
+>
+> sortOn :: (a -> b) -> [a] -> [a]
+> sortOn f = sortBy (\x y -> f x < f y)
+>
+> type Padding = Int -> String -> String
+>
+> markdownTable :: [Padding] -> [[String]] -> String
+> markdownTable padding rows =
+>   unlines $ map (concat . intersperse "  ")
+>     (border : map makeRow rows ++ [border])
+>  where
+>   colSizes = map ((2+) . maxlist . map length) $ transpose rows
+>   border   = map (flip replicate '-') colSizes
+>   makeRow  = zipWith3 ($) padding colSizes
+>
+> writeMarkdownFile :: [Padding] -> String -> String -> [(Match,Date)] -> IO ()
+> writeMarkdownFile padding title author dates = writeFile name contents
+>  where
+>   name     = filter (not . isSpace) title ++ ".txt"
+>   contents = unlines ["% "++title, "% Staffelleitung: "++author, "", table]
+>   table    = markdownTable padding . terminTabelle . kwsToDays
+>                $ turniere ++ dates
+
+> turniere :: [(Match,Date)]
+> turniere = map (\((name,disc),date) -> ((bold name, bold disc),date))
+>   [ ("Kreis-Einzel-Meisterschaften","DE, HE, MX")
+>       ::: (39, "Sa. 28.09.2013 15:00")
+>   , ("Kreis-Einzel-Meisterschaften","DD, HD")
+>       ::: (39, "So. 29.09.2013 10:00")
+>   , ("1. Kreis-Ranglisten-Turnier","DE, HE")
+>       ::: (47, "Sa. 23.11.2013 15:00")
+>   , ("1. Kreis-Ranglisten-Turnier","MX")
+>       ::: (47, "So. 24.11.2013 10:00")
+>   , ("2. Kreis-Ranglisten-Turnier","DE, HE")
+>       ::: ( 3, "Sa. 18.01.2014 15:00")
+>   , ("2. Kreis-Ranglisten-Turnier","DD, HD")
+>      ::: ( 3, "So. 19.01.2014 10:00")
+>   , ("3. Kreis-Ranglisten-Turnier","MX")
+>      ::: (10, "Sa. 08.03.2014 15:00")
+>   , ("3. Kreis-Ranglisten-Turnier","DD, HD")
+>      ::: (10, "So. 09.03.2014 10:00")
+>   ]
+>  where
+>   bold s = "__" ++ s ++ "__"
+
+> main :: IO ()
+> main = do
+>   putStr "Spielpläne werden berechnet.. "
+>   hFlush stdout
+>   Just [kl, kka, kkb] <- getOneSolution spielplaene
+>   putStrLn "fertig."
+>
+>   mapIO_ (putStrLn . showPlan) [kl, kka, kkb]
+>
+>   {-let dates = zipWith matchDates
+>                 [kreisliga, kreisklasseA, kreisklasseB]
+>                 [kl, kka ,kkb]
+>
+>   putStr "Markdown-Dateien werden geschrieben.. "
+>   hFlush stdout
+>   sequenceIO_ $ zipWith3 (writeMarkdownFile [padRight, padLeft, padRight])
+>     ["Kreisliga", "Kreisklasse A", "Kreisklasse B"]
+>     ["Horst Biegemann", "Andrea Sachtler", "Sebastian Fischer"]
+>     dates
+>   putStrLn "fertig."
+>
+>   putStr "Datei in.csv wird zu out.csv erweitert.. " 
+>   hFlush stdout
+>   s <- readFile "in.csv"
+>   let csv               = readCSV s
+>       colnames          = head csv
+>       heimIndex         = indexOf "team1name" colnames
+>       gastIndex         = indexOf "team2name" colnames
+>       dateIndex         = indexOf "spieldatum" colnames
+>       dayIndex          = indexOf "spieltag" colnames
+>       oldRows           = tail csv
+>       extendRow row
+>         | all empty row = row
+>         | otherwise     = let heim = row !! heimIndex
+>                               gast = row !! gastIndex
+>                            in maybe (notFound row heim gast)
+>                                 (\(day,date) -> 
+>                                   [ if index == dateIndex then
+>                                       take 16 $ drop 4 date
+>                                      else if index == dayIndex then
+>                                       show day
+>                                      else cell
+>                                     | (index,cell) <- zip [0..] row ])
+>                                 (lookup (heim,gast)
+>                                   (concatMap kwsToDays dates))
+>       newRows           = map extendRow oldRows
+>   writeFile "out.csv" $ showCSV (colnames:newRows)-}
+>   putStrLn "fertig."
+>  where
+>   empty cell = cell `elem` ["","\r"] -- 'lines' does not remove '\r'
+>
+>   notFound row heim gast =
+>     error $ "Did not find '" ++ heim ++ " - " ++ gast ++ "' in " ++ show row
+
+
+> printHallen :: IO ()
+> printHallen = do
+>   csv <- readFile "in.csv" >>= return . readCSV
+>   let heimIndex   = indexOf "team1name" $ head csv
+>       hallenIndex = indexOf "spielortname" $ head csv
+>       clubs       = map (dropLast 2 . (!!heimIndex)) $ tail csv
+>       hallen      = map (!!hallenIndex) $ tail csv
+>   putStrLn . markdownTable [padRight, padRight]
+>     . map ((\(t,h) -> [t,h])) . filter (not . null . fst)
+>     . map head . group . sortOn fst $ zip clubs hallen
+>
+> dropLast :: Int -> [a] -> [a]
+> dropLast n = reverse . drop n . reverse
