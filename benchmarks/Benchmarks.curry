@@ -215,7 +215,7 @@ runBenchmark rpts totalNum (currentNum, benchMark) = do
   let totalStr = show totalNum
       curntStr = show currentNum
   flushStr $ "Running benchmark [" ++ lpad (length totalStr) curntStr ++ " of "
-             ++ totalStr ++ "]: " ++ (benchMark :> bmName) ++ ": "
+             ++ totalStr ++ "]: " ++ (benchMark :> bmName) ++ ": " ++ "\n"
   benchMark :> bmPrepare
   infos <- sequenceIO $ replicate rpts $ benchCmd
                       $ timeout benchTimeout $ benchMark :> bmCommand
@@ -380,14 +380,13 @@ csvFile name mach time =
 -- Benchmarks for various systems
 -- ---------------------------------------------------------------------------
 
-data Supply   = S_PureIO | S_IORef | S_GHC | S_Integer
+data Supply   = S_PureIO | S_IORef | S_GHC | S_Integer | S_Giants
 
 data SplitStrategy = CommonBuffer | TakeFirst | SplitVertical | SplitHalf
 
 data Strategy
-  = PRDFS -- primitive
-  | IODFS    | IOBFS    | IOIDS Int String    | IOIDS2 Int String -- top-level
-  | MPLUSDFS | MPLUSBFS | MPLUSIDS Int String | MPLUSPar          -- MonadPlus
+  = PRDFS                                                         -- primitive
+  | DFS      | BFS      | IDS Int                                 -- top-level
   | EncDFS   | EncBFS   | EncIDS                                  -- encapsulated
   | EncPar   | EncCon Int                                         -- parallel encapsulated
   | EncFair  | EncFair' | EncFair'' | EncFairBag SplitStrategy    -- fair strategies
@@ -408,6 +407,26 @@ type RuntimeOptions =
   , stackBuffer  :: String
   }
 
+topLevel :: Strategy -> Bool
+topLevel s =
+  case s of
+    PRDFS -> True
+    DFS   -> True
+    BFS   -> True
+    IDS _ -> True
+    _     -> False
+
+encapsulated :: Strategy -> Bool
+encapsulated s =
+  case s of
+    EncDFS -> True
+    EncBFS -> True
+    EncIDS -> True
+    _      -> False
+
+parallel :: Strategy -> Bool
+parallel s = (not $ topLevel s) && (not $ encapsulated s)
+
 detGoal :: String -> String -> Goal
 detGoal gl mod = Goal False mod gl
 
@@ -416,9 +435,7 @@ nonDetGoal gl mod = Goal True mod gl
 
 showStrategy :: Strategy -> String
 showStrategy s = case s of
-  IOIDS    i inc -> "IOIDS_"    ++ show i ++ '_' : inc
-  IOIDS2   i inc -> "IOIDS2_"   ++ show i ++ '_' : inc
-  MPLUSIDS i inc -> "MPLUSIDS_" ++ show i ++ '_' : inc
+  IDS    i       -> "IDS_"    ++ show i
   _              ->  show s
 
 showSupply :: Supply -> String
@@ -427,75 +444,54 @@ showSupply = map toUpper . drop 2 . show
 chooseSupply :: Supply -> String
 chooseSupply = map toLower . drop 2 . show
 
-mainExpr :: Strategy -> Output -> Goal -> String
-mainExpr _ _ (Goal False _ goal) = "main = evalD d_C_" ++ goal
-mainExpr s o (Goal True  _ goal) = searchExpr s
- where
-  searchExpr PRDFS            = "main = prdfs print nd_C_" ++ goal
-  searchExpr IODFS            = searchComb "ioDFS"
-  searchExpr IOBFS            = searchComb "ioBFS"
-  searchExpr (IOIDS    i inc) = searchComb $ "(ioIDS " ++ show i ++ " " ++ inc ++ ")"
-  searchExpr (IOIDS2   i inc) = searchComb $ "(ioIDS2 " ++ show i ++ " " ++ inc ++ ")"
-  searchExpr MPLUSDFS         = searchComb "mplusDFS"
-  searchExpr MPLUSBFS         = searchComb "mplusBFS"
-  searchExpr (MPLUSIDS i inc) = searchComb $ "(mplusIDS " ++ show i ++ " " ++ inc ++ ")"
-  searchExpr MPLUSPar         = searchComb "mplusPar"
-  searchExpr EncDFS           = wrapEnc "dfsStrategy"
-  searchExpr EncBFS           = wrapEnc "bfsStrategy"
-  searchExpr EncIDS           = wrapEnc "idsStrategy"
-  searchExpr EncPar           = wrapParEnc "parSearch"
-  searchExpr EncFair          = wrapParEnc "fairSearch"
-  searchExpr EncFair'         = wrapParEnc "fairSearch'"
-  searchExpr EncFair''        = wrapParEnc "fairSearch''"
-  searchExpr (EncFairBag sp)  = wrapParEnc $ "fairBag " ++ splitExpr sp
-  searchExpr (EncCon i)       = wrapParEnc $ "conSearch (toCurry (" ++ show i ++ ":: Int))"
-  searchExpr EncSAll          = wrapParEnc "splitAll"
-  searchExpr EncSAll'         = wrapParEnc "splitAll'"
-  searchExpr (EncSLimit i)    = wrapParEnc $ "splitLimitDepth (toCurry (" ++ show i ++ ":: Int))"
-  searchExpr (EncSAlt   i)    = wrapParEnc $ "splitAlternating (toCurry (" ++ show i ++ ":: Int))"
-  searchExpr EncSPow          = wrapParEnc $ "splitPower"
-  searchExpr EncBFSEval       = wrapParEnc $ "bfsParallel"
-  searchExpr EncBFSEval'      = wrapParEnc $ "bfsParallel'"
-  searchExpr (EncDFSBag  sp)  = wrapParEnc $ "dfsBag "  ++ splitExpr sp
-  searchExpr (EncFDFSBag sp)  = wrapParEnc $ "fdfsBag " ++ splitExpr sp
-  searchExpr (EncBFSBag  sp)  = wrapParEnc $ "bfsBag "  ++ splitExpr sp
-  searchExpr (EncDFSBagLimit sp n) = wrapParEnc $ "dfsBagLimit " ++ splitExpr sp ++ " (toCurry (" ++ show n ++ ":: Int))"
-  searchExpr EncDFSBagCon     = wrapParEnc $ "dfsBagCon"
-  searchExpr EncFDFSBagCon    = wrapParEnc $ "fdfsBagCon"
-  searchExpr EncBFSBagCon     = wrapParEnc $ "bfsBagCon"
-  searchExpr EncFairBagCon    = wrapParEnc $ "fairBagCon"
-  wrapEnc strat      =
-    case o of
-      One ->
-        "import qualified Curry_SearchTree as ST\n"
-        ++ "main = prdfs print (\\i cov cs -> ST.d_C_" ++ encComb ++ " ST.d_C_" ++ strat
-        ++ " (nd_C_" ++ goal ++ " i cov cs) cov cs)"
-      All ->
-        "import qualified Curry_SearchTree as ST\n"
-        ++ "main = prdfs print (\\i cov cs -> ST.d_C_" ++ encComb ++ " ST.d_C_" ++ strat
-        ++ " (ST.d_C_someSearchTree (nd_C_" ++ goal ++ " i cov cs) cov cs) cov cs)"
+stratExpr :: Strategy -> String
+stratExpr  EncPar                  = "parSearch"
+stratExpr (EncCon n)               = "conSearch " ++ (show n)
+stratExpr  EncFair                 = "fairSearch"
+stratExpr  EncFair'                = "fairSearch'"
+stratExpr  EncFair''               = "fairSearch''"
+stratExpr (EncFairBag split)       = "fairBag " ++ fromSplit split
+stratExpr  EncSAll                 = "splitAll"
+stratExpr  EncSAll'                = "splitAll'"
+stratExpr (EncSLimit n)            = "splitLimitDepth " ++ (show n)
+stratExpr (EncSAlt n)              = "splitAlternating " ++ (show n)
+stratExpr  EncSPow                 = "splitPower"
+stratExpr  EncBFSEval              = "bfsParallel"
+stratExpr  EncBFSEval'             = "bfsParallel'"
+stratExpr (EncDFSBag split)        = "dfsBag " ++ fromSplit split
+stratExpr (EncFDFSBag split)       = "fdfsBag " ++ fromSplit split
+stratExpr (EncBFSBag split)        = "bfsBag "  ++ fromSplit split
+stratExpr  EncDFSBagCon            = "dfsBagCon"
+stratExpr  EncFDFSBagCon           = "fdfsBagCon"
+stratExpr  EncBFSBagCon            = "bfsBagCon"
+stratExpr (EncDFSBagLimit split n) = "dfsBagLimit " ++ fromSplit split ++ (show n)
 
-  wrapParEnc strat   = "import qualified Curry_ParallelSearch as PS\n"
-    ++ "main = printIO print (\\i cov cs -> PS.d_C_" ++ parComb ++ " (PS.d_C_" ++ strat
-    ++ " cov cs) (nd_C_" ++ goal ++ " i cov cs) cov cs)"
-  splitExpr CommonBuffer  = "(PS.d_C_commonBuffer  cov cs)"
-  splitExpr TakeFirst     = "(PS.d_C_takeFirst     cov cs)"
-  splitExpr SplitVertical = "(PS.d_C_splitVertical cov cs)"
-  splitExpr SplitHalf     = "(PS.d_C_splitHalf     cov cs)"
-  searchComb search  = "main = " ++ comb ++ " " ++ search ++ " $ " ++ "nd_C_" ++ goal
-  comb = case o of
-    All         -> "printAll"
-    One         -> "printOne"
-    Interactive -> "printInteractive"
-    Count       -> "countAll"
+fromSplit CommonBuffer  = "commmonBuffer"
+fromSplit TakeFirst     = "takeFirst"
+fromSplit SplitVertical = "splitVertical"
+fromSplit SplitHalf     = "splitHalf"
 
-  encComb = case o of
-    All         -> "allValuesWith"
-    One         -> "someValueWith"
-
-  parComb = case o of
-    All         -> "getAllValues"
-    One         -> "getOneValue"
+mainExpr :: Strategy -> Output -> String -> ([String], String, Strategy, Output)
+mainExpr s o goal | topLevel s = ([], goal, s, o)
+                  | encapsulated s  =
+  let printFunction =
+        case o of
+          All -> "allValuesWith"
+          One -> "someValueWith"
+          Count -> "length $ allValuesWith"
+      strategy =
+        case s of
+          EncDFS -> "dfsStrategy"
+          EncBFS -> "bfsStrategy"
+          EncIDS -> "idsStrategy"
+  in (["SearchTree"], printFunction ++ " " ++ strategy ++ " " ++ goal, PRDFS, All)
+                  | parallel s =
+  let printFunction =
+        case o of
+          All -> "getAllValues"
+          One -> "getOneValue"
+      strategy = "(" ++ stratExpr s ++ ")"
+  in (["ParallelSearch"], printFunction ++ " " ++ strategy ++ " " ++ goal, PRDFS, All)
 
 --- Create a KiCS2 Benchmark
 --- @param hoOpt    - compile with higher-order optimization?
@@ -507,8 +503,8 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
 --- @param output   -
 --- @param gl       - goal to be executed
 kics2 :: Bool -> Bool -> Maybe RuntimeOptions -> Int -> Supply -> Strategy -> Output -> Goal -> [Benchmark]
-kics2 hoOpt ghcOpt rts threads idsupply strategy output gl@(Goal _ mod goal)
-  = kics2Benchmark tag hoOpt ghcOpt rts threads idsupply mod goal (mainExpr strategy output gl)
+kics2 hoOpt ghcOpt rts threads idsupply strategy output gl@(Goal _ _ exp)
+  = kics2Benchmark tag hoOpt ghcOpt rts threads idsupply gl (mainExpr strategy output exp)
  where tag = concat [ "KICS2"
                     , if ghcOpt then "+"  else ""
                     , if hoOpt  then "_D" else ""
@@ -549,9 +545,9 @@ mkTag mod goal comp
 --- @param idsupply - idsupply implementation
 --- @param mod      - module name of the benchmark
 --- @param goal     - name of the goal to be executed
---- @param mainexp  - main (Haskell!) call
-kics2Benchmark :: String -> Bool -> Bool -> Maybe RuntimeOptions -> Int -> Supply -> String -> String -> String -> [Benchmark]
-kics2Benchmark tag hoOpt ghcOpt rts threads idsupply mod goal mainexp =
+--- @param mainexp  - main call
+kics2Benchmark :: String -> Bool -> Bool -> Maybe RuntimeOptions -> Int -> Supply -> Goal -> ([String], String, Strategy, Output) -> [Benchmark]
+kics2Benchmark tag hoOpt ghcOpt rts threads idsupply (Goal _ mod goal) cmds =
   let threaded = threads /= 1
       r        = fromJust rts
       rtsOpts  = (if threaded then ["-N" ++ show threads] else [])
@@ -559,9 +555,9 @@ kics2Benchmark tag hoOpt ghcOpt rts threads idsupply mod goal mainexp =
       opts     = if not (null rtsOpts) then ["+RTS"] ++ rtsOpts ++ ["-RTS"] else []
   in
   [ { bmName    := mkTag mod goal tag
-    , bmPrepare := kics2Compile mod hoOpt ghcOpt threaded idsupply mainexp
-    , bmCommand := ("./Main", opts)
-    , bmCleanup := ("rm", ["-f", "Main", "Main.hs", "Main.hi", "Main.o"]) -- , ".curry/" ++ mod ++ ".*", ".curry/kics2/Curry_*"])
+    , bmPrepare := kics2Compile hoOpt ghcOpt threaded idsupply mod cmds
+    , bmCommand := ("./" ++ mod, opts)
+    , bmCleanup := ("rm", ["-f", mod]) -- , ".curry/" ++ mod ++ ".*", ".curry/kics2/Curry_*"])
     }
   ]
 monBenchmark optim mod mainexp = if monInstalled && not onlyKiCS2
@@ -626,47 +622,35 @@ swiBenchmark mod = if onlyKiCS2 then [] else
 --- @param threaded - true if the program should be compiled with thread
 ---                   support
 --- @param idsupply - idsupply implementation (integer or pureio)
---- @param mainexp  - main (Haskell!) call
-kics2Compile :: String -> Bool -> Bool -> Bool -> Supply -> String -> IO Int
-kics2Compile mod hoOpt ghcOpt threaded idsupply mainexp = do
-  -- 1. Call the kics2c to create the Haskell module
-  let kics2cCmd = (kics2Home ++ "/bin/.local/kics2c",[ "-q", if hoOpt then "" else "-O0" , "-i" ++ kics2Home ++ "/lib", mod])
-  traceCmd kics2cCmd
-
-  -- 2. Create the Main.hs program containing the call to the initial expression
-  let mainFile = "Main.hs"
-  let mainCode = unlines  [ "module Main where"
-                          , "import Basics", "import Curry_" ++ mod
-                          , mainexp
-                          ]
-  -- show to put parentheses around the source code
-  writeFile mainFile mainCode
-
-  -- 3. Call the GHC
-  let ghcImports = [ kics2Home ++ "/runtime"
-                   , kics2Home ++ "/runtime/idsupply" ++ chooseSupply idsupply
-                   ,".curry/kics2"
-                   , kics2Home ++ "/lib/.curry/kics2"
-                   ]
-      ghcPkgDbOpts = "-no-user-package-db -package-db " ++ 
-                     kics2Home ++ "/pkg/kics2.conf.d"
-      ghcCmd = ("ghc" , [ ghcPkgDbOpts 
-                        , if ghcOpt then "-O2" else ""
-                        , if threaded then "-threaded" else ""
-                        , "-rtsopts"
-                        , "--make"
-                        , if doTrace then "" else "-v0"
-                        , "-package ghc"
-                        , "-cpp" -- use the C preprocessor
---                         , "-DDISABLE_CS" -- disable constraint store
-                        --,"-DSTRICT_VAL_BIND" -- strict value bindings
-                        , "-XMultiParamTypeClasses","-XFlexibleInstances"
-                        , "-XRelaxedPolyRec"
-                        , "-fforce-recomp"
-                        , "-i" ++ intercalate ":" ghcImports
-                        , mainFile
-                        ]) -- also:  -funbox-strict-fields ?
-  traceCmd ghcCmd
+--- @param mainexp  - main call
+kics2Compile :: Bool -> Bool -> Bool -> Supply -> String -> ([String], String, Strategy, Output) -> IO Int
+kics2Compile hoOpt ghcOpt threaded idsupply mod (imports, mainexp, strategy, output) = do
+  let supply = chooseSupply idsupply
+      ghcOptions = (if ghcOpt then "-O2" else "-O0") ++
+                   (if threaded then " -threaded" else "") ++
+                   (if doTrace then "" else " -v0")
+      optOption  = if hoOpt then "+optimize" else "-optimize"
+      interactiveOption = case output of
+                            Interactive -> "+interactive"
+                            _           -> "-interactive"
+      firstOption       = case output of
+                            One -> "+first"
+                            _   -> "-first"
+      verbosityOption = if doTrace then "v1" else "v0"
+      stratOption = case strategy of
+                      PRDFS -> "prdfs"
+                      DFS   -> "dfs"
+                      BFS -> "bfs"
+                      IDS n -> "ids " ++ show n
+      kics2Options = [":set " ++ optOption,      ":set ghc " ++ ghcOptions,
+                      ":set " ++ firstOption,    ":set " ++ interactiveOption,
+                      ":set " ++ "-time",        ":set " ++ verbosityOption,
+                      ":set supply " ++ supply,  ":set " ++ stratOption,
+                      ":load " ++ mod] ++
+                     map (\i -> ":add " ++ i) imports ++
+                     [":save \"" ++ mainexp ++ "\"", ":quit"]
+  let kics2Cmd = (kics2Home ++ "/bin/kics2", kics2Options)
+  traceCmd kics2Cmd
   return 0
 
 -- ---------------------------------------------------------------------------
@@ -742,7 +726,7 @@ benchGhcUniqSupply goal = concat
                                            , su <- suppls
                                            , go <- [True, False] ]
  where
-  strats = [ PRDFS, IODFS, MPLUSDFS, EncDFS, IOBFS, MPLUSBFS, EncBFS ]
+  strats = [ PRDFS, DFS, EncDFS, BFS, EncBFS ]
   suppls = [ S_GHC, S_IORef ]
 
 benchGhcUniqSupplyComplete :: Goal -> [Benchmark]
@@ -751,7 +735,7 @@ benchGhcUniqSupplyComplete goal = concat
                                            , su <- suppls
                                            , go <- [True, False] ]
  where
-  strats = [ MPLUSBFS, EncBFS ]
+  strats = [ BFS, EncBFS ]
   suppls = [ S_GHC, S_IORef ]
 
 -- Benchmark higher-order functional programs with kics2/pakcs/mcc/ghc/ghc+
@@ -781,7 +765,7 @@ benchFLPDFS withMon goal = concatMap ($goal)
 benchFLPDFSU :: Goal -> [Benchmark]
 benchFLPDFSU goal = concatMap ($goal)
   [ kics2 True True Nothing 1 S_PureIO PRDFS All
-  , kics2 True True Nothing 1 S_PureIO IODFS All
+  , kics2 True True Nothing 1 S_PureIO   DFS All
   , pakcs
   , mcc
   ]
@@ -790,7 +774,7 @@ benchFLPDFSU goal = concatMap ($goal)
 benchFunPats :: Goal -> [Benchmark]
 benchFunPats goal = concatMap ($goal)
   [ kics2 True True Nothing 1 S_PureIO PRDFS All
-  , kics2 True True Nothing 1 S_PureIO IODFS All
+  , kics2 True True Nothing 1 S_PureIO   DFS All
   , pakcs
   ]
 
@@ -798,7 +782,7 @@ benchFunPats goal = concatMap ($goal)
 -- with a given name for the main operation
 benchFPWithMain :: Goal -> [Benchmark]
 benchFPWithMain goal = concatMap ($goal)
-  [ kics2 True True Nothing 1 S_Integer IODFS All, pakcs, mcc ]
+  [ kics2 True True Nothing 1 S_Integer   DFS All, pakcs, mcc ]
 
 -- Benchmarking functional logic programs with kics2/pakcs/mcc in DFS mode
 -- with a given name for the main operation
@@ -816,41 +800,39 @@ benchIDSupplies :: Goal -> [Benchmark]
 benchIDSupplies goal = concat
   [ kics2 True True Nothing 1 su st All goal | st <- strats, su <- suppls ]
   where
-    strats = [PRDFS, IODFS, MPLUSDFS]
+    strats = [PRDFS, DFS]
     suppls = [S_PureIO, S_IORef, S_GHC, S_Integer]
 
 -- Benchmarking functional logic programs with different search strategies
 benchFLPSearch :: Goal -> [Benchmark]
 benchFLPSearch prog = concatMap (\st -> kics2 True True Nothing 1 S_IORef st All prog)
-  [ PRDFS, IODFS, IOIDS 10 "(+1)", IOIDS 10 "(*2)", IOIDS2 10 "(+1)", IOIDS2 10 "(*2)" -- , IOBFS is too slow
-  , MPLUSDFS, MPLUSBFS, MPLUSIDS 10 "(+1)", MPLUSIDS 10 "(*2)", MPLUSPar]
+  [ PRDFS, DFS, IDS 10, EncPar ]  -- , IOBFS is too slow
 
 -- Benchmarking functional logic programs with different search strategies
 -- extracting only the first result
 benchFLPFirst :: Goal -> [Benchmark]
 benchFLPFirst prog = concatMap (\st -> kics2 True True Nothing 1 S_IORef st One prog)
-  [ PRDFS, IODFS, IOIDS 10 "(+1)", IOIDS 10 "(*2)", IOIDS2 10 "(+1)", IOIDS2 10 "(*2)" -- , IOBFS is too slow
-  , MPLUSDFS, MPLUSBFS, MPLUSIDS 10 "(+1)", MPLUSIDS 10 "(*2)", MPLUSPar]
+  [ PRDFS, DFS, IDS 10, EncPar ]-- , IOBFS is too slow
 
 
 -- Benchmarking FL programs that require complete search strategy
 benchFLPCompleteSearch :: Goal -> [Benchmark]
 benchFLPCompleteSearch goal = concatMap
   (\st -> kics2 True True Nothing 1 S_IORef st One goal)
-  [IOBFS, IOIDS 100 "(*2)"]
+  [BFS, IDS 100 ]
 
 -- Benchmarking functional logic programs with different search strategies
 -- for "main" operations and goals for encapsulated search strategies
 benchFLPEncapsSearch :: Goal -> [Benchmark]
 benchFLPEncapsSearch goal = concatMap
   (\st -> kics2 True True Nothing 1 S_IORef st All goal)
-  [IODFS, IOBFS, IOIDS 100 "(*2)", EncDFS, EncBFS, EncIDS]
+  [DFS, BFS, IDS 100, EncDFS, EncBFS, EncIDS]
 
 -- Benchmarking =:<=, =:= and ==
 benchFLPDFSKiCS2WithMain :: Bool -> Bool -> Goal -> [Benchmark]
 benchFLPDFSKiCS2WithMain withPakcs withMcc goal = concatMap ($goal)
   [ kics2 True True Nothing 1 S_PureIO PRDFS All
-  , kics2 True True Nothing 1 S_PureIO IODFS All
+  , kics2 True True Nothing 1 S_PureIO   DFS All
   , if withPakcs then pakcs else skip
   , if withMcc   then mcc   else skip
   ]
@@ -859,7 +841,7 @@ benchFLPDFSKiCS2WithMain withPakcs withMcc goal = concatMap ($goal)
 benchIDSSearch :: Goal -> [Benchmark]
 benchIDSSearch prog = concatMap
   (\st -> kics2 True True Nothing 1 S_IORef st Count prog)
-  [IOIDS 100 "(*2)", IOIDS 100 "(+1)", IOIDS2 100 "(+1)"]
+  [IDS 100]
 
 benchThreads :: Bool -> Bool -> Maybe RuntimeOptions -> Supply -> Strategy -> Output -> Goal -> [Benchmark]
 benchThreads hoOpt ghcOpt rts idsupply strategy output goal =
@@ -963,8 +945,8 @@ ghcUniqSupplySome =
   benchUniqSupplyOpt goal =
        kics2 True True  Nothing 1 S_IORef PRDFS One goal
     ++ kics2 True False Nothing 1 S_IORef PRDFS One goal
-    ++ kics2 True True  Nothing 1 S_IORef IOBFS One goal
-    ++ kics2 True False Nothing 1 S_IORef IOBFS One goal
+    ++ kics2 True True  Nothing 1 S_IORef   BFS One goal
+    ++ kics2 True False Nothing 1 S_IORef   BFS One goal
 
 oneAndAllGoals = [ Goal True "SearchQueensLess" "main"
                  , Goal True "PermSort"         "main"
