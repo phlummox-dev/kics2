@@ -398,7 +398,9 @@ data Strategy
   | EncDFSBagCon | EncFDFSBagCon | EncBFSBagCon | EncFairBagCon
   | EncDFSBagLimit SplitStrategy Int
 
-data Goal   = Goal Bool String String -- non-det? / module / main-expr
+data Goal     = Goal String MainExpr -- module / main-expr
+type MainExpr = [MainExprPart]
+data MainExprPart = Code String | Strategy
 data Output = All | One | Interactive | Count
 
 type RuntimeOptions =
@@ -406,6 +408,15 @@ type RuntimeOptions =
   , stackChunk   :: String
   , stackBuffer  :: String
   }
+
+stringExpr = (:[]) . Code
+
+stripMainExpr = concatMap stripMainExprElem
+ where
+  stripMainExprElem e =
+    case e of
+      Code c   -> c
+      Strategy -> "Strategy"
 
 topLevel :: Strategy -> Bool
 topLevel s =
@@ -427,12 +438,6 @@ encapsulated s =
 parallel :: Strategy -> Bool
 parallel s = (not $ topLevel s) && (not $ encapsulated s)
 
-detGoal :: String -> String -> Goal
-detGoal gl mod = Goal False mod gl
-
-nonDetGoal :: String -> String -> Goal
-nonDetGoal gl mod = Goal True mod gl
-
 showStrategy :: Strategy -> String
 showStrategy s = case s of
   IDS    i       -> "IDS_"    ++ show i
@@ -445,6 +450,10 @@ chooseSupply :: Supply -> String
 chooseSupply = map toLower . drop 2 . show
 
 stratExpr :: Strategy -> String
+
+stratExpr  EncDFS                  = "dfsStrategy"
+stratExpr  EncBFS                  = "bfsStrategy"
+stratExpr  EncIDS                  = "idsStrategy"
 stratExpr  EncPar                  = "parSearch"
 stratExpr (EncCon n)               = "conSearch " ++ (show n)
 stratExpr  EncFair                 = "fairSearch"
@@ -471,27 +480,32 @@ fromSplit TakeFirst     = "takeFirst"
 fromSplit SplitVertical = "splitVertical"
 fromSplit SplitHalf     = "splitHalf"
 
-mainExpr :: Strategy -> Output -> String -> ([String], String, Strategy, Output)
-mainExpr s o goal | topLevel s = ([], goal, s, o)
-                  | encapsulated s  =
+mainExprCore :: (Strategy, Output, MainExpr) -> ([String], Strategy, Output, String)
+mainExprCore (strat, out, mainExpr) = foldr mainExprCoreElement ([], strat, out, "") mainExpr
+ where
+  mainExprCoreElement (Code s) (imps, strat', output', code) = (imps, strat', output', s ++ code)
+  mainExprCoreElement Strategy (imps, _     , output', code) =
+    let imp = if encapsulated strat then ["SearchTree"] else (if parallel strat then ["ParallelSearch"] else [])
+    in (imp++imps, PRDFS,  output', (stratExpr strat) ++ code)
+
+
+mainExpr :: ([String], Strategy, Output, String) -> ([String], Strategy, Output, String)
+mainExpr (imps, s, o, goal) | topLevel s = (imps, s, o, goal)
+                            | encapsulated s  =
   let printFunction =
         case o of
           All -> "allValuesWith"
           One -> "someValueWith"
           Count -> "length $ allValuesWith"
-      strategy =
-        case s of
-          EncDFS -> "dfsStrategy"
-          EncBFS -> "bfsStrategy"
-          EncIDS -> "idsStrategy"
-  in (["SearchTree"], printFunction ++ " " ++ strategy ++ " " ++ goal, PRDFS, All)
-                  | parallel s =
+      strategy = "(" ++ stratExpr s ++ ")"
+  in ("SearchTree":imps, PRDFS, All, printFunction ++ " " ++ strategy ++ " " ++ goal)
+                           | parallel s =
   let printFunction =
         case o of
           All -> "getAllValues"
           One -> "getOneValue"
       strategy = "(" ++ stratExpr s ++ ")"
-  in (["ParallelSearch"], printFunction ++ " " ++ strategy ++ " " ++ goal, PRDFS, All)
+  in ("ParallelSearch":imps, PRDFS, All, printFunction ++ " " ++ strategy ++ " " ++ goal)
 
 --- Create a KiCS2 Benchmark
 --- @param hoOpt    - compile with higher-order optimization?
@@ -503,8 +517,8 @@ mainExpr s o goal | topLevel s = ([], goal, s, o)
 --- @param output   -
 --- @param gl       - goal to be executed
 kics2 :: Bool -> Bool -> Maybe RuntimeOptions -> Int -> Supply -> Strategy -> Output -> Goal -> [Benchmark]
-kics2 hoOpt ghcOpt rts threads idsupply strategy output gl@(Goal _ _ exp)
-  = kics2Benchmark tag hoOpt ghcOpt rts threads idsupply gl (mainExpr strategy output exp)
+kics2 hoOpt ghcOpt rts threads idsupply strategy output gl@(Goal _ exp)
+  = kics2Benchmark tag hoOpt ghcOpt rts threads idsupply gl (mainExpr (mainExprCore (strategy, output, exp)))
  where tag = concat [ "KICS2"
                     , if ghcOpt then "+"  else ""
                     , if hoOpt  then "_D" else ""
@@ -521,15 +535,13 @@ kics2 hoOpt ghcOpt rts threads idsupply strategy output gl@(Goal _ _ exp)
                     , '_' : showSupply   idsupply
                     ]
 
-monc    (Goal _     mod goal) = monBenchmark True mod goal
-pakcs   (Goal _     mod goal) = pakcsBenchmark    mod goal
-mcc     (Goal _     mod goal) = mccBenchmark      mod goal
-ghc     (Goal False mod _   ) = ghcBenchmark      mod
-ghc     (Goal True  _   _   ) = []
-ghcO    (Goal False mod _   ) = ghcOBenchmark     mod
-ghcO    (Goal True  _   _   ) = []
-sicstus (Goal _     mod _   ) = sicsBenchmark     mod
-swipl   (Goal _     mod _   ) = swiBenchmark      mod
+monc    (Goal mod [Code goal]) = monBenchmark True mod goal
+pakcs   (Goal mod [Code goal]) = pakcsBenchmark    mod goal
+mcc     (Goal mod [Code goal]) = mccBenchmark      mod goal
+ghc     (Goal mod _   ) = ghcBenchmark      mod
+ghcO    (Goal mod _   ) = ghcOBenchmark     mod
+sicstus (Goal mod _   ) = sicsBenchmark     mod
+swipl   (Goal mod _   ) = swiBenchmark      mod
 skip    _                     = []
 
 mkTag mod goal comp
@@ -546,15 +558,15 @@ mkTag mod goal comp
 --- @param mod      - module name of the benchmark
 --- @param goal     - name of the goal to be executed
 --- @param mainexp  - main call
-kics2Benchmark :: String -> Bool -> Bool -> Maybe RuntimeOptions -> Int -> Supply -> Goal -> ([String], String, Strategy, Output) -> [Benchmark]
-kics2Benchmark tag hoOpt ghcOpt rts threads idsupply (Goal _ mod goal) cmds =
+kics2Benchmark :: String -> Bool -> Bool -> Maybe RuntimeOptions -> Int -> Supply -> Goal -> ([String], Strategy, Output, String) -> [Benchmark]
+kics2Benchmark tag hoOpt ghcOpt rts threads idsupply (Goal mod goal) cmds =
   let threaded = threads /= 1
       r        = fromJust rts
       rtsOpts  = (if threaded then ["-N" ++ show threads] else [])
         ++ (if isJust rts then ["-ki" ++ (r :> stackInitial), "-kc" ++ (r :> stackChunk), "-kb" ++ (r :> stackBuffer)] else [])
       opts     = if not (null rtsOpts) then ["+RTS"] ++ rtsOpts ++ ["-RTS"] else []
   in
-  [ { bmName    := mkTag mod goal tag
+  [ { bmName    := mkTag mod (stripMainExpr goal) tag
     , bmPrepare := kics2Compile hoOpt ghcOpt threaded idsupply mod cmds
     , bmCommand := ("./" ++ mod, opts)
     , bmCleanup := ("rm", ["-f", mod]) -- , ".curry/" ++ mod ++ ".*", ".curry/kics2/Curry_*"])
@@ -623,8 +635,8 @@ swiBenchmark mod = if onlyKiCS2 then [] else
 ---                   support
 --- @param idsupply - idsupply implementation (integer or pureio)
 --- @param mainexp  - main call
-kics2Compile :: Bool -> Bool -> Bool -> Supply -> String -> ([String], String, Strategy, Output) -> IO Int
-kics2Compile hoOpt ghcOpt threaded idsupply mod (imports, mainexp, strategy, output) = do
+kics2Compile :: Bool -> Bool -> Bool -> Supply -> String -> ([String], Strategy, Output, String) -> IO Int
+kics2Compile hoOpt ghcOpt threaded idsupply mod (imports, strategy, output, mainexp) = do
   let supply = chooseSupply idsupply
       ghcOptions = (if ghcOpt then "-O2" else "-O0") ++
                    (if threaded then " -threaded" else "") ++
@@ -857,12 +869,12 @@ allSplitStrategies = [CommonBuffer, TakeFirst, SplitVertical, SplitHalf]
 
 -- first-order functional programming
 fofpGoals :: [Goal]
-fofpGoals = map (detGoal "main")
+fofpGoals = map ((flip Goal) (stringExpr "main"))
   [ "ReverseUser", "Reverse", "Tak", "TakPeano" ]
 
 -- higher-order functional programming
 hofpGoals :: [Goal]
-hofpGoals = map (detGoal "main")
+hofpGoals = map ((flip Goal) (stringExpr "main"))
   [ "ReverseHO", "ReverseBuiltin", "Primes", "PrimesPeano"
   , "PrimesBuiltin", "Queens", "QueensUser"
   ]
@@ -872,7 +884,7 @@ fpGoals :: [Goal]
 fpGoals = fofpGoals ++ hofpGoals
 
 searchGoals:: [Goal]
-searchGoals = map (nonDetGoal "main")
+searchGoals = map ((flip Goal) (stringExpr "main"))
   [ -- "SearchEmbed"
     "SearchGraph" , "SearchHorseman"
   , "SearchMAC"   , "SearchQueens" -- , "SearchSMM" -- too slow
@@ -886,61 +898,61 @@ searchGoals = map (nonDetGoal "main")
 
 allBenchmarks = concat
   [ map (benchFOFP   True) fofpGoals
-  , map (benchHOFP   False    . detGoal    "main") [ "ReverseBuiltin"]
-  , map (benchHOFP   True     . detGoal    "main") [ "ReverseHO", "Primes", "PrimesPeano", "PrimesBuiltin", "Queens", "QueensUser" ]
-  , map (benchFLPDFS True     . nonDetGoal "main") ["PermSort", "PermSortPeano" ]
-  , map (benchFLPDFS False    . nonDetGoal "main") ["Half"]
-  , map (benchFLPSearch       . nonDetGoal "main") ["PermSort", "PermSortPeano", "Half"]
-  , [benchFLPCompleteSearch   $ nonDetGoal "main"  "NDNums"]
-  , [benchFPWithMain          $ detGoal    "goal1" "ShareNonDet"]
-  , [benchFLPDFSWithMain      $ nonDetGoal "goal2" "ShareNonDet"]
-  , [benchFLPDFSWithMain      $ nonDetGoal "goal3" "ShareNonDet"]
-  , map (benchFLPDFSU         . nonDetGoal "main") ["Last", "RegExp"]
-  , map (benchIDSupplies      . nonDetGoal "main") ["PermSort", "Half", "Last", "RegExp"]
-  , map (benchFunPats         . nonDetGoal "main") ["LastFunPats", "ExpVarFunPats", "ExpSimpFunPats", "PaliFunPats"]
-  , map (benchFLPEncapsSearch . nonDetGoal "main") ["Half", "Last", "PermSort"]
+  , map (benchHOFP   False    . (flip Goal) (stringExpr "main")) [ "ReverseBuiltin"]
+  , map (benchHOFP   True     . (flip Goal) (stringExpr "main")) [ "ReverseHO", "Primes", "PrimesPeano", "PrimesBuiltin", "Queens", "QueensUser" ]
+  , map (benchFLPDFS True     . (flip Goal) (stringExpr "main")) ["PermSort", "PermSortPeano" ]
+  , map (benchFLPDFS False    . (flip Goal) (stringExpr "main")) ["Half"]
+  , map (benchFLPSearch       . (flip Goal) (stringExpr "main")) ["PermSort", "PermSortPeano", "Half"]
+  , [benchFLPCompleteSearch   $       Goal  "NDNums"      (stringExpr "main")]
+  , [benchFPWithMain          $       Goal  "ShareNonDet" (stringExpr "goal1")]
+  , [benchFLPDFSWithMain      $       Goal  "ShareNonDet" (stringExpr "goal2")]
+  , [benchFLPDFSWithMain      $       Goal  "ShareNonDet" (stringExpr "goal3")]
+  , map (benchFLPDFSU         . (flip Goal) (stringExpr "main")) ["Last", "RegExp"]
+  , map (benchIDSupplies      . (flip Goal) (stringExpr "main")) ["PermSort", "Half", "Last", "RegExp"]
+  , map (benchFunPats         . (flip Goal) (stringExpr "main")) ["LastFunPats", "ExpVarFunPats", "ExpSimpFunPats", "PaliFunPats"]
+  , map (benchFLPEncapsSearch . (flip Goal) (stringExpr "main")) ["Half", "Last", "PermSort"]
   ]
 
 ghcUniqSupplyBenchmarks = concat
   [ map benchGhcUniqSupply fofpGoals
-  , map (benchGhcUniqSupply         . detGoal "main") [ "ReverseBuiltin", "ReverseHO" ]
-  , map (benchGhcUniqSupply         . detGoal "main") [ "Primes", "PrimesPeano", "PrimesBuiltin" ]
-  , map (benchGhcUniqSupply         . detGoal "main") [ "Queens", "QueensUser" ]
-  , map (benchGhcUniqSupply         . nonDetGoal "main") [ "PermSort", "PermSortPeano", "Half"]
-  , [benchGhcUniqSupplyComplete     $ nonDetGoal "main"  "NDNums"]
-  , [benchGhcUniqSupply             $ detGoal    "goal1" "ShareNonDet"]
-  , [benchGhcUniqSupply             $ nonDetGoal "goal2" "ShareNonDet"]
-  , [benchGhcUniqSupply             $ nonDetGoal "goal3" "ShareNonDet"]
-  , map (benchGhcUniqSupply         . nonDetGoal "main") ["Last", "RegExp"]
-  , map (benchGhcUniqSupply         . nonDetGoal "main") ["LastFunPats", "ExpVarFunPats", "ExpSimpFunPats", "PaliFunPats"]
+  , map (benchGhcUniqSupply         . (flip Goal) (stringExpr "main")) [ "ReverseBuiltin", "ReverseHO" ]
+  , map (benchGhcUniqSupply         . (flip Goal) (stringExpr "main")) [ "Primes", "PrimesPeano", "PrimesBuiltin" ]
+  , map (benchGhcUniqSupply         . (flip Goal) (stringExpr "main")) [ "Queens", "QueensUser" ]
+  , map (benchGhcUniqSupply         . (flip Goal) (stringExpr "main")) [ "PermSort", "PermSortPeano", "Half"]
+  , [benchGhcUniqSupplyComplete     $       Goal "NDNums" (stringExpr "main")]
+  , [benchGhcUniqSupply             $       Goal "ShareNonDet" (stringExpr "goal1")]
+  , [benchGhcUniqSupply             $       Goal "ShareNonDet" (stringExpr "goal2")]
+  , [benchGhcUniqSupply             $       Goal "ShareNonDet" (stringExpr "goal3")]
+  , map (benchGhcUniqSupply         . (flip Goal) (stringExpr "main")) ["Last", "RegExp"]
+  , map (benchGhcUniqSupply         . (flip Goal) (stringExpr "main")) ["LastFunPats", "ExpVarFunPats", "ExpSimpFunPats", "PaliFunPats"]
   ]
 
 ghcUniqSupplySome =
   map benchUniqSupplyOpt
-  [ Goal False "ReverseUser"    "main"
-  , Goal False "Reverse"        "main"
-  , Goal False "Tak"            "main"
-  , Goal False "TakPeano"       "main"
-  , Goal False "ReverseBuiltin" "main"
-  , Goal False "ReverseHO"      "main"
-  , Goal False "Primes"         "main"
-  , Goal False "PrimesPeano"    "main"
-  , Goal False "PrimesBuiltin"  "main"
-  , Goal False "Queens"         "main"
-  , Goal False "QueensUser"     "main"
-  , Goal True  "PermSort"       "main"
-  , Goal True  "PermSortPeano"  "main"
-  , Goal True  "Half"           "main"
-  , Goal False "ShareNonDet"    "goal1"
-  , Goal True  "ShareNonDet"    "goal2"
-  , Goal True  "ShareNonDet"    "goal3"
-  , Goal True  "Last"           "main"
-  , Goal True  "RegExp"         "main"
-  , Goal True  "LastFunPats"    "main"
-  , Goal True  "ExpVarFunPats"  "main"
-  , Goal True  "ExpSimpFunPats" "main"
-  , Goal True  "PaliFunPats"    "main"]
-  ++ [benchGhcUniqSupplyComplete (nonDetGoal "main3" "NDNums")]
+  [ Goal "ReverseUser"    (stringExpr "main")
+  , Goal "Reverse"        (stringExpr "main")
+  , Goal "Tak"            (stringExpr "main")
+  , Goal "TakPeano"       (stringExpr "main")
+  , Goal "ReverseBuiltin" (stringExpr "main")
+  , Goal "ReverseHO"      (stringExpr "main")
+  , Goal "Primes"         (stringExpr "main")
+  , Goal "PrimesPeano"    (stringExpr "main")
+  , Goal "PrimesBuiltin"  (stringExpr "main")
+  , Goal "Queens"         (stringExpr "main")
+  , Goal "QueensUser"     (stringExpr "main")
+  , Goal "PermSort"       (stringExpr "main")
+  , Goal "PermSortPeano"  (stringExpr "main")
+  , Goal "Half"           (stringExpr "main")
+  , Goal "ShareNonDet"    (stringExpr "goal1")
+  , Goal "ShareNonDet"    (stringExpr "goal2")
+  , Goal "ShareNonDet"    (stringExpr "goal3")
+  , Goal "Last"           (stringExpr "main")
+  , Goal "RegExp"         (stringExpr "main")
+  , Goal "LastFunPats"    (stringExpr "main")
+  , Goal "ExpVarFunPats"  (stringExpr "main")
+  , Goal "ExpSimpFunPats" (stringExpr "main")
+  , Goal "PaliFunPats"    (stringExpr "main")]
+  ++ [benchGhcUniqSupplyComplete (Goal "NDNums" (stringExpr "main3"))]
  where
   benchUniqSupplyOpt goal =
        kics2 True True  Nothing 1 S_IORef PRDFS One goal
@@ -948,14 +960,15 @@ ghcUniqSupplySome =
     ++ kics2 True True  Nothing 1 S_IORef   BFS One goal
     ++ kics2 True False Nothing 1 S_IORef   BFS One goal
 
-oneAndAllGoals = [ Goal True "SearchQueensLess" "main"
-                 , Goal True "PermSort"         "main"
-                 , Goal True "Half"             "main"
-                 , Goal True "Last"             "main" ]
+oneAndAllGoals = [ Goal "SearchQueensLess" (stringExpr "main")
+                 , Goal "PermSort"         (stringExpr "main")
+                 , Goal "Half"             (stringExpr "main")
+                 , Goal "Last"             (stringExpr "main") ]
 
-allOnlyGoals = [ Goal True "EditSeq" "main3" ]
+allOnlyGoals = [ Goal "EditSeq" (stringExpr "main3") ]
 
-bfsOnlyGoals = [ Goal True "NDNums"  "main3" ]
+bfsOnlyGoals = [ Goal "NDNums"  (stringExpr "main3") ]
+
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -1079,50 +1092,50 @@ encDfsBagLimit =
 unif =
      [
        -- mcc does not support function pattern
-       benchFLPDFSKiCS2WithMain True False $ nonDetGoal "UnificationBenchFunPat" "goal_last_1L"
+       benchFLPDFSKiCS2WithMain True False $ Goal "UnificationBenchFunPat" (stringExpr "goal_last_1L")
        -- mcc does not support function pattern
-     , benchFLPDFSKiCS2WithMain True False $ nonDetGoal "UnificationBenchFunPat" "goal_last_2L"
-     , benchFLPDFSKiCS2WithMain True True  $ nonDetGoal "UnificationBench" "goal_last_2S"
+     , benchFLPDFSKiCS2WithMain True False $ Goal "UnificationBenchFunPat" (stringExpr "goal_last_2L")
+     , benchFLPDFSKiCS2WithMain True True  $ Goal "UnificationBench" (stringExpr "goal_last_2S")
        -- pakcs and mcc suspend on this goal
-     , benchFLPDFSKiCS2WithMain False False $ nonDetGoal "UnificationBench" "goal_last_2Eq"
---     , benchFLPDFSKiCS2WithMain True True $ nonDetGoal "UnificationBench" "goal_grep_S"
+     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBench" (stringExpr "goal_last_2Eq")
+--     , benchFLPDFSKiCS2WithMain True True $ Goal "UnificationBench" (stringExpr "goal_grep_S")
        -- pakcs and mcc suspend on this goal
-     , benchFLPDFSKiCS2WithMain False False $ nonDetGoal "UnificationBench" "goal_grep_Eq"
+     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBench" (stringExpr "goal_grep_Eq")
        -- mcc does not support function pattern, pakcs runs very long (\infty?)
-     , benchFLPDFSKiCS2WithMain False False $ nonDetGoal "UnificationBenchFunPat" "goal_half_L"
-     , benchFLPDFSKiCS2WithMain True True $ nonDetGoal "UnificationBench" "goal_half_S" 
-     , benchFLPDFSKiCS2WithMain True True $ nonDetGoal "UnificationBench" "goal_half_Eq"
+     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBenchFunPat" (stringExpr "goal_half_L")
+     , benchFLPDFSKiCS2WithMain True True $ Goal "UnificationBench" (stringExpr "goal_half_S")
+     , benchFLPDFSKiCS2WithMain True True $ Goal "UnificationBench" (stringExpr "goal_half_Eq")
        -- mcc does not support function pattern
-     , benchFLPDFSKiCS2WithMain True False  $ nonDetGoal "UnificationBenchFunPat" "goal_expVar_L"
-     , benchFLPDFSKiCS2WithMain True True   $ nonDetGoal "UnificationBench" "goal_expVar_S"
-     , benchFLPDFSKiCS2WithMain False False $ nonDetGoal "UnificationBench" "goal_expVar_Eq"
+     , benchFLPDFSKiCS2WithMain True False  $ Goal "UnificationBenchFunPat" (stringExpr "goal_expVar_L")
+     , benchFLPDFSKiCS2WithMain True True   $ Goal "UnificationBench" (stringExpr "goal_expVar_S")
+     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBench" (stringExpr "goal_expVar_Eq")
        -- mcc does not support function pattern
-     , benchFLPDFSKiCS2WithMain True False $ nonDetGoal "UnificationBenchFunPat" "goal_expVar_L'"
-     , benchFLPDFSKiCS2WithMain True True  $ nonDetGoal "UnificationBench" "goal_expVar_S'"
+     , benchFLPDFSKiCS2WithMain True False $ Goal "UnificationBenchFunPat" (stringExpr "goal_expVar_L'")
+     , benchFLPDFSKiCS2WithMain True True  $ Goal "UnificationBench" (stringExpr "goal_expVar_S'")
        -- pakcs and mcc suspend on this goal
-     , benchFLPDFSKiCS2WithMain False False $ nonDetGoal "UnificationBench" "goal_expVar_Eq'"
+     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBench" (stringExpr "goal_expVar_Eq'")
        -- mcc does not support function pattern
-     , benchFLPDFSKiCS2WithMain True False $ nonDetGoal "UnificationBenchFunPat" "goal_expVar_L''"
-     , benchFLPDFSKiCS2WithMain True True  $ nonDetGoal "UnificationBench" "goal_expVar_S''"
+     , benchFLPDFSKiCS2WithMain True False $ Goal "UnificationBenchFunPat" (stringExpr "goal_expVar_L''")
+     , benchFLPDFSKiCS2WithMain True True  $ Goal "UnificationBench" (stringExpr "goal_expVar_S''")
        -- pakcs and mcc suspend on this goal
-     , benchFLPDFSKiCS2WithMain False False $ nonDetGoal "UnificationBench" "goal_expVar_Eq''"
+     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBench" (stringExpr "goal_expVar_Eq''")
        -- mcc does not support function pattern
-     , benchFLPDFSKiCS2WithMain True False $ nonDetGoal "UnificationBenchFunPat" "goal_simplify_L"
-     , benchFLPDFSKiCS2WithMain True True  $ nonDetGoal "UnificationBench" "goal_simplify_S"
+     , benchFLPDFSKiCS2WithMain True False $ Goal "UnificationBenchFunPat" (stringExpr "goal_simplify_L")
+     , benchFLPDFSKiCS2WithMain True True  $ Goal "UnificationBench" (stringExpr "goal_simplify_S")
        -- pakcs and mcc suspend on this goal
-     , benchFLPDFSKiCS2WithMain False False $ nonDetGoal "UnificationBench" "goal_simplify_Eq"
+     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBench" (stringExpr "goal_simplify_Eq")
        -- mcc does not support function pattern, pakcs runs very long (\infty?)
-     , benchFLPDFSKiCS2WithMain False False $ nonDetGoal "UnificationBenchFunPat" "goal_pali_L"
-     , benchFLPDFSKiCS2WithMain True True $ nonDetGoal "UnificationBench" "goal_pali_S"
+     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBenchFunPat" (stringExpr "goal_pali_L")
+     , benchFLPDFSKiCS2WithMain True True $ Goal "UnificationBench" (stringExpr "goal_pali_S")
        -- pakcs and mcc suspend on this goal
-     , benchFLPDFSKiCS2WithMain False False $ nonDetGoal "UnificationBench" "goal_pali_Eq"
-     , benchFLPDFSKiCS2WithMain True True $ nonDetGoal "UnificationBench" "goal_horseMan_S"
+     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBench" (stringExpr "goal_pali_Eq")
+     , benchFLPDFSKiCS2WithMain True True $ Goal "UnificationBench" (stringExpr "goal_horseMan_S")
        -- pakcs and mcc suspend on this goal
-     , benchFLPDFSKiCS2WithMain False False $ nonDetGoal "UnificationBench" "goal_horseMan_Eq"
+     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBench" (stringExpr "goal_horseMan_Eq")
      ]
 
 benchSearch = -- map benchFLPSearch searchGoals
-              map benchFLPFirst (searchGoals ++ [nonDetGoal "main2" "NDNums"])
+              map benchFLPFirst (searchGoals ++ [Goal "NDNums" (stringExpr "main2")])
 
 --main = run 2 benchSearch
 -- main = run 2 benchSearch
@@ -1140,10 +1153,10 @@ main = run 3 allBenchmarks
 --main = run 4 encDFSEvalBenchmarks
 --main = run 11 encBagConBenchmarks
 --main = run 11 encDfsBagLimit
---main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueensLess" "main") (map (*10) [1..100])
+--main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueensLess" (stringExpr "main")) (map (*10) [1..100])
 --main = run 1 [benchFLPCompleteSearch "NDNums"]
---main = run 1 (benchFPWithMain "ShareNonDet" "goal1" : [])
---           map (\g -> benchFLPDFSWithMain "ShareNonDet" g) ["goal2","goal3"])
+--main = run 1 (benchFPWithMain "ShareNonDet" (stringExpr "goal1") : [])
+--           map (\g -> benchFLPDFSWithMain "ShareNonDet" g) [(stringExpr "goal2"),(stringExpr "goal3")])
 --main = run 1 [benchHOFP "Primes" True]
 --main = run 1 [benchFLPDFS "PermSort",benchFLPDFS "PermSortPeano"]
 --main = run 1 [benchFLPSearch "PermSort",benchFLPSearch "PermSortPeano"]
