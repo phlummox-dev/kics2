@@ -486,7 +486,7 @@ mainExprCore (strat, out, mainExpr) = foldr mainExprCoreElement ([], strat, out,
   mainExprCoreElement (Code s) (imps, strat', output', code) = (imps, strat', output', s ++ code)
   mainExprCoreElement Strategy (imps, _     , output', code) =
     let imp = if encapsulated strat then ["SearchTree"] else (if parallel strat then ["ParallelSearch"] else [])
-    in (imp++imps, PRDFS,  output', (stratExpr strat) ++ code)
+    in (imp++imps, PRDFS,  output', "(" ++ (stratExpr strat) ++ ")" ++ code)
 
 
 mainExpr :: ([String], Strategy, Output, String) -> ([String], Strategy, Output, String)
