@@ -166,11 +166,10 @@ bfsParallel' t =
 
 parTree :: SearchTree a -> Eval (SearchTree a)
 parTree t = do
-  t' <- rseq t
-  case t' of
+  case t of
     Choice l r -> do
-      l' <- (rpar `dot` parTree) l
       r' <- (rpar `dot` parTree) r
+      l' <- (rseq `dot` parTree) l
       return (Choice l' r')
     _          -> r0 t
 
