@@ -1041,34 +1041,45 @@ parallelEditSeqBenchmarks =
 
 --------------------------------------------------------------------------------
 
-benchEncDFSEval :: Output -> Goal -> [Benchmark]
-benchEncDFSEval output goal = (kics2 True True Nothing 1 S_IORef EncDFS output goal) ++
-  (concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncPar, EncSAll, EncSAll'] ])
-
 encDFSEvalBenchmarks :: [[Benchmark]]
 encDFSEvalBenchmarks =
-  [ benchEncDFSEval out goal | goal <- oneAndAllGoals, out <- [One, All] ]
+  [ benchEncDFSEval out goal | goal <- oneAndAllGoals, out <- [One, All] ] ++
+  [ editSeqBenchmark True True Nothing 1 S_IORef EncDFS ++
+    concat [ editSeqBenchmark True True Nothing i S_IORef strat | strat <- strats, i <- threadNumbers ] ]
+ where
+  benchEncDFSEval :: Output -> Goal -> [Benchmark]
+  benchEncDFSEval output goal = (kics2 True True Nothing 1 S_IORef EncDFS output goal) ++
+    (concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- strats ])
+
+  strats = [EncPar, EncSAll, EncSAll']
 
 --------------------------------------------------------------------------------
-
-benchEncBFSEval :: Output -> Goal -> [Benchmark]
-benchEncBFSEval output goal = (kics2 True True Nothing 1 S_IORef EncBFS output goal) ++
-  (concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncBFSEval, EncBFSEval'] ])
 
 encBFSEvalBenchmarks :: [[Benchmark]]
 encBFSEvalBenchmarks =
   [ benchEncBFSEval out goal | goal <- oneAndAllGoals, out <- [One, All] ] ++
+  [ editSeqBenchmark True True Nothing 1 S_IORef EncBFS ++
+    concat [ editSeqBenchmark True True Nothing i S_IORef strat | strat <- strats, i <- threadNumbers ] ] ++
   [ benchEncBFSEval One goal | goal <- bfsOnlyGoals ]
+ where
+  benchEncBFSEval :: Output -> Goal -> [Benchmark]
+  benchEncBFSEval output goal = (kics2 True True Nothing 1 S_IORef EncBFS output goal) ++
+    (concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- strats ])
+
+  strats = [EncBFSEval, EncBFSEval']
 
 --------------------------------------------------------------------------------
 
-benchEncBagCon :: Output -> Goal -> [Benchmark]
-benchEncBagCon output goal =
-  concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- [EncDFSBag CommonBuffer, EncDFSBagCon, EncFDFSBag CommonBuffer, EncFDFSBagCon, EncBFSBag CommonBuffer, EncBFSBagCon, EncFairBag CommonBuffer, EncFairBagCon ] ]
-
 encBagConBenchmarks :: [[Benchmark]]
 encBagConBenchmarks =
-  [ benchEncBagCon out goal | goal <- oneAndAllGoals, out <- [One, All] ]
+  [ benchEncBagCon out goal | goal <- oneAndAllGoals, out <- [One, All] ] ++
+  [ concat [ editSeqBenchmark True True Nothing i S_IORef strat | strat <- strats, i <- threadNumbers ] ]
+ where
+  benchEncBagCon :: Output -> Goal -> [Benchmark]
+  benchEncBagCon output goal =
+    concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- strats ]
+
+  strats = [EncDFSBag CommonBuffer, EncDFSBagCon, EncFDFSBag CommonBuffer, EncFDFSBagCon, EncBFSBag CommonBuffer, EncBFSBagCon, EncFairBag CommonBuffer, EncFairBagCon ]
 
 --------------------------------------------------------------------------------
 
