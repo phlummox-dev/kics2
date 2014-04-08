@@ -492,13 +492,13 @@ mainExprCore (strat, out, mainExpr) = foldr mainExprCoreElement ([], strat, out,
 mainExpr :: ([String], Strategy, Output, String) -> ([String], Strategy, Output, String)
 mainExpr (imps, s, o, goal) | topLevel s = (imps, s, o, goal)
                             | encapsulated s  =
-  let printFunction =
+  let strategy = "(" ++ stratExpr s ++ ")"
+      printFunction =
         case o of
-          All -> "allValuesWith"
-          One -> "someValueWith"
-          Count -> "length $ allValuesWith"
-      strategy = "(" ++ stratExpr s ++ ")"
-  in ("SearchTree":imps, PRDFS, All, printFunction ++ " " ++ strategy ++ " " ++ goal)
+          All -> "allValuesWith " ++ strategy ++ " (someSearchTree " ++ goal ++ ")"
+          One -> "someValueWith " ++ strategy ++ " " ++ goal
+          Count -> "length (allValuesWith " ++ strategy ++ " (someSearchTree " ++ goal ++ "))"
+  in ("SearchTree":imps, PRDFS, All, printFunction)
                            | parallel s =
   let printFunction =
         case o of
