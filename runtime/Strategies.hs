@@ -6,6 +6,7 @@ module Strategies
   ( bfsSearch, dfsSearch, parSearch, fairSearch, conSearch
   , idsSearch, idsDefaultDepth, idsDefaultIncr
   , splitAll, splitLimitDepth, splitAlternating, splitPower
+  , splitRight, splitRight', splitLeft, splitLeft'
   , splitAll'
   , bfsParallel, bfsParallel'
   , fairSearch', fairSearch''
@@ -221,6 +222,38 @@ splitPower = splitPower' 1 2
     let ls = splitPower' (i-1) n l
         rs = splitPower' (i-1) n r
     in ls ++ rs
+
+splitLeft :: SearchTree a -> [a]
+splitLeft None         = []
+splitLeft (One x)      = [x]
+splitLeft (Choice l r) = runEval $ do
+  rs <- rpar $ dfsSearch r
+  ls <- rseq $ splitAll  l
+  return $ ls ++ rs
+
+splitLeft' :: SearchTree a -> [a]
+splitLeft' None         = []
+splitLeft' (One x)      = [x]
+splitLeft' (Choice l r) = runEval $ do
+  ls <- rpar $ splitAll  l
+  rs <- rseq $ dfsSearch r
+  return $ rs ++ ls
+
+splitRight :: SearchTree a -> [a]
+splitRight None         = []
+splitRight (One x)      = [x]
+splitRight (Choice l r) = runEval $ do
+  ls <- rpar $ dfsSearch l
+  rs <- rseq $ splitAll  r
+  return $ rs ++ ls
+
+splitRight' :: SearchTree a -> [a]
+splitRight' None         = []
+splitRight' (One x)      = [x]
+splitRight' (Choice l r) = runEval $ do
+  rs <- rpar $ splitAll  r
+  ls <- rseq $ dfsSearch l
+  return $ ls ++ rs
 
 fairSearch :: SearchTree a -> MList IO a
 fairSearch = conSearch (-1)

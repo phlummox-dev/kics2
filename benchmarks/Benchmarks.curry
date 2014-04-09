@@ -389,8 +389,9 @@ data Strategy
   | DFS      | BFS      | IDS Int                                 -- top-level
   | EncDFS   | EncBFS   | EncIDS                                  -- encapsulated
   | EncPar   | EncCon Int                                         -- parallel encapsulated
-  | EncFair  | EncFair' | EncFair'' | EncFairBag SplitStrategy    -- fair strategies
-  | EncSAll  | EncSAll' | EncSLimit Int | EncSAlt Int | EncSPow   -- parallel with Eval
+  | EncFair  | EncFair'  | EncFair'' | EncFairBag SplitStrategy   -- fair strategies
+  | EncSAll  | EncSAll'  | EncSLimit Int | EncSAlt Int | EncSPow  -- parallel with Eval
+  | EncSLeft | EncSLeft' | EncSRight     | EncSRight'             -- asymmetric strategies
   | EncBFSEval | EncBFSEval'                                      -- parallel breadth-first-search
   | EncDFSBag  SplitStrategy
   | EncFDFSBag SplitStrategy
@@ -465,6 +466,10 @@ stratExpr  EncSAll'                = "splitAll'"
 stratExpr (EncSLimit n)            = "splitLimitDepth " ++ (show n)
 stratExpr (EncSAlt n)              = "splitAlternating " ++ (show n)
 stratExpr  EncSPow                 = "splitPower"
+stratExpr  EncSLeft                = "splitLeft"
+stratExpr  EncSLeft'               = "splitLeft'"
+stratExpr  EncSRight               = "splitRight"
+stratExpr  EncSRight'              = "splitRight'"
 stratExpr  EncBFSEval              = "bfsParallel"
 stratExpr  EncBFSEval'             = "bfsParallel'"
 stratExpr (EncDFSBag split)        = "dfsBag " ++ fromSplit split
