@@ -478,7 +478,7 @@ stratExpr s = case s of
   EncDFSBagCon           -> "dfsBagCon"
   EncFDFSBagCon          -> "fdfsBagCon"
   EncBFSBagCon           -> "bfsBagCon"
-  EncDFSBagLimit split n -> "dfsBagLimit " ++ fromSplit split ++ (show n)
+  EncDFSBagLimit split n -> "dfsBagLimit " ++ fromSplit split ++ " " ++ (show n)
 
 fromSplit CommonBuffer  = "commmonBuffer"
 fromSplit TakeFirst     = "takeFirst"
