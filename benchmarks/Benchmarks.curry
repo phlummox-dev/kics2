@@ -451,34 +451,34 @@ chooseSupply :: Supply -> String
 chooseSupply = map toLower . drop 2 . show
 
 stratExpr :: Strategy -> String
-
-stratExpr  EncDFS                  = "dfsStrategy"
-stratExpr  EncBFS                  = "bfsStrategy"
-stratExpr  EncIDS                  = "idsStrategy"
-stratExpr  EncPar                  = "parSearch"
-stratExpr (EncCon n)               = "conSearch " ++ (show n)
-stratExpr  EncFair                 = "fairSearch"
-stratExpr  EncFair'                = "fairSearch'"
-stratExpr  EncFair''               = "fairSearch''"
-stratExpr (EncFairBag split)       = "fairBag " ++ fromSplit split
-stratExpr  EncSAll                 = "splitAll"
-stratExpr  EncSAll'                = "splitAll'"
-stratExpr (EncSLimit n)            = "splitLimitDepth " ++ (show n)
-stratExpr (EncSAlt n)              = "splitAlternating " ++ (show n)
-stratExpr  EncSPow                 = "splitPower"
-stratExpr  EncSLeft                = "splitLeft"
-stratExpr  EncSLeft'               = "splitLeft'"
-stratExpr  EncSRight               = "splitRight"
-stratExpr  EncSRight'              = "splitRight'"
-stratExpr  EncBFSEval              = "bfsParallel"
-stratExpr  EncBFSEval'             = "bfsParallel'"
-stratExpr (EncDFSBag split)        = "dfsBag " ++ fromSplit split
-stratExpr (EncFDFSBag split)       = "fdfsBag " ++ fromSplit split
-stratExpr (EncBFSBag split)        = "bfsBag "  ++ fromSplit split
-stratExpr  EncDFSBagCon            = "dfsBagCon"
-stratExpr  EncFDFSBagCon           = "fdfsBagCon"
-stratExpr  EncBFSBagCon            = "bfsBagCon"
-stratExpr (EncDFSBagLimit split n) = "dfsBagLimit " ++ fromSplit split ++ (show n)
+stratExpr s = case s of
+  EncDFS                 -> "dfsStrategy"
+  EncBFS                 -> "bfsStrategy"
+  EncIDS                 -> "idsStrategy"
+  EncPar                 -> "parSearch"
+  EncCon n               -> "conSearch " ++ (show n)
+  EncFair                -> "fairSearch"
+  EncFair'               -> "fairSearch'"
+  EncFair''              -> "fairSearch''"
+  EncFairBag split       -> "fairBag " ++ fromSplit split
+  EncSAll                -> "splitAll"
+  EncSAll'               -> "splitAll'"
+  EncSLimit n            -> "splitLimitDepth " ++ (show n)
+  EncSAlt n              -> "splitAlternating " ++ (show n)
+  EncSPow                -> "splitPower"
+  EncSLeft               -> "splitLeft"
+  EncSLeft'              -> "splitLeft'"
+  EncSRight              -> "splitRight"
+  EncSRight'             -> "splitRight'"
+  EncBFSEval             -> "bfsParallel"
+  EncBFSEval'            -> "bfsParallel'"
+  EncDFSBag split        -> "dfsBag " ++ fromSplit split
+  EncFDFSBag split       -> "fdfsBag " ++ fromSplit split
+  EncBFSBag split        -> "bfsBag "  ++ fromSplit split
+  EncDFSBagCon           -> "dfsBagCon"
+  EncFDFSBagCon          -> "fdfsBagCon"
+  EncBFSBagCon           -> "bfsBagCon"
+  EncDFSBagLimit split n -> "dfsBagLimit " ++ fromSplit split ++ (show n)
 
 fromSplit CommonBuffer  = "commmonBuffer"
 fromSplit TakeFirst     = "takeFirst"
