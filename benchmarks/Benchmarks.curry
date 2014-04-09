@@ -1088,6 +1088,29 @@ encBagConBenchmarks =
 
 --------------------------------------------------------------------------------
 
+compareStrategies :: [Strategy] -> [[Benchmark]]
+compareStrategies strategies =
+  [ compareStrategiesOnGoal output goal | goal <- oneAndAllGoals, output <- [One, All ] ] ++
+  [ compareStrategiesOnEditSeq ]
+ where
+  compareStrategiesOnGoal :: Output -> Goal -> [Benchmark]
+  compareStrategiesOnGoal output goal =
+    concat [ benchmarkStrategyOnGoal strategy | strategy <- strategies ]
+   where
+    benchmarkStrategyOnGoal :: Strategy -> [Benchmark]
+    benchmarkStrategyOnGoal s | parallel s = benchThreads True True Nothing   S_IORef s output goal
+                              | otherwise  = kics2        True True Nothing 1 S_IORef s output goal
+
+  compareStrategiesOnEditSeq :: [Benchmark]
+  compareStrategiesOnEditSeq =
+    concat [ benchmarkStrategyOnEditSeq strategy | strategy <- strategies ]
+   where
+    benchmarkStrategyOnEditSeq s | parallel     s = concat [ editSeqBenchmark True True Nothing i S_IORef s | i <- threadNumbers ]
+                                 | encapsulated s =          editSeqBenchmark True True Nothing 1 S_IORef s
+                                 | otherwise      = []
+
+--------------------------------------------------------------------------------
+
 benchFair :: Output -> Goal -> [Benchmark]
 benchFair output goal = concat
   [ kics2 True True (Just {stackInitial := "1536", stackChunk := "32k", stackBuffer := "1k"}) 12 S_IORef strat output goal | strat <- [EncFair, EncFair', EncFair''] ]
@@ -1198,6 +1221,7 @@ main = run 3 allBenchmarks
 --main = run 4 parallelEditSeqBenchmarks
 --main = run 4 encBFSEvalBenchmarks
 --main = run 4 encDFSEvalBenchmarks
+--main = run 4 $ compareStrategies [ EncDFS, EncSAll, EncSLeft, EncSLeft', EncSRight, EncSRight' ]
 --main = run 11 encBagConBenchmarks
 --main = run 11 encDfsBagLimit
 --main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueensLess" (stringExpr "main")) (map (*10) [1..100])
