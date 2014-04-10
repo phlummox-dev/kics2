@@ -683,6 +683,11 @@ kics2Compile hoOpt ghcOpt threaded idsupply mod (imports, strategy, output, main
                             One -> "+first"
                             _   -> "-first"
       verbosityOption = if doTrace then "v1" else "v0"
+      supplyOption = case idsupply of
+                       -- Do not set default supply. If KiCS2 is installed
+                       -- globally, setting the idsupply in not possible.
+                       S_IORef -> ""
+                       _       -> ":set supply " ++ supply
       stratOption = case strategy of
                       PRDFS -> "prdfs"
                       DFS   -> "dfs"
@@ -691,7 +696,7 @@ kics2Compile hoOpt ghcOpt threaded idsupply mod (imports, strategy, output, main
       kics2Options = [":set " ++ optOption,      ":set ghc " ++ ghcOptions,
                       ":set " ++ firstOption,    ":set " ++ interactiveOption,
                       ":set " ++ "-time",        ":set " ++ verbosityOption,
-                      ":set supply " ++ supply,  ":set " ++ stratOption,
+                      supplyOption,              ":set " ++ stratOption,
                       ":load " ++ mod] ++
                      map (\i -> ":add " ++ i) imports ++
                      [":save \"" ++ mainexp ++ "\"", ":quit"]
