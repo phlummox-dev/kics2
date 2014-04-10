@@ -217,19 +217,20 @@ type Benchmark =
   , bmPrepare :: IO Int
   , bmCommand :: Command
   , bmCleanup :: Command
+  , bmRepeats :: Int     -- number of times to run this benchmark
   }
 
 type BenchResult = (String, [Maybe TimeInfo])
 
 -- Run a benchmark and return its timings
-runBenchmark :: Int -> Int -> (Int, Benchmark) -> IO BenchResult
-runBenchmark rpts totalNum (currentNum, benchMark) = do
+runBenchmark :: Int -> (Int, Benchmark) -> IO BenchResult
+runBenchmark totalNum (currentNum, benchMark) = do
   let totalStr = show totalNum
       curntStr = show currentNum
   flushStr $ "Running benchmark [" ++ lpad (length totalStr) curntStr ++ " of "
              ++ totalStr ++ "]: " ++ (benchMark :> bmName) ++ ": " ++ "\n"
   benchMark :> bmPrepare
-  infos <- sequenceIO $ replicate rpts $ benchCmd
+  infos <- sequenceIO $ replicate (benchMark :> bmRepeats) $ benchCmd
                       $ timeout benchTimeout $ benchMark :> bmCommand
   silentCmd $ benchMark :> bmCleanup
   flushStrLn $ if all isJust infos then "PASSED" else "FAILED"
@@ -242,13 +243,13 @@ runBenchmark rpts totalNum (currentNum, benchMark) = do
   return (benchMark :> bmName, infos)
 
 -- Run a set of benchmarks and return the timings
-runBenchmarks :: Int -> Int -> (Int, [Benchmark]) -> IO [BenchResult]
-runBenchmarks rpts total (start, benchmarks) = do
-  mapIO (runBenchmark rpts total) (zip [start ..] benchmarks)
+runBenchmarks :: Int -> (Int, [Benchmark]) -> IO [BenchResult]
+runBenchmarks total (start, benchmarks) = do
+  mapIO (runBenchmark total) (zip [start ..] benchmarks)
 
-runAllBenchmarks :: Int -> [[Benchmark]] -> IO [[BenchResult]]
-runAllBenchmarks rpts benchmarks = do
-  mapIO (runBenchmarks rpts total) (zip startnums benchmarks)
+runAllBenchmarks :: [[Benchmark]] -> IO [[BenchResult]]
+runAllBenchmarks benchmarks = do
+  mapIO (runBenchmarks total) (zip startnums benchmarks)
  where
   total    = length (concat benchmarks)
   startnums = scanl (+) 1 $ map length benchmarks
@@ -356,10 +357,10 @@ resultTable wantMean results =
         else Right $ mean (minValue (<=) values)
 
 -- Run all benchmarks and show results
-run :: Int -> [[Benchmark]] -> IO ()
-run rpts benchmarks = do
+run :: [[Benchmark]] -> IO ()
+run benchmarks = do
   args    <- getArgs
-  results <- runAllBenchmarks rpts benchmarks
+  results <- runAllBenchmarks benchmarks
   ltime   <- getLocalTime
   info    <- getSystemInfo
   mach    <- getHostName
@@ -468,6 +469,23 @@ encapsulated s =
 parallel :: Strategy -> Bool
 parallel s = (not $ topLevel s) && (not $ encapsulated s)
 
+bfsComplete :: Strategy -> Bool
+bfsComplete s =
+  case s of
+    BFS           -> True
+    IDS _         -> True
+    EncBFS        -> True
+    EncIDS        -> True
+    EncFair       -> True
+    EncFair''     -> True
+    EncFairBag _  -> True
+    EncBFSEval    -> True
+    EncBFSEval'   -> True
+    EncBFSBag _   -> True
+    EncBFSBagCon  -> True
+    EncFairBagCon -> True
+    _             -> False
+
 showStrategy :: Strategy -> String
 showStrategy s = case s of
   IDS    i       -> "IDS_"    ++ show i
@@ -550,9 +568,10 @@ mainExpr (imps, s, o, goal) | topLevel s = (imps, s, o, goal)
 --- @param strategy -
 --- @param output   -
 --- @param gl       - goal to be executed
-kics2 :: Bool -> Bool -> Maybe RuntimeOptions -> Int -> Supply -> Strategy -> Output -> Goal -> [Benchmark]
-kics2 hoOpt ghcOpt rts threads idsupply strategy output gl@(Goal _ exp)
-  = kics2Benchmark tag hoOpt ghcOpt rts threads idsupply gl (mainExpr (mainExprCore (strategy, output, exp)))
+--- @param rpts     - number of times to repeat the benchmark
+kics2 :: Bool -> Bool -> Maybe RuntimeOptions -> Int -> Supply -> Strategy -> Output -> Goal -> Int -> [Benchmark]
+kics2 hoOpt ghcOpt rts threads idsupply strategy output gl@(Goal _ exp) rpts
+  = kics2Benchmark tag hoOpt ghcOpt rts threads idsupply gl (mainExpr (mainExprCore (strategy, output, exp))) rpts
  where tag = concat [ "KICS2"
                     , if ghcOpt then "+"  else ""
                     , if hoOpt  then "_D" else ""
@@ -569,14 +588,14 @@ kics2 hoOpt ghcOpt rts threads idsupply strategy output gl@(Goal _ exp)
                     , '_' : showSupply   idsupply
                     ]
 
-monc    (Goal mod [Code goal]) = monBenchmark True mod goal
-pakcs   (Goal mod [Code goal]) = pakcsBenchmark    mod goal
-mcc     (Goal mod [Code goal]) = mccBenchmark      mod goal
-ghc     (Goal mod _   ) = ghcBenchmark      mod
-ghcO    (Goal mod _   ) = ghcOBenchmark     mod
-sicstus (Goal mod _   ) = sicsBenchmark     mod
-swipl   (Goal mod _   ) = swiBenchmark      mod
-skip    _                     = []
+monc    (Goal mod [Code goal]) = monBenchmark   True mod goal
+pakcs   (Goal mod [Code goal]) = pakcsBenchmark      mod goal
+mcc     (Goal mod [Code goal]) = mccBenchmark        mod goal
+ghc     (Goal mod _   )        = ghcBenchmark        mod
+ghcO    (Goal mod _   )        = ghcOBenchmark       mod
+sicstus (Goal mod _   )        = sicsBenchmark       mod
+swipl   (Goal mod _   )        = swiBenchmark        mod
+skip    _                      = const []
 
 mkTag mod goal comp
   | goal == "main" = mod ++ '@' : comp
@@ -592,8 +611,9 @@ mkTag mod goal comp
 --- @param mod      - module name of the benchmark
 --- @param goal     - name of the goal to be executed
 --- @param mainexp  - main call
-kics2Benchmark :: String -> Bool -> Bool -> Maybe RuntimeOptions -> Int -> Supply -> Goal -> ([String], Strategy, Output, String) -> [Benchmark]
-kics2Benchmark tag hoOpt ghcOpt rts threads idsupply (Goal mod goal) cmds =
+--- @param rpts     - number of times to repeat this benchmark
+kics2Benchmark :: String -> Bool -> Bool -> Maybe RuntimeOptions -> Int -> Supply -> Goal -> ([String], Strategy, Output, String) -> Int -> [Benchmark]
+kics2Benchmark tag hoOpt ghcOpt rts threads idsupply (Goal mod goal) cmds rpts =
   let threaded = threads /= 1
       r        = fromJust rts
       rtsOpts  = (if threaded then ["-N" ++ show threads] else [])
@@ -604,56 +624,64 @@ kics2Benchmark tag hoOpt ghcOpt rts threads idsupply (Goal mod goal) cmds =
     , bmPrepare := kics2Compile hoOpt ghcOpt threaded idsupply mod cmds
     , bmCommand := ("./" ++ mod, opts)
     , bmCleanup := ("rm", ["-f", mod]) -- , ".curry/" ++ mod ++ ".*", ".curry/kics2/Curry_*"])
+    , bmRepeats := rpts
     }
   ]
-monBenchmark optim mod mainexp = if monInstalled && not onlyKiCS2
+monBenchmark optim mod mainexp rpts = if monInstalled && not onlyKiCS2
   then [ { bmName    := mkTag mod "main" "MON+"
          , bmPrepare := monCompile mod optim mainexp
          , bmCommand := ("./Main", [])
          , bmCleanup := ("rm", ["-f", "Main*", "Curry_*"])
+         , bmRepeats := rpts
          }
        ]
   else []
-pakcsBenchmark mod goal = if onlyKiCS2 then [] else
+pakcsBenchmark mod goal rpts = if onlyKiCS2 then [] else
   [ { bmName    := mkTag mod goal "PAKCS"
     , bmPrepare := pakcsCompile (if goal == "main" then "" else "-m \"print " ++ goal ++ "\"") mod
     , bmCommand := ("./" ++ mod ++ ".state", [])
     , bmCleanup := ("rm", ["-f", mod ++ ".state"])
+    , bmRepeats := rpts
     }
   ]
-mccBenchmark mod goal = if onlyKiCS2 then [] else
+mccBenchmark mod goal rpts = if onlyKiCS2 then [] else
   [ { bmName    := mkTag mod "main" "MCC"
     , bmPrepare := mccCompile (if goal == "main" then "" else "-e\"" ++ goal ++ "\"") mod
     , bmCommand := ("./a.out +RTS -h512m -RTS", [])
     , bmCleanup := ("rm", ["-f", "a.out", mod ++ ".icurry"])
+    , bmRepeats := rpts
     }
   ]
-ghcBenchmark mod = if onlyKiCS2 then [] else
+ghcBenchmark mod rpts = if onlyKiCS2 then [] else
   [ { bmName    := mkTag mod "main" "GHC"
     , bmPrepare := ghcCompile mod
     , bmCommand := ("./" ++ mod, [])
     , bmCleanup := ("rm", ["-f", mod, mod ++ ".hi", mod ++ ".o"])
+    , bmRepeats := rpts
     }
   ]
-ghcOBenchmark mod = if onlyKiCS2 then [] else
+ghcOBenchmark mod rpts = if onlyKiCS2 then [] else
   [ { bmName    := mkTag mod "main" "GHC+"
     , bmPrepare := ghcCompileO mod
     , bmCommand := ("./" ++ mod, [])
     , bmCleanup := ("rm", ["-f", mod, mod ++ ".hi", mod ++ ".o"])
+    , bmRepeats := rpts
     }
   ]
-sicsBenchmark mod = if onlyKiCS2 then [] else
+sicsBenchmark mod rpts = if onlyKiCS2 then [] else
   [ { bmName    := mkTag mod "main" "SICSTUS"
     , bmPrepare := sicstusCompile src
     , bmCommand := ("./" ++ src ++ ".state", [])
     , bmCleanup := ("rm", ["-f", src ++ ".state"])
+    , bmRepeats := rpts
     }
   ] where src = map toLower mod
-swiBenchmark mod = if onlyKiCS2 then [] else
+swiBenchmark mod rpts = if onlyKiCS2 then [] else
   [ { bmName    := mkTag mod "main" "SWI"
     , bmPrepare := swiCompile src
     , bmCommand := ("./" ++ src ++ ".state", [])
     , bmCleanup := ("rm", ["-f", src ++ ".state"])
+    , bmRepeats := rpts
     }
   ] where src = map toLower mod
 
@@ -758,10 +786,10 @@ swiCompile mod = system $ "echo \"compile("++mod++"), qsave_program('"++mod++".s
 -- ---------------------------------------------------------------------------
 
 -- Benchmark first-order functional programs with kics2/pakcs/mcc/ghc/sicstus/swi
-benchFOFP :: Bool -> Goal -> [Benchmark]
-benchFOFP withMon goal = concatMap ($goal)
-  [ kics2 True False Nothing 1 S_Integer PRDFS All
-  , kics2 True True  Nothing 1 S_Integer PRDFS All
+benchFOFP :: Bool -> Int -> Goal -> [Benchmark]
+benchFOFP withMon rpts goal = concatMap (\f -> f goal rpts)
+  [ kics2   True False Nothing 1 S_Integer PRDFS All
+  , kics2   True True  Nothing 1 S_Integer PRDFS All
   , pakcs
   , mcc
   , ghc
@@ -773,25 +801,27 @@ benchFOFP withMon goal = concatMap ($goal)
 
 benchGhcUniqSupply :: Goal -> [Benchmark]
 benchGhcUniqSupply goal = concat
-  [ kics2 True go Nothing 1 su st All goal | st <- strats
-                                           , su <- suppls
-                                           , go <- [True, False] ]
+  [ kics2 True go Nothing 1 su st All goal rpts | st <- strats
+                                                , su <- suppls
+                                                , go <- [True, False] ]
  where
   strats = [ PRDFS, DFS, EncDFS, BFS, EncBFS ]
   suppls = [ S_GHC, S_IORef ]
+  rpts   = 4
 
 benchGhcUniqSupplyComplete :: Goal -> [Benchmark]
 benchGhcUniqSupplyComplete goal = concat
-  [ kics2 True go Nothing 1 su st One goal | st <- strats
-                                           , su <- suppls
-                                           , go <- [True, False] ]
+  [ kics2 True go Nothing 1 su st One goal rpts | st <- strats
+                                                , su <- suppls
+                                                , go <- [True, False] ]
  where
   strats = [ BFS, EncBFS ]
   suppls = [ S_GHC, S_IORef ]
+  rpts   = 11
 
 -- Benchmark higher-order functional programs with kics2/pakcs/mcc/ghc/ghc+
-benchHOFP :: Bool -> Goal -> [Benchmark]
-benchHOFP withMon goal = concatMap ($goal)
+benchHOFP :: Bool -> Int -> Goal -> [Benchmark]
+benchHOFP withMon rpts goal = concatMap (\f -> f goal rpts)
   [ kics2 True False Nothing 1 S_Integer PRDFS All
   , kics2 True True  Nothing 1 S_Integer PRDFS All
   , pakcs
@@ -802,8 +832,8 @@ benchHOFP withMon goal = concatMap ($goal)
   ]
 
 -- Benchmarking functional logic programs with kics2/pakcs/mcc in DFS mode
-benchFLPDFS :: Bool -> Goal -> [Benchmark]
-benchFLPDFS withMon goal = concatMap ($goal)
+benchFLPDFS :: Bool -> Int -> Goal -> [Benchmark]
+benchFLPDFS withMon rpts goal = concatMap (\f -> f goal rpts)
   [ kics2 True False Nothing 1 S_Integer PRDFS All
   , kics2 True True  Nothing 1 S_Integer PRDFS All
   , kics2 True True  Nothing 1 S_PureIO  PRDFS All
@@ -813,8 +843,8 @@ benchFLPDFS withMon goal = concatMap ($goal)
   ]
 
 -- Benchmarking functional logic programs with unification with kics2/pakcs/mcc
-benchFLPDFSU :: Goal -> [Benchmark]
-benchFLPDFSU goal = concatMap ($goal)
+benchFLPDFSU :: Int -> Goal -> [Benchmark]
+benchFLPDFSU rpts goal = concatMap (\f -> f goal rpts)
   [ kics2 True True Nothing 1 S_PureIO PRDFS All
   , kics2 True True Nothing 1 S_PureIO   DFS All
   , pakcs
@@ -822,8 +852,8 @@ benchFLPDFSU goal = concatMap ($goal)
   ]
 
 -- Benchmarking functional patterns with kics2/pakcs
-benchFunPats :: Goal -> [Benchmark]
-benchFunPats goal = concatMap ($goal)
+benchFunPats :: Int -> Goal -> [Benchmark]
+benchFunPats rpts goal = concatMap (\f -> f goal rpts)
   [ kics2 True True Nothing 1 S_PureIO PRDFS All
   , kics2 True True Nothing 1 S_PureIO   DFS All
   , pakcs
@@ -831,14 +861,14 @@ benchFunPats goal = concatMap ($goal)
 
 -- Benchmarking functional programs with kics2/pakcs/mcc
 -- with a given name for the main operation
-benchFPWithMain :: Goal -> [Benchmark]
-benchFPWithMain goal = concatMap ($goal)
+benchFPWithMain :: Int -> Goal -> [Benchmark]
+benchFPWithMain rpts goal = concatMap (\f -> f goal rpts)
   [ kics2 True True Nothing 1 S_Integer   DFS All, pakcs, mcc ]
 
 -- Benchmarking functional logic programs with kics2/pakcs/mcc in DFS mode
 -- with a given name for the main operation
-benchFLPDFSWithMain :: Goal -> [Benchmark]
-benchFLPDFSWithMain goal = concatMap ($goal)
+benchFLPDFSWithMain :: Int -> Goal -> [Benchmark]
+benchFLPDFSWithMain rpts goal = concatMap (\f -> f goal rpts)
   [ kics2 True False Nothing 1 S_Integer PRDFS All
   , kics2 True True  Nothing 1 S_Integer PRDFS All
   , kics2 True True  Nothing 1 S_PureIO  PRDFS All
@@ -847,41 +877,41 @@ benchFLPDFSWithMain goal = concatMap ($goal)
   ]
 
 -- Benchmark different ID-Supplies with different DFS implementations
-benchIDSupplies :: Goal -> [Benchmark]
-benchIDSupplies goal = concat
-  [ kics2 True True Nothing 1 su st All goal | st <- strats, su <- suppls ]
+benchIDSupplies :: Int -> Goal -> [Benchmark]
+benchIDSupplies rpts goal = concat
+  [ kics2 True True Nothing 1 su st All goal rpts | st <- strats, su <- suppls ]
   where
     strats = [PRDFS, DFS]
     suppls = [S_PureIO, S_IORef, S_GHC, S_Integer]
 
 -- Benchmarking functional logic programs with different search strategies
-benchFLPSearch :: Goal -> [Benchmark]
-benchFLPSearch prog = concatMap (\st -> kics2 True True Nothing 1 S_IORef st All prog)
+benchFLPSearch :: Int -> Goal -> [Benchmark]
+benchFLPSearch rpts prog = concatMap (\st -> kics2 True True Nothing 1 S_IORef st All prog rpts)
   [ PRDFS, DFS, IDS 10, EncPar ]  -- , IOBFS is too slow
 
 -- Benchmarking functional logic programs with different search strategies
 -- extracting only the first result
-benchFLPFirst :: Goal -> [Benchmark]
-benchFLPFirst prog = concatMap (\st -> kics2 True True Nothing 1 S_IORef st One prog)
+benchFLPFirst :: Int -> Goal -> [Benchmark]
+benchFLPFirst rpts prog = concatMap (\st -> kics2 True True Nothing 1 S_IORef st One prog rpts)
   [ PRDFS, DFS, IDS 10, EncPar ]-- , IOBFS is too slow
 
 
 -- Benchmarking FL programs that require complete search strategy
-benchFLPCompleteSearch :: Goal -> [Benchmark]
-benchFLPCompleteSearch goal = concatMap
-  (\st -> kics2 True True Nothing 1 S_IORef st One goal)
+benchFLPCompleteSearch :: Int -> Goal -> [Benchmark]
+benchFLPCompleteSearch rpts goal = concatMap
+  (\st -> kics2 True True Nothing 1 S_IORef st One goal rpts)
   [BFS, IDS 100 ]
 
 -- Benchmarking functional logic programs with different search strategies
 -- for "main" operations and goals for encapsulated search strategies
-benchFLPEncapsSearch :: Goal -> [Benchmark]
-benchFLPEncapsSearch goal = concatMap
-  (\st -> kics2 True True Nothing 1 S_IORef st All goal)
+benchFLPEncapsSearch :: Int -> Goal -> [Benchmark]
+benchFLPEncapsSearch rpts goal = concatMap
+  (\st -> kics2 True True Nothing 1 S_IORef st All goal rpts)
   [DFS, BFS, IDS 100, EncDFS, EncBFS, EncIDS]
 
 -- Benchmarking =:<=, =:= and ==
-benchFLPDFSKiCS2WithMain :: Bool -> Bool -> Goal -> [Benchmark]
-benchFLPDFSKiCS2WithMain withPakcs withMcc goal = concatMap ($goal)
+benchFLPDFSKiCS2WithMain :: Bool -> Bool -> Int -> Goal -> [Benchmark]
+benchFLPDFSKiCS2WithMain withPakcs withMcc rpts goal = concatMap (\f -> f goal rpts)
   [ kics2 True True Nothing 1 S_PureIO PRDFS All
   , kics2 True True Nothing 1 S_PureIO   DFS All
   , if withPakcs then pakcs else skip
@@ -889,28 +919,28 @@ benchFLPDFSKiCS2WithMain withPakcs withMcc goal = concatMap ($goal)
   ]
 
 -- Benchmarking FL programs that require complete search strategy
-benchIDSSearch :: Goal -> [Benchmark]
-benchIDSSearch prog = concatMap
-  (\st -> kics2 True True Nothing 1 S_IORef st Count prog)
+benchIDSSearch :: Int -> Goal -> [Benchmark]
+benchIDSSearch rpts prog = concatMap
+  (\st -> kics2 True True Nothing 1 S_IORef st Count prog rpts)
   [IDS 100]
 
-benchThreads :: Bool -> Bool -> Maybe RuntimeOptions -> Supply -> Strategy -> Output -> Goal -> [Benchmark]
-benchThreads hoOpt ghcOpt rts idsupply strategy output goal =
-  concatMap (\n -> kics2 hoOpt ghcOpt rts n idsupply strategy output goal) threadNumbers
+benchThreads :: Bool -> Bool -> Maybe RuntimeOptions -> Supply -> Strategy -> Output -> Goal -> Int -> [Benchmark]
+benchThreads hoOpt ghcOpt rts idsupply strategy output goal rpts =
+  concatMap (\n -> kics2 hoOpt ghcOpt rts n idsupply strategy output goal rpts) threadNumbers
 
-editSeqBenchmark :: Bool -> Bool -> Maybe RuntimeOptions -> Int -> Supply -> Strategy -> [Benchmark]
-editSeqBenchmark hoOpt ghcOpt rts threads idsupply strategy
+editSeqBenchmark :: Bool -> Bool -> Maybe RuntimeOptions -> Int -> Supply -> Strategy -> Int -> [Benchmark]
+editSeqBenchmark hoOpt ghcOpt rts threads idsupply strategy repeats
   | encapsulated strategy =
-  kics2 hoOpt ghcOpt rts threads idsupply strategy All (Goal "EditSeq" [Code "(main ", Strategy, Code ")"])
+  kics2 hoOpt ghcOpt rts threads idsupply strategy All (Goal "EditSeq" [Code "(main ", Strategy, Code ")"])     repeats
   | parallel     strategy =
-  kics2 hoOpt ghcOpt rts threads idsupply strategy All (Goal "EditSeq" [Code "(main_par ", Strategy, Code ")"])
+  kics2 hoOpt ghcOpt rts threads idsupply strategy All (Goal "EditSeq" [Code "(main_par ", Strategy, Code ")"]) repeats
 
-editSeqSimpleBenchmark :: Bool -> Bool -> Maybe RuntimeOptions -> Int -> Supply -> Strategy -> [Benchmark]
-editSeqSimpleBenchmark hoOpt ghcOpt rts threads idsupply strategy
+editSeqSimpleBenchmark :: Bool -> Bool -> Maybe RuntimeOptions -> Int -> Supply -> Strategy -> Int -> [Benchmark]
+editSeqSimpleBenchmark hoOpt ghcOpt rts threads idsupply strategy repeats
   | encapsulated strategy =
-  kics2 hoOpt ghcOpt rts threads idsupply strategy All (Goal "EditSeq" [Code "(main_simple ", Strategy, Code ")"])
+  kics2 hoOpt ghcOpt rts threads idsupply strategy All (Goal "EditSeq" [Code "(main_simple ", Strategy, Code ")"])     repeats
   | parallel     strategy =
-  kics2 hoOpt ghcOpt rts threads idsupply strategy All (Goal "EditSeq" [Code "(main_simple_par ", Strategy, Code ")"])
+  kics2 hoOpt ghcOpt rts threads idsupply strategy All (Goal "EditSeq" [Code "(main_simple_par ", Strategy, Code ")"]) repeats
 
 threadNumbers :: [Int]
 threadNumbers = [1,2,4,8,11,12,16,20,23,24]
@@ -948,24 +978,25 @@ searchGoals = map ((flip Goal) (stringExpr "main"))
   -- "SearchLakritz" : needs CLPFD
   -- "SearchZebra"   : needs CLPFD
 
-
-allBenchmarks = concat
-  [ map (benchFOFP   True) fofpGoals
-  , map (benchHOFP   False    . (flip Goal) (stringExpr "main")) [ "ReverseBuiltin"]
-  , map (benchHOFP   True     . (flip Goal) (stringExpr "main")) [ "ReverseHO", "Primes", "PrimesPeano", "PrimesBuiltin", "Queens", "QueensUser" ]
-  , map (benchFLPDFS True     . (flip Goal) (stringExpr "main")) ["PermSort", "PermSortPeano" ]
-  , map (benchFLPDFS False    . (flip Goal) (stringExpr "main")) ["Half"]
-  , map (benchFLPSearch       . (flip Goal) (stringExpr "main")) ["PermSort", "PermSortPeano", "Half"]
-  , [benchFLPCompleteSearch   $       Goal  "NDNums"      (stringExpr "main")]
-  , [benchFPWithMain          $       Goal  "ShareNonDet" (stringExpr "goal1")]
-  , [benchFLPDFSWithMain      $       Goal  "ShareNonDet" (stringExpr "goal2")]
-  , [benchFLPDFSWithMain      $       Goal  "ShareNonDet" (stringExpr "goal3")]
-  , map (benchFLPDFSU         . (flip Goal) (stringExpr "main")) ["Last", "RegExp"]
-  , map (benchIDSupplies      . (flip Goal) (stringExpr "main")) ["PermSort", "Half", "Last", "RegExp"]
-  , map (benchFunPats         . (flip Goal) (stringExpr "main")) ["LastFunPats", "ExpVarFunPats", "ExpSimpFunPats", "PaliFunPats"]
-  , map (benchFLPEncapsSearch . (flip Goal) (stringExpr "main")) ["Half", "Last", "PermSort"]
+allBenchmarks :: Int -> [[Benchmark]]
+allBenchmarks rpts = concat
+  [ map (benchFOFP   True rpts) fofpGoals
+  , map (\m -> benchHOFP   False    rpts (Goal m $ stringExpr "main")) [ "ReverseBuiltin"]
+  , map (\m -> benchHOFP   True     rpts (Goal m $ stringExpr "main")) [ "ReverseHO", "Primes", "PrimesPeano", "PrimesBuiltin", "Queens", "QueensUser" ]
+  , map (\m -> benchFLPDFS True     rpts (Goal m $ stringExpr "main")) ["PermSort", "PermSortPeano" ]
+  , map (\m -> benchFLPDFS False    rpts (Goal m $ stringExpr "main")) ["Half"]
+  , map (\m -> benchFLPSearch       rpts (Goal m $ stringExpr "main")) ["PermSort", "PermSortPeano", "Half"]
+  , [benchFLPCompleteSearch         rpts (Goal  "NDNums"      (stringExpr "main"))]
+  , [benchFPWithMain                rpts (Goal  "ShareNonDet" (stringExpr "goal1"))]
+  , [benchFLPDFSWithMain            rpts (Goal  "ShareNonDet" (stringExpr "goal2"))]
+  , [benchFLPDFSWithMain            rpts (Goal  "ShareNonDet" (stringExpr "goal3"))]
+  , map (\m -> benchFLPDFSU         rpts (Goal m $ stringExpr "main")) ["Last", "RegExp"]
+  , map (\m -> benchIDSupplies      rpts (Goal m $ stringExpr "main")) ["PermSort", "Half", "Last", "RegExp"]
+  , map (\m -> benchFunPats         rpts (Goal m $ stringExpr "main")) ["LastFunPats", "ExpVarFunPats", "ExpSimpFunPats", "PaliFunPats"]
+  , map (\m -> benchFLPEncapsSearch rpts (Goal m $ stringExpr "main")) ["Half", "Last", "PermSort"]
   ]
 
+ghcUniqSupplyBenchmarks :: [[Benchmark]]
 ghcUniqSupplyBenchmarks = concat
   [ map benchGhcUniqSupply fofpGoals
   , map (benchGhcUniqSupply         . (flip Goal) (stringExpr "main")) [ "ReverseBuiltin", "ReverseHO" ]
@@ -980,6 +1011,7 @@ ghcUniqSupplyBenchmarks = concat
   , map (benchGhcUniqSupply         . (flip Goal) (stringExpr "main")) ["LastFunPats", "ExpVarFunPats", "ExpSimpFunPats", "PaliFunPats"]
   ]
 
+ghcUniqSupplySome :: [[Benchmark]]
 ghcUniqSupplySome =
   map benchUniqSupplyOpt
   [ Goal "ReverseUser"    (stringExpr "main")
@@ -1007,11 +1039,13 @@ ghcUniqSupplySome =
   , Goal "PaliFunPats"    (stringExpr "main")]
   ++ [benchGhcUniqSupplyComplete (Goal "NDNums" (stringExpr "main3"))]
  where
+  benchUniqSupplyOpt :: Goal -> [Benchmark]
   benchUniqSupplyOpt goal =
-       kics2 True True  Nothing 1 S_IORef PRDFS One goal
-    ++ kics2 True False Nothing 1 S_IORef PRDFS One goal
-    ++ kics2 True True  Nothing 1 S_IORef   BFS One goal
-    ++ kics2 True False Nothing 1 S_IORef   BFS One goal
+       kics2 True True  Nothing 1 S_IORef PRDFS One goal rpts
+    ++ kics2 True False Nothing 1 S_IORef PRDFS One goal rpts
+    ++ kics2 True True  Nothing 1 S_IORef   BFS One goal rpts
+    ++ kics2 True False Nothing 1 S_IORef   BFS One goal rpts
+  rpts = 11
 
 oneAndAllGoals = [ Goal "SearchQueensLess" (stringExpr "main")
                  , Goal "PermSort"         (stringExpr "main")
@@ -1023,146 +1057,111 @@ bfsOnlyGoals = [ Goal "NDNums"  (stringExpr "main3") ]
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-benchParallel :: Output -> Goal -> [Benchmark]
-benchParallel out goal =
-     (kics2 True True Nothing 1 S_IORef EncDFS out goal)
-  ++ (kics2 True True Nothing 1 S_IORef EncBFS out goal)
-  ++ (benchThreads True True Nothing S_IORef EncFair out goal)
-  ++ concatMap (\n -> kics2 True True Nothing n S_IORef (EncCon n) out goal)         threadNumbers
-  ++ (benchThreads True True Nothing S_IORef EncPar  out goal)
-  ++ (benchThreads True True Nothing S_IORef EncSAll out goal)
-  ++ concatMap (\n -> benchThreads True True Nothing S_IORef (EncSLimit n) out goal) [4,8,12,16,20,24]
-  ++ concatMap (\n -> benchThreads True True Nothing S_IORef (EncSAlt   n) out goal) [1,2,4]
-  ++ (benchThreads True True Nothing S_IORef EncSPow out goal)
-  ++ (benchThreads True True Nothing S_IORef EncBFSEval out goal)
-  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncDFSBag s) out goal) allSplitStrategies
-  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncFDFSBag s) out goal) allSplitStrategies
-  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncBFSBag s) out goal) allSplitStrategies
+benchParallel :: Output -> Goal -> Int -> [Benchmark]
+benchParallel out goal rpts =
+     (kics2 True True Nothing 1 S_IORef EncDFS out goal rpts)
+  ++ (kics2 True True Nothing 1 S_IORef EncBFS out goal rpts)
+  ++ (benchThreads True True Nothing S_IORef EncFair out goal rpts)
+  ++ concatMap (\n -> kics2 True True Nothing n S_IORef (EncCon n) out goal rpts) threadNumbers
+  ++ (benchThreads True True Nothing S_IORef EncPar  out goal rpts)
+  ++ (benchThreads True True Nothing S_IORef EncSAll out goal rpts)
+  ++ concatMap (\n -> benchThreads True True Nothing S_IORef (EncSLimit n) out goal rpts) [4,8,12,16,20,24]
+  ++ concatMap (\n -> benchThreads True True Nothing S_IORef (EncSAlt   n) out goal rpts) [1,2,4]
+  ++ (benchThreads True True Nothing S_IORef EncSPow out goal rpts)
+  ++ (benchThreads True True Nothing S_IORef EncBFSEval out goal rpts)
+  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncDFSBag s) out goal rpts) allSplitStrategies
+  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncFDFSBag s) out goal rpts) allSplitStrategies
+  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncBFSBag s) out goal rpts) allSplitStrategies
 
-benchParallelBFS :: Goal -> [Benchmark]
-benchParallelBFS goal =
-     (kics2 True True Nothing 1 S_IORef EncBFS One goal)
-  ++ (benchThreads True True Nothing S_IORef EncBFSEval One goal)
-  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncBFSBag s) One goal) allSplitStrategies
-  ++ (benchThreads True True Nothing S_IORef EncFair One goal)
-
-parallelBenchmarks :: [[Benchmark]]
-parallelBenchmarks =
-  [ benchParallel out goal | goal <- oneAndAllGoals, out <- [One, All] ] ++
-  [ benchParallelBFS  goal | goal <- bfsOnlyGoals ]
+benchParallelBFS :: Goal -> Int -> [Benchmark]
+benchParallelBFS goal rpts =
+     (kics2 True True Nothing 1 S_IORef EncBFS One goal rpts)
+  ++ (benchThreads True True Nothing S_IORef EncBFSEval One goal rpts)
+  ++ concatMap (\s -> benchThreads True True Nothing S_IORef (EncBFSBag s) One goal rpts) allSplitStrategies
+  ++ (benchThreads True True Nothing S_IORef EncFair One goal rpts)
 
 parallelEditSeqBenchmarks :: [[Benchmark]]
 parallelEditSeqBenchmarks =
-  [ editSeqSimpleBenchmark True True Nothing 1 S_IORef EncDFS ++
-    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef EncSAll | i <- threadNumbers ] ++
-    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef (EncSLimit l) | l <- [4,8,12,16,20,24], i <- threadNumbers ] ++
-    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef (EncSAlt l) | l <-   [1,2,4], i <- threadNumbers ] ++
-    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef (EncDFSBag TakeFirst) | i <- threadNumbers ] ++
-    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef (EncFDFSBag TakeFirst) | i <- threadNumbers ] ++
-    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef (EncDFSBagLimit TakeFirst l) | l <- [4,8,12,16,20,24], i <- threadNumbers ] ++
-    editSeqSimpleBenchmark True True Nothing 1 S_IORef EncBFS ++
-    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef EncBFSEval | i <- threadNumbers ] ++
-    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef EncBFSEval' | i <- threadNumbers ] ++
-    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef (EncBFSBag TakeFirst) | i <- threadNumbers ]
+  [          editSeqSimpleBenchmark True True Nothing 1 S_IORef EncDFS                       rpts ++
+    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef EncSAll                      rpts | i <- threadNumbers ] ++
+    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef (EncSLimit l)                rpts | l <- [4,8,12,16,20,24], i <- threadNumbers ] ++
+    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef (EncSAlt l)                  rpts | l <-   [1,2,4], i <- threadNumbers ] ++
+    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef (EncDFSBag TakeFirst)        rpts | i <- threadNumbers ] ++
+    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef (EncFDFSBag TakeFirst)       rpts | i <- threadNumbers ] ++
+    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef (EncDFSBagLimit TakeFirst l) rpts | l <- [4,8,12,16,20,24], i <- threadNumbers ] ++
+             editSeqSimpleBenchmark True True Nothing 1 S_IORef EncBFS                       rpts ++
+    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef EncBFSEval                   rpts | i <- threadNumbers ] ++
+    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef EncBFSEval'                  rpts | i <- threadNumbers ] ++
+    concat [ editSeqSimpleBenchmark True True Nothing i S_IORef (EncBFSBag TakeFirst)        rpts | i <- threadNumbers ]
 
-  , editSeqBenchmark True True Nothing 1 S_IORef EncDFS ++
-    concat [ editSeqBenchmark True True Nothing i S_IORef EncSAll | i <- threadNumbers ] ++
-    concat [ editSeqBenchmark True True Nothing i S_IORef (EncSLimit l) | l <- [4,8,12,16,20,24], i <- threadNumbers ] ++
-    concat [ editSeqBenchmark True True Nothing i S_IORef (EncSAlt l) | l <-   [1,2,4], i <- threadNumbers ] ++
-    concat [ editSeqBenchmark True True Nothing i S_IORef (EncDFSBag TakeFirst) | i <- threadNumbers ] ++
-    concat [ editSeqBenchmark True True Nothing i S_IORef (EncFDFSBag TakeFirst) | i <- threadNumbers ] ++
-    concat [ editSeqBenchmark True True Nothing i S_IORef (EncDFSBagLimit TakeFirst l) | l <- [4,8,12,16,20,24], i <- threadNumbers ] ++
-    editSeqBenchmark True True Nothing 1 S_IORef EncBFS ++
-    concat [ editSeqBenchmark True True Nothing i S_IORef EncBFSEval | i <- threadNumbers ] ++
-    concat [ editSeqBenchmark True True Nothing i S_IORef EncBFSEval' | i <- threadNumbers ] ++
-    concat [ editSeqBenchmark True True Nothing i S_IORef (EncBFSBag TakeFirst) | i <- threadNumbers ]
+  ,          editSeqBenchmark True True Nothing 1 S_IORef EncDFS                       rpts ++
+    concat [ editSeqBenchmark True True Nothing i S_IORef EncSAll                      rpts | i <- threadNumbers ] ++
+    concat [ editSeqBenchmark True True Nothing i S_IORef (EncSLimit l)                rpts | l <- [4,8,12,16,20,24], i <- threadNumbers ] ++
+    concat [ editSeqBenchmark True True Nothing i S_IORef (EncSAlt l)                  rpts | l <-   [1,2,4], i <- threadNumbers ] ++
+    concat [ editSeqBenchmark True True Nothing i S_IORef (EncDFSBag TakeFirst)        rpts | i <- threadNumbers ] ++
+    concat [ editSeqBenchmark True True Nothing i S_IORef (EncFDFSBag TakeFirst)       rpts | i <- threadNumbers ] ++
+    concat [ editSeqBenchmark True True Nothing i S_IORef (EncDFSBagLimit TakeFirst l) rpts | l <- [4,8,12,16,20,24], i <- threadNumbers ] ++
+             editSeqBenchmark True True Nothing 1 S_IORef EncBFS                       rpts ++
+    concat [ editSeqBenchmark True True Nothing i S_IORef EncBFSEval                   rpts | i <- threadNumbers ] ++
+    concat [ editSeqBenchmark True True Nothing i S_IORef EncBFSEval'                  rpts | i <- threadNumbers ] ++
+    concat [ editSeqBenchmark True True Nothing i S_IORef (EncBFSBag TakeFirst)        rpts | i <- threadNumbers ]
   ]
+ where
+  rpts = 3
 
 --------------------------------------------------------------------------------
 
-encDFSEvalBenchmarks :: [[Benchmark]]
-encDFSEvalBenchmarks =
-  [ benchEncDFSEval out goal | goal <- oneAndAllGoals, out <- [One, All] ] ++
-  [ editSeqBenchmark True True Nothing 1 S_IORef EncDFS ++
-    concat [ editSeqBenchmark True True Nothing i S_IORef strat | strat <- strats, i <- threadNumbers ] ]
+compareStrategies :: [Strategy] -> IO ()
+compareStrategies strategies = run $
+  [ compareStrategiesOnGoal    strategies    One goal 11 | goal <- oneAndAllGoals ] ++
+  [ compareStrategiesOnGoal    strategies    All goal  4 | goal <- oneAndAllGoals ] ++
+  [ compareStrategiesOnGoal    bfsStrategies One goal 11 | goal <- bfsOnlyGoals   ] ++
+  [ compareStrategiesOnEditSeq strategies              4 ]
  where
-  benchEncDFSEval :: Output -> Goal -> [Benchmark]
-  benchEncDFSEval output goal = (kics2 True True Nothing 1 S_IORef EncDFS output goal) ++
-    (concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- strats ])
+  bfsStrategies :: [Strategy]
+  bfsStrategies = filter bfsComplete strategies
 
-  strats = [EncPar, EncSAll, EncSAll']
-
---------------------------------------------------------------------------------
-
-encBFSEvalBenchmarks :: [[Benchmark]]
-encBFSEvalBenchmarks =
-  [ benchEncBFSEval out goal | goal <- oneAndAllGoals, out <- [One, All] ] ++
-  [ editSeqBenchmark True True Nothing 1 S_IORef EncBFS ++
-    concat [ editSeqBenchmark True True Nothing i S_IORef strat | strat <- strats, i <- threadNumbers ] ] ++
-  [ benchEncBFSEval One goal | goal <- bfsOnlyGoals ]
- where
-  benchEncBFSEval :: Output -> Goal -> [Benchmark]
-  benchEncBFSEval output goal = (kics2 True True Nothing 1 S_IORef EncBFS output goal) ++
-    (concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- strats ])
-
-  strats = [EncBFSEval, EncBFSEval']
-
---------------------------------------------------------------------------------
-
-encBagConBenchmarks :: [[Benchmark]]
-encBagConBenchmarks =
-  [ benchEncBagCon out goal | goal <- oneAndAllGoals, out <- [One, All] ] ++
-  [ concat [ editSeqBenchmark True True Nothing i S_IORef strat | strat <- strats, i <- threadNumbers ] ]
- where
-  benchEncBagCon :: Output -> Goal -> [Benchmark]
-  benchEncBagCon output goal =
-    concat [ benchThreads True True Nothing S_IORef strat output goal | strat <- strats ]
-
-  strats = [EncDFSBag CommonBuffer, EncDFSBagCon, EncFDFSBag CommonBuffer, EncFDFSBagCon, EncBFSBag CommonBuffer, EncBFSBagCon, EncFairBag CommonBuffer, EncFairBagCon ]
-
---------------------------------------------------------------------------------
-
-compareStrategies :: [Strategy] -> [[Benchmark]]
-compareStrategies strategies =
-  [ compareStrategiesOnGoal output goal | goal <- oneAndAllGoals, output <- [One, All ] ] ++
-  [ compareStrategiesOnEditSeq ]
- where
-  compareStrategiesOnGoal :: Output -> Goal -> [Benchmark]
-  compareStrategiesOnGoal output goal =
-    concat [ benchmarkStrategyOnGoal strategy | strategy <- strategies ]
+  compareStrategiesOnGoal :: [Strategy] -> Output -> Goal -> Int -> [Benchmark]
+  compareStrategiesOnGoal ss output goal rpts =
+    concat [ benchmarkStrategyOnGoal strategy | strategy <- ss ]
    where
     benchmarkStrategyOnGoal :: Strategy -> [Benchmark]
-    benchmarkStrategyOnGoal s | parallel s = benchThreads True True Nothing   S_IORef s output goal
-                              | otherwise  = kics2        True True Nothing 1 S_IORef s output goal
+    benchmarkStrategyOnGoal s | parallel s = benchThreads True True Nothing   S_IORef s output goal rpts
+                              | otherwise  = kics2        True True Nothing 1 S_IORef s output goal rpts
 
-  compareStrategiesOnEditSeq :: [Benchmark]
-  compareStrategiesOnEditSeq =
-    concat [ benchmarkStrategyOnEditSeq strategy | strategy <- strategies ]
+  compareStrategiesOnEditSeq :: [Strategy] -> Int -> [Benchmark]
+  compareStrategiesOnEditSeq ss rpts =
+    concat [ benchmarkStrategyOnEditSeq strategy | strategy <- ss ]
    where
-    benchmarkStrategyOnEditSeq s | parallel     s = concat [ editSeqBenchmark True True Nothing i S_IORef s | i <- threadNumbers ]
-                                 | encapsulated s =          editSeqBenchmark True True Nothing 1 S_IORef s
+    benchmarkStrategyOnEditSeq s | parallel     s = concat [ editSeqBenchmark True True Nothing i S_IORef s rpts | i <- threadNumbers ]
+                                 | encapsulated s =          editSeqBenchmark True True Nothing 1 S_IORef s rpts
                                  | otherwise      = []
 
 --------------------------------------------------------------------------------
 
 benchFair :: Output -> Goal -> [Benchmark]
 benchFair output goal = concat
-  [ kics2 True True (Just {stackInitial := "1536", stackChunk := "32k", stackBuffer := "1k"}) 12 S_IORef strat output goal | strat <- [EncFair, EncFair', EncFair''] ]
+  [ kics2 True True (Just {stackInitial := "1536", stackChunk := "32k", stackBuffer := "1k"}) 12 S_IORef strat output goal rpts | strat <- [EncFair, EncFair', EncFair''] ]
+ where
+  rpts = case output of
+           One -> 11
+           All ->  4
 
-fairOneBenchmarks :: [[Benchmark]]
-fairOneBenchmarks =
-  [ benchFair One goal | goal <- oneAndAllGoals ] ++
+fairBenchmarks :: [[Benchmark]]
+fairBenchmarks =
+  [ benchFair output goal | goal <- oneAndAllGoals, output <- [One, All] ] ++
   [ benchFair One goal | goal <- bfsOnlyGoals ]
-
-fairAllBenchmarks :: [[Benchmark]]
-fairAllBenchmarks =
-  [ benchFair All goal | goal <- oneAndAllGoals ]
 
 --------------------------------------------------------------------------------
 
 benchStackSize :: Strategy -> Output -> Goal -> [Benchmark]
 benchStackSize strat output goal = concat
-  [ kics2 True True (Just {stackInitial := init, stackChunk := chun, stackBuffer := buff}) 12 S_IORef strat output goal | init <- ["1024", "1280", "1536", "1792", "2048", "3072", "4096"], chun <- ["32k"], buff <- ["1k"] ]
+  [ kics2 True True (Just {stackInitial := init, stackChunk := chun, stackBuffer := buff}) 12 S_IORef strat output goal rpts | init <- ["1024", "1280", "1536", "1792", "2048", "3072", "4096"], chun <- ["32k"], buff <- ["1k"] ]
+ where
+  rpts = case output of
+           One -> 11
+           All ->  4
+
 
 fairStackSize :: [[Benchmark]]
 fairStackSize =
@@ -1180,102 +1179,78 @@ fair''StackSize =
   [ benchStackSize EncFair'' One goal | goal <- bfsOnlyGoals ]
 
 --------------------------------------------------------------------------------
-
-encDfsBagLimit :: [[Benchmark]]
-encDfsBagLimit =
-  let strats = (EncDFSBag TakeFirst) : [ EncDFSBagLimit TakeFirst n | n <- [4,8,12,16,20,24] ]
-  in
-  [ benchThreads True True Nothing S_IORef s out goal | goal <- oneAndAllGoals, out <- [One, All], s <- strats ] ++
-  [ benchThreads True True Nothing S_IORef s All goal | goal <- oneAndAllGoals, s <- strats ] ++
-  [ benchThreads True True Nothing S_IORef s One goal | goal <- oneAndAllGoals, s <- strats ]
-
---------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-unif =
+unif :: Int -> [[Benchmark]]
+unif rpts =
      [
        -- mcc does not support function pattern
-       benchFLPDFSKiCS2WithMain True False $ Goal "UnificationBenchFunPat" (stringExpr "goal_last_1L")
+       benchFLPDFSKiCS2WithMain True  False rpts $ Goal "UnificationBenchFunPat" (stringExpr "goal_last_1L")
        -- mcc does not support function pattern
-     , benchFLPDFSKiCS2WithMain True False $ Goal "UnificationBenchFunPat" (stringExpr "goal_last_2L")
-     , benchFLPDFSKiCS2WithMain True True  $ Goal "UnificationBench" (stringExpr "goal_last_2S")
+     , benchFLPDFSKiCS2WithMain True  False rpts $ Goal "UnificationBenchFunPat" (stringExpr "goal_last_2L")
+     , benchFLPDFSKiCS2WithMain True  True  rpts $ Goal "UnificationBench" (stringExpr "goal_last_2S")
        -- pakcs and mcc suspend on this goal
-     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBench" (stringExpr "goal_last_2Eq")
+     , benchFLPDFSKiCS2WithMain False False rpts $ Goal "UnificationBench" (stringExpr "goal_last_2Eq")
 --     , benchFLPDFSKiCS2WithMain True True $ Goal "UnificationBench" (stringExpr "goal_grep_S")
        -- pakcs and mcc suspend on this goal
-     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBench" (stringExpr "goal_grep_Eq")
+     , benchFLPDFSKiCS2WithMain False False rpts $ Goal "UnificationBench" (stringExpr "goal_grep_Eq")
        -- mcc does not support function pattern, pakcs runs very long (\infty?)
-     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBenchFunPat" (stringExpr "goal_half_L")
-     , benchFLPDFSKiCS2WithMain True True $ Goal "UnificationBench" (stringExpr "goal_half_S")
-     , benchFLPDFSKiCS2WithMain True True $ Goal "UnificationBench" (stringExpr "goal_half_Eq")
+     , benchFLPDFSKiCS2WithMain False False rpts $ Goal "UnificationBenchFunPat" (stringExpr "goal_half_L")
+     , benchFLPDFSKiCS2WithMain True True   rpts $ Goal "UnificationBench" (stringExpr "goal_half_S")
+     , benchFLPDFSKiCS2WithMain True True   rpts $ Goal "UnificationBench" (stringExpr "goal_half_Eq")
        -- mcc does not support function pattern
-     , benchFLPDFSKiCS2WithMain True False  $ Goal "UnificationBenchFunPat" (stringExpr "goal_expVar_L")
-     , benchFLPDFSKiCS2WithMain True True   $ Goal "UnificationBench" (stringExpr "goal_expVar_S")
-     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBench" (stringExpr "goal_expVar_Eq")
+     , benchFLPDFSKiCS2WithMain True False  rpts $ Goal "UnificationBenchFunPat" (stringExpr "goal_expVar_L")
+     , benchFLPDFSKiCS2WithMain True True   rpts $ Goal "UnificationBench" (stringExpr "goal_expVar_S")
+     , benchFLPDFSKiCS2WithMain False False rpts $ Goal "UnificationBench" (stringExpr "goal_expVar_Eq")
        -- mcc does not support function pattern
-     , benchFLPDFSKiCS2WithMain True False $ Goal "UnificationBenchFunPat" (stringExpr "goal_expVar_L'")
-     , benchFLPDFSKiCS2WithMain True True  $ Goal "UnificationBench" (stringExpr "goal_expVar_S'")
+     , benchFLPDFSKiCS2WithMain True False  rpts $ Goal "UnificationBenchFunPat" (stringExpr "goal_expVar_L'")
+     , benchFLPDFSKiCS2WithMain True True   rpts $ Goal "UnificationBench" (stringExpr "goal_expVar_S'")
        -- pakcs and mcc suspend on this goal
-     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBench" (stringExpr "goal_expVar_Eq'")
+     , benchFLPDFSKiCS2WithMain False False rpts $ Goal "UnificationBench" (stringExpr "goal_expVar_Eq'")
        -- mcc does not support function pattern
-     , benchFLPDFSKiCS2WithMain True False $ Goal "UnificationBenchFunPat" (stringExpr "goal_expVar_L''")
-     , benchFLPDFSKiCS2WithMain True True  $ Goal "UnificationBench" (stringExpr "goal_expVar_S''")
+     , benchFLPDFSKiCS2WithMain True False  rpts $ Goal "UnificationBenchFunPat" (stringExpr "goal_expVar_L''")
+     , benchFLPDFSKiCS2WithMain True True   rpts $ Goal "UnificationBench" (stringExpr "goal_expVar_S''")
        -- pakcs and mcc suspend on this goal
-     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBench" (stringExpr "goal_expVar_Eq''")
+     , benchFLPDFSKiCS2WithMain False False rpts$ Goal "UnificationBench" (stringExpr "goal_expVar_Eq''")
        -- mcc does not support function pattern
-     , benchFLPDFSKiCS2WithMain True False $ Goal "UnificationBenchFunPat" (stringExpr "goal_simplify_L")
-     , benchFLPDFSKiCS2WithMain True True  $ Goal "UnificationBench" (stringExpr "goal_simplify_S")
+     , benchFLPDFSKiCS2WithMain True False  rpts $ Goal "UnificationBenchFunPat" (stringExpr "goal_simplify_L")
+     , benchFLPDFSKiCS2WithMain True True   rpts $ Goal "UnificationBench" (stringExpr "goal_simplify_S")
        -- pakcs and mcc suspend on this goal
-     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBench" (stringExpr "goal_simplify_Eq")
+     , benchFLPDFSKiCS2WithMain False False rpts $ Goal "UnificationBench" (stringExpr "goal_simplify_Eq")
        -- mcc does not support function pattern, pakcs runs very long (\infty?)
-     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBenchFunPat" (stringExpr "goal_pali_L")
-     , benchFLPDFSKiCS2WithMain True True $ Goal "UnificationBench" (stringExpr "goal_pali_S")
+     , benchFLPDFSKiCS2WithMain False False rpts $ Goal "UnificationBenchFunPat" (stringExpr "goal_pali_L")
+     , benchFLPDFSKiCS2WithMain True True   rpts $ Goal "UnificationBench" (stringExpr "goal_pali_S")
        -- pakcs and mcc suspend on this goal
-     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBench" (stringExpr "goal_pali_Eq")
-     , benchFLPDFSKiCS2WithMain True True $ Goal "UnificationBench" (stringExpr "goal_horseMan_S")
+     , benchFLPDFSKiCS2WithMain False False rpts $ Goal "UnificationBench" (stringExpr "goal_pali_Eq")
+     , benchFLPDFSKiCS2WithMain True True   rpts $ Goal "UnificationBench" (stringExpr "goal_horseMan_S")
        -- pakcs and mcc suspend on this goal
-     , benchFLPDFSKiCS2WithMain False False $ Goal "UnificationBench" (stringExpr "goal_horseMan_Eq")
+     , benchFLPDFSKiCS2WithMain False False rpts $ Goal "UnificationBench" (stringExpr "goal_horseMan_Eq")
      ]
 
-benchSearch = -- map benchFLPSearch searchGoals
-              map benchFLPFirst (searchGoals ++ [Goal "NDNums" (stringExpr "main2")])
+benchSearch :: Int -> [[Benchmark]]
+benchSearch rpts =
+  -- map (benchFLPSearch rpts) searchGoals
+  map (benchFLPFirst rpts) (searchGoals ++ [Goal "NDNums" (stringExpr "main2")])
 
---main = run 2 benchSearch
--- main = run 2 benchSearch
---main = run 1 allBenchmarks
-main = run 3 allBenchmarks
---main = run 5 ghcUniqSupplyBenchmarks
---main = run 10 parallelBenchmarks
---main = run 5 ghcUniqSupplySome
---main = run 11 fairOneBenchmarks
---main = run 4 fairAllBenchmarks
---main = run 4 fairStackSize
---main = run 4 fair'StackSize
---main = run 4 fair''StackSize
---main = run 4 parallelEditSeqBenchmarks
---main = run 4 encBFSEvalBenchmarks
---main = run 4 encDFSEvalBenchmarks
---main = run 4 $ compareStrategies [ EncDFS, EncSAll, EncSLeft, EncSLeft', EncSRight, EncSRight' ]
---main = run 11 encBagConBenchmarks
---main = run 11 encDfsBagLimit
---main = run 1 $ map (\i -> benchThreads True True S_Integer (EncCon i) All $ Goal True "SearchQueensLess" (stringExpr "main")) (map (*10) [1..100])
---main = run 1 [benchFLPCompleteSearch "NDNums"]
---main = run 1 (benchFPWithMain "ShareNonDet" (stringExpr "goal1") : [])
+--main = run (benchSearch 2)
+--main = run (allBenchmarks 1)
+main = run (allBenchmarks 3)
+--main = run ghcUniqSupplyBenchmarks
+--main = run ghcUniqSupplySome
+--main = run fairBenchmarks
+--main = run fairStackSize
+--main = run fair'StackSize
+--main = run fair''StackSize
+--main = run parallelEditSeqBenchmarks
+--main = compareStrategies [ EncBFS, EncBFSEval, EncBFSEval' ]
+--main = compareStrategies [ EncDFS, EncPar,     EncSAll,     EncSAll' ]
+--main = compareStrategies [ EncDFS, EncSAll,    EncSLeft,    EncSLeft', EncSRight, EncSRight' ]
+--main = compareStrategies $ (EncDFSBag TakeFirst) : [ EncDFSBagLimit TakeFirst n | n <- [4,8,12,16,20,24] ]
+--main = compareStrategies [EncDFSBag CommonBuffer, EncDFSBagCon, EncFDFSBag CommonBuffer, EncFDFSBagCon, EncBFSBag CommonBuffer, EncBFSBagCon, EncFairBag CommonBuffer, EncFairBagCon ]
+--main = run [benchFLPCompleteSearch 1 "NDNums"]
+--main = run (benchFPWithMain 1 "ShareNonDet" (stringExpr "goal1") : [])
 --           map (\g -> benchFLPDFSWithMain "ShareNonDet" g) [(stringExpr "goal2"),(stringExpr "goal3")])
---main = run 1 [benchHOFP "Primes" True]
---main = run 1 [benchFLPDFS "PermSort",benchFLPDFS "PermSortPeano"]
---main = run 1 [benchFLPSearch "PermSort",benchFLPSearch "PermSortPeano"]
---main = run 1 [benchFLPSearch "Half"]
---main = run 1 [benchFLPEncapsSearch "HalfSearchTree" ["encDFS","encBFS","encIDS"]]
---main = run 1
---  [benchFLPEncapsSearch "PermSortSearchTree" ["encDFS","encBFS","encIDS"]
---  ,benchFLPEncapsSearch "HalfSearchTree" ["encDFS","encBFS","encIDS"]
---  ,benchFLPEncapsSearch "LastSearchTree" ["encDFS","encBFS","encIDS"]]
---main = run 1 [benchFLPDFSU "Last"]
---main = run 1 [benchFLPDFSU "RegExp"]
---main = run 1 (map benchFunPats ["ExpVarFunPats","ExpSimpFunPats","PaliFunPats"
---main = run 3 unif
---main = run 1 [benchIDSupply "Last", benchIDSupply "RegExp"]
+--main = run (unif 3)
 
 -- Evaluate log file of benchmark, i.e., compress it to show all results:
 -- showLogFile :: IO ()
