@@ -17,6 +17,7 @@ import System
 import Time
 import ReadShowTerm
 import Float
+import SetFunctions
 
 -- ---------------------------------------------------------------------------
 -- Flags
@@ -87,6 +88,17 @@ part n m =
 (^) :: Int -> Int -> Int
 n ^ e | e == 0    = 1
       | otherwise = n * (n ^ (e - 1))
+
+lefts = map left
+left (Left x) = x
+
+rights = map right
+right (Right x) = x
+
+mean :: [Float] -> Float
+mean vs =
+  let (s, c) = foldl (\(s', c') n -> (s'+.n, c'+.1.0)) (0.0, 0.0) vs
+  in s /. c
 
 -- ---------------------------------------------------------------------------
 -- Executing commands
@@ -295,22 +307,29 @@ showValue dec (Right x) =
           x1 -> x1
   in  pr ++ "." ++ po
 
-resultTable :: [BenchResult] -> [[(Int, Either String Float)]]
-resultTable results =
+resultTable :: Bool -> [BenchResult] -> [[(Int, Either String Float)]]
+resultTable wantMean results =
   title : titles : content
  where
   maxRuns :: Int
   maxRuns = foldr max 0 $ map (length . snd) results
 
+  columnsEach :: Int
+  columnsEach = maxRuns + if wantMean then 1 else 0
+
   title :: [(Int, Either String Float)]
   title = [ (1, Left "Title")
-          , (maxRuns, Left "elapsed times")
-          , (maxRuns, Left "user times")
-          , (maxRuns, Left "memory") ]
+          , (columnsEach, Left "elapsed times")
+          , (columnsEach, Left "user times")
+          , (columnsEach, Left "memory") ]
+
+  titlesEach =
+    (if wantMean then [(1, Left "mean")] else [])
+    ++ (map (\i -> (1, Left $ show i)) [1..maxRuns])
 
   titles :: [(Int, Either String Float)]
   titles = [(1, Left "")]
-        ++ (concatReplicate 3 $ map (\i -> (1, Left $ show i)) [1..maxRuns])
+        ++ (concatReplicate 3 $ titlesEach)
 
   content :: [[(Int, Either String Float)]]
   content = map line results
@@ -324,7 +343,17 @@ resultTable results =
 
   entries :: (Maybe TimeInfo -> Either String Float) -> [Maybe TimeInfo] -> [(Int, Either String Float)]
   entries f infos =
-    take maxRuns $ map (\i -> (1, f i)) infos ++ repeat (1, Left "")
+    (if wantMean then [(1, meanEntry)] else []) ++
+    (take maxRuns $ map (\i -> (1, i)) singleEntries ++ repeat (1, Left ""))
+   where
+    singleEntries = map f infos
+
+    values    = set1 rights singleEntries
+
+    meanEntry =
+      if isEmpty values
+        then Left  "FAILED"
+        else Right $ mean (minValue (<=) values)
 
 -- Run all benchmarks and show results
 run :: Int -> [[Benchmark]] -> IO ()
@@ -350,7 +379,7 @@ csvContents = contents (showCSV 2)
 resContents :: [[BenchResult]] -> String
 resContents = contents (showTable 2)
 
-contents f = (intercalate "\n\n") . (map (f . resultTable))
+contents f = (intercalate "\n\n") . (map (f . (resultTable True)))
 
 convertToCSV :: String -> String -> IO ()
 convertToCSV fromF toF = do
