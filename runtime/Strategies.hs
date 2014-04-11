@@ -15,6 +15,8 @@ module Strategies
   , dfsBagCon, fdfsBagCon, bfsBagCon, fairBagCon
   , dfsBagConLazy, fdfsBagConLazy, bfsBagConLazy, fairBagConLazy
   , dfsBagLimit, dfsBagLimitLazy
+  , dfsBagRight, dfsBagRightLazy
+  , dfsBagLeft,  dfsBagLeftLazy
   ) where
 
 import System.IO (hPutStr, stderr)
@@ -148,6 +150,40 @@ dfsTaskLimit 0 t@(Choice _ _) = do
 dfsTaskLimit n   (Choice l r) = do
   addTaskIO $ dfsTaskLimit (n-1) r
   dfsTaskLimit (n-1) l
+
+dfsBagRight :: MonadIO m => Maybe (SplitFunction r) -> Int -> SearchTree r -> BagT r m a -> m a
+dfsBagRight split n tree = newTaskBag Stack split [dfsTaskRight n tree]
+
+dfsBagRightLazy :: Maybe (SplitFunction r) -> Int -> SearchTree r -> IO [r]
+dfsBagRightLazy split n tree = Implicit.newTaskBag Stack split [dfsTaskRight n tree]
+
+dfsTaskRight :: Int -> SearchTree a -> TaskIO a (Maybe a)
+dfsTaskRight _ None    = return   Nothing
+dfsTaskRight _ (One x) = return $ Just x
+dfsTaskRight 0 (Choice l r) = do
+  addTaskIO $ dfsTaskRight 0 r
+  mapM_ writeResult $ dfsSearch l
+  return Nothing
+dfsTaskRight n (Choice l r) = do
+  addTaskIO $ dfsTaskRight (n-1) r
+  dfsTaskRight (n-1) l
+
+dfsBagLeft :: MonadIO m => Maybe (SplitFunction r) -> Int -> SearchTree r -> BagT r m a -> m a
+dfsBagLeft split n tree = newTaskBag Stack split [dfsTaskLeft n tree]
+
+dfsBagLeftLazy :: Maybe (SplitFunction r) -> Int -> SearchTree r -> IO [r]
+dfsBagLeftLazy split n tree = Implicit.newTaskBag Stack split [dfsTaskLeft n tree]
+
+dfsTaskLeft :: Int -> SearchTree a -> TaskIO a (Maybe a)
+dfsTaskLeft _ None    = return   Nothing
+dfsTaskLeft _ (One x) = return $ Just x
+dfsTaskLeft 0 (Choice l r) = do
+  addTaskIO $ dfsTaskLeft 0 l
+  mapM_ writeResult $ dfsSearch r
+  return Nothing
+dfsTaskLeft n (Choice l r) = do
+  addTaskIO $ dfsTaskLeft (n-1) r
+  dfsTaskLeft (n-1) l
 
 -- | Parallel Breadth-first search
 bfsParallel :: SearchTree a -> [a]

@@ -428,6 +428,8 @@ data Strategy
   | EncBFSBag  SplitStrategy
   | EncDFSBagCon | EncFDFSBagCon | EncBFSBagCon | EncFairBagCon
   | EncDFSBagLimit SplitStrategy Int
+  | EncDFSBagRight SplitStrategy Int
+  | EncDFSBagLeft  SplitStrategy Int
 
 data Goal     = Goal String MainExpr -- module / main-expr
 type MainExpr = [MainExprPart]
@@ -526,6 +528,8 @@ stratExpr s = case s of
   EncFDFSBagCon          -> "fdfsBagCon"
   EncBFSBagCon           -> "bfsBagCon"
   EncDFSBagLimit split n -> "dfsBagLimit " ++ fromSplit split ++ " " ++ (show n)
+  EncDFSBagRight split n -> "dfsBagRight " ++ fromSplit split ++ " " ++ (show n)
+  EncDFSBagLeft  split n -> "dfsBagLeft "  ++ fromSplit split ++ " " ++ (show n)
 
 fromSplit CommonBuffer  = "commmonBuffer"
 fromSplit TakeFirst     = "takeFirst"
@@ -1247,6 +1251,7 @@ main = run (allBenchmarks 3)
 --main = compareStrategies [ EncDFS, EncPar,     EncSAll,     EncSAll' ]
 --main = compareStrategies [ EncDFS, EncSAll,    EncSLeft,    EncSLeft', EncSRight, EncSRight' ]
 --main = compareStrategies $ (EncDFSBag TakeFirst) : [ EncDFSBagLimit TakeFirst n | n <- [4,8,12,16,20,24] ]
+--main = compareStrategies $ (EncDFSBag TakeFirst) : [ s TakeFirst n | s <- [ EncDFSBagRight, EncDFSBagLeft ], n <- [0,1,2,3,4,5,6] ]
 --main = compareStrategies $ EncSAll : [ s n | s <- [ EncSLeft, EncSLeft', EncSRight, EncSRight' ], n <- [0,1,2,3,4,5,6] ]
 --main = compareStrategies [EncDFSBag CommonBuffer, EncDFSBagCon, EncFDFSBag CommonBuffer, EncFDFSBagCon, EncBFSBag CommonBuffer, EncBFSBagCon, EncFairBag CommonBuffer, EncFairBagCon ]
 --main = run [benchFLPCompleteSearch 1 "NDNums"]
