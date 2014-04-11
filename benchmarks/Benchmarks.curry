@@ -730,6 +730,7 @@ kics2Compile hoOpt ghcOpt threaded idsupply mod (imports, strategy, output, main
                      [":save \"" ++ mainexp ++ "\"", ":quit"]
   let kics2Cmd = (kics2Home ++ "/bin/kics2", kics2Options)
   traceCmd kics2Cmd
+  silentCmd $ timeout 10 $ ("./" ++ mod, []) -- to load the file into memory
   return 0
 
 -- ---------------------------------------------------------------------------
