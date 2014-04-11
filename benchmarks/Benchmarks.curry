@@ -421,7 +421,7 @@ data Strategy
   | EncPar   | EncCon Int                                         -- parallel encapsulated
   | EncFair  | EncFair'  | EncFair'' | EncFairBag SplitStrategy   -- fair strategies
   | EncSAll  | EncSAll'  | EncSLimit Int | EncSAlt Int | EncSPow  -- parallel with Eval
-  | EncSLeft | EncSLeft' | EncSRight     | EncSRight'             -- asymmetric strategies
+  | EncSLeft Int | EncSLeft' Int | EncSRight Int | EncSRight' Int -- asymmetric strategies
   | EncBFSEval | EncBFSEval'                                      -- parallel breadth-first-search
   | EncDFSBag  SplitStrategy
   | EncFDFSBag SplitStrategy
@@ -513,10 +513,10 @@ stratExpr s = case s of
   EncSLimit n            -> "splitLimitDepth " ++ (show n)
   EncSAlt n              -> "splitAlternating " ++ (show n)
   EncSPow                -> "splitPower"
-  EncSLeft               -> "splitLeft"
-  EncSLeft'              -> "splitLeft'"
-  EncSRight              -> "splitRight"
-  EncSRight'             -> "splitRight'"
+  EncSLeft   n           -> "splitLeft "   ++ (show n)
+  EncSLeft'  n           -> "splitLeft' "  ++ (show n)
+  EncSRight  n           -> "splitRight "  ++ (show n)
+  EncSRight' n           -> "splitRight' " ++ (show n)
   EncBFSEval             -> "bfsParallel"
   EncBFSEval'            -> "bfsParallel'"
   EncDFSBag split        -> "dfsBag " ++ fromSplit split
@@ -1247,6 +1247,7 @@ main = run (allBenchmarks 3)
 --main = compareStrategies [ EncDFS, EncPar,     EncSAll,     EncSAll' ]
 --main = compareStrategies [ EncDFS, EncSAll,    EncSLeft,    EncSLeft', EncSRight, EncSRight' ]
 --main = compareStrategies $ (EncDFSBag TakeFirst) : [ EncDFSBagLimit TakeFirst n | n <- [4,8,12,16,20,24] ]
+--main = compareStrategies $ EncSAll : [ s n | s <- [ EncSLeft, EncSLeft', EncSRight, EncSRight' ], n <- [0,1,2,3,4,5,6] ]
 --main = compareStrategies [EncDFSBag CommonBuffer, EncDFSBagCon, EncFDFSBag CommonBuffer, EncFDFSBagCon, EncBFSBag CommonBuffer, EncBFSBagCon, EncFairBag CommonBuffer, EncFairBagCon ]
 --main = run [benchFLPCompleteSearch 1 "NDNums"]
 --main = run (benchFPWithMain 1 "ShareNonDet" (stringExpr "goal1") : [])
