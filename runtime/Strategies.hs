@@ -195,18 +195,18 @@ splitLimitDepth i   (Choice l r) = runEval $ do
   return $ ls ++ rs
 
 splitAlternating :: Int -> SearchTree a -> [a]
-splitAlternating n = splitAlternating' 1 n
+splitAlternating n = splitAlternating' 1
  where
-  splitAlternating' :: Int -> Int -> SearchTree a -> [a]
-  splitAlternating' _ _ None         = []
-  splitAlternating' _ _ (One x)      = [x]
-  splitAlternating' 1 n (Choice l r) = runEval $ do
-    rs <- rpar $ splitAlternating' n n l
-    ls <- rseq $ splitAlternating' n n r
+  splitAlternating' :: Int -> SearchTree a -> [a]
+  splitAlternating' _ None         = []
+  splitAlternating' _ (One x)      = [x]
+  splitAlternating' 1 (Choice l r) = runEval $ do
+    rs <- rpar $ splitAlternating' n l
+    ls <- rseq $ splitAlternating' n r
     return $ ls ++ rs
-  splitAlternating' i n (Choice l r) =
-    let ls = splitAlternating' (i-1) n l
-        rs = splitAlternating' (i-1) n r
+  splitAlternating' i (Choice l r) =
+    let ls = splitAlternating' (i-1) l
+        rs = splitAlternating' (i-1) r
     in ls ++ rs
 
 splitPower :: SearchTree a -> [a]
