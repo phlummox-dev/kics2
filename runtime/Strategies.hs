@@ -206,7 +206,7 @@ parTree t = do
   case t of
     Choice l r -> do
       r' <- (rpar `dot` parTree) r
-      l' <- (rseq `dot` parTree) l
+      l' <- (rpar `dot` parTree) l
       return (Choice l' r')
     _          -> r0 t
 
