@@ -8,7 +8,7 @@ module Strategies
   , splitAll, splitLimitDepth, splitAlternating, splitPower
   , splitRight, splitRight', splitLeft, splitLeft'
   , splitAll'
-  , bfsParallel, bfsParallel'
+  , bfsParallel, bfsParallel', bfsParallel''
   , fairSearch', fairSearch''
   , dfsBag, fdfsBag, bfsBag, fairBag, getAllResults, getResult
   , dfsBagLazy, fdfsBagLazy, bfsBagLazy, fairBagLazy
@@ -21,6 +21,7 @@ module Strategies
 
 import System.IO (hPutStr, stderr)
 import Control.Monad.SearchTree
+import Control.Parallel (par)
 import Control.Parallel.TreeSearch (parSearch)
 import Control.Parallel.Strategies
 import Data.IORef (newIORef, mkWeakIORef, IORef, writeIORef)
@@ -202,13 +203,17 @@ bfsParallel' t =
   bfsSearch (t `using` parTree)
 
 parTree :: SearchTree a -> Eval (SearchTree a)
-parTree t = do
-  case t of
-    Choice l r -> do
-      r' <- (rpar `dot` parTree) r
-      l' <- (rpar `dot` parTree) l
-      return (Choice l' r')
-    _          -> r0 t
+parTree (Choice l r) = do
+  r'  <-  (rpar `dot` parTree)  r
+  l'  <-  (rpar `dot` parTree)  l
+  return (Choice l' r')
+parTree  t           = r0 t
+
+bfsParallel'' :: SearchTree a -> [a]
+bfsParallel'' t = evalList (splitAll t) `par` bfsSearch t
+ where
+  evalList []     = ()
+  evalList (_:xs) = evalList xs
 
 splitAll :: SearchTree a -> [a]
 splitAll None         = []
