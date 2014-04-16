@@ -357,8 +357,8 @@ resultTable wantMean results =
         else Right $ mean (minValue (<=) values)
 
 -- Run all benchmarks and show results
-run :: [[Benchmark]] -> IO ()
-run benchmarks = do
+run :: String -> [[Benchmark]] -> IO ()
+run name benchmarks = do
   args    <- getArgs
   results <- runAllBenchmarks benchmarks
   ltime   <- getLocalTime
@@ -369,10 +369,9 @@ run benchmarks = do
       csv = csvContents results
       raw = showQTerm results
   putStrLn $ res
-  unless (null args) $ do
-    writeFile (outputFile (head args) (init mach) ltime) res
-    writeFile (csvFile    (head args) (init mach) ltime) csv
-    writeFile (rawFile    (head args) (init mach) ltime) raw
+  writeFile (outputFile name (init mach) ltime) res
+  writeFile (csvFile    name (init mach) ltime) csv
+  writeFile (rawFile    name (init mach) ltime) raw
 
 csvContents :: [[BenchResult]] -> String
 csvContents = contents (showCSV 2)
@@ -1116,8 +1115,8 @@ parallelEditSeqBenchmarks =
 
 --------------------------------------------------------------------------------
 
-compareStrategies :: [Strategy] -> IO ()
-compareStrategies strategies = run $
+compareStrategies :: [Strategy] -> [[Benchmark]]
+compareStrategies strategies =
   [ compareStrategiesOnGoal    strategies    One goal 11 | goal <- oneAndAllGoals ] ++
   [ compareStrategiesOnGoal    strategies    All goal  4 | goal <- oneAndAllGoals ] ++
   [ compareStrategiesOnGoal    bfsStrategies One goal 11 | goal <- bfsOnlyGoals   ] ++
@@ -1239,7 +1238,7 @@ benchSearch rpts =
 
 --main = run (benchSearch 2)
 --main = run (allBenchmarks 1)
-main = run (allBenchmarks 3)
+main = run "allBenchmarks" (allBenchmarks 3)
 --main = run ghcUniqSupplyBenchmarks
 --main = run ghcUniqSupplySome
 --main = run fairBenchmarks
@@ -1247,13 +1246,14 @@ main = run (allBenchmarks 3)
 --main = run fair'StackSize
 --main = run fair''StackSize
 --main = run parallelEditSeqBenchmarks
---main = compareStrategies [ EncBFS, EncBFSEval, EncBFSEval' ]
---main = compareStrategies [ EncDFS, EncPar,     EncSAll,     EncSAll' ]
---main = compareStrategies [ EncDFS, EncSAll,    EncSLeft,    EncSLeft', EncSRight, EncSRight' ]
---main = compareStrategies $ (EncDFSBag TakeFirst) : [ EncDFSBagLimit TakeFirst n | n <- [4,8,12,16,20,24] ]
---main = compareStrategies $ (EncDFSBag TakeFirst) : [ s TakeFirst n | s <- [ EncDFSBagRight, EncDFSBagLeft ], n <- [0,1,2,3,4,5,6] ]
---main = compareStrategies $ EncSAll : [ s n | s <- [ EncSLeft, EncSLeft', EncSRight, EncSRight' ], n <- [0,1,2,3,4,5,6] ]
---main = compareStrategies [EncDFSBag CommonBuffer, EncDFSBagCon, EncFDFSBag CommonBuffer, EncFDFSBagCon, EncBFSBag CommonBuffer, EncBFSBagCon, EncFairBag CommonBuffer, EncFairBagCon ]
+--main = run "BFSEval"       $ compareStrategies [ EncBFS, EncBFSEval, EncBFSEval' ]
+--main = run "DFSEval"       $ compareStrategies [ EncDFS, EncPar,     EncSAll,     EncSAll' ]
+--main = run "Asymmetric"    $ compareStrategies $ EncSAll : [ s n | s <- [ EncSLeft, EncSLeft', EncSRight, EncSRight' ], n <- [0,1,2,3,4,5,6] ]
+--main = run "LimitBag"      $ compareStrategies $ (EncDFSBag TakeFirst) : [ EncDFSBagLimit TakeFirst n | n <- [4,8,12,16,20,24] ]
+--main = run "AsymmetricBag" $ compareStrategies $ (EncDFSBag TakeFirst) : [ s TakeFirst n | s <- [ EncDFSBagRight, EncDFSBagLeft ], n <- [0,1,2,3,4,5,6] ]
+--main = run "BagConcurrent" $ compareStrategies [EncDFSBag CommonBuffer, EncDFSBagCon, EncFDFSBag CommonBuffer, EncFDFSBagCon, EncBFSBag CommonBuffer, EncBFSBagCon, EncFairBag CommonBuffer, EncFairBagCon ]
+--main = run "ReduceUseful"    $ [ concat [ kics2 True True Nothing threads S_IORef strategy output (Goal "PermSortBalanced" (stringExpr "main6")) rpts | strategy <- ([EncSAll] ++ map EncSLimit                  [0,1,2,3,4,5,6,7,8]), threads <- threadNumbers ] | (output, rpts) <- [(One, 10), (All, 3)] ]
+--main = run "ReduceUsefulBag" $ [ concat [ kics2 True True Nothing threads S_IORef strategy output (Goal "PermSortBalanced" (stringExpr "main6")) rpts | strategy <- ([EncSAll] ++ map (EncDFSBagLimit TakeFirst) [0,1,2,3,4,5,6,7,8]), threads <- threadNumbers ] | (output, rpts) <- [(One, 10), (All, 3)] ]
 --main = run [benchFLPCompleteSearch 1 "NDNums"]
 --main = run (benchFPWithMain 1 "ShareNonDet" (stringExpr "goal1") : [])
 --           map (\g -> benchFLPDFSWithMain "ShareNonDet" g) [(stringExpr "goal2"),(stringExpr "goal3")])
