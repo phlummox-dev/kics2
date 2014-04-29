@@ -532,7 +532,7 @@ stratExpr s = case s of
   EncDFSBagRight split n -> "dfsBagRight " ++ fromSplit split ++ " " ++ (show n)
   EncDFSBagLeft  split n -> "dfsBagLeft "  ++ fromSplit split ++ " " ++ (show n)
 
-fromSplit CommonBuffer  = "commmonBuffer"
+fromSplit CommonBuffer  = "commonBuffer"
 fromSplit TakeFirst     = "takeFirst"
 fromSplit SplitVertical = "splitVertical"
 fromSplit SplitHalf     = "splitHalf"
