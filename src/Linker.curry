@@ -44,6 +44,8 @@ type ReplState =
   , addMods      :: [String]   -- names of additionally added modules
   , prompt       :: String     -- repl prompt shown in front of user input
   , optim        :: Bool       -- compile with optimization
+  , parallel     :: Bool       -- use a parallel top-level search
+  , fixed        :: Bool       -- use a strategy with a fixed order
   , ndMode       :: NonDetMode -- mode for non-deterministic main goal
   , firstSol     :: Bool       -- print only first solution to nd main goal?
   , interactive  :: Bool       -- interactive execution of goal?
@@ -55,6 +57,7 @@ type ReplState =
   , ghcOpts      :: String     -- additional options for ghc compilation
   , rtsOpts      :: String     -- run-time options for ghc
   , rtsArgs      :: String     -- run-time arguments passed to main application
+  , threads      :: Maybe Int  -- number of threads (no argument means automatic)"
   , quit         :: Bool       -- terminate the REPL?
   , sourceguis   :: [(String,(String,Handle))] -- handles to SourceProgGUIs
   , ghcicomm     :: Maybe GhciComm -- possible ghci comm. info
@@ -75,6 +78,8 @@ initReplState =
   , addMods      := []
   , prompt       := "%s> "
   , optim        := True
+  , parallel     := False
+  , fixed        := True
   , ndMode       := BFS
   , firstSol     := False
   , interactive  := False
@@ -86,6 +91,7 @@ initReplState =
   , ghcOpts      := ""
   , rtsOpts      := ""
   , rtsArgs      := ""
+  , threads      := Just 1
   , quit         := False
   , sourceguis   := []
   , ghcicomm     := Nothing
@@ -179,7 +185,7 @@ ghcCall rst useGhci recompile mainFile = unwords . filter notNull $
   , if useGhci                     then "--interactive"  else "--make"
   , if rst :> verbose < 2          then "-v0"            else "-v1"
   , if withGhcSupply               then "-package ghc"   else ""
-  , if isParSearch                 then "-threaded"      else ""
+  , if isThreaded                  then "-threaded"      else ""
   , if withRtsOpts                 then "-rtsopts"       else ""
   , if recompile                   then "-fforce-recomp" else ""
   , rst :> ghcOpts
@@ -191,10 +197,11 @@ ghcCall rst useGhci recompile mainFile = unwords . filter notNull $
   ]
  where
   withGhcSupply = (rst :> idSupply) `elem` ["ghc", "ioref"]
-  withRtsOpts   = notNull (rst :> rtsOpts) || isParSearch
-  isParSearch   = case rst :> ndMode of
-    Par _ -> True
-    _     -> False
+  withRtsOpts   = notNull (rst :> rtsOpts) || isThreaded
+  isThreaded      = case rst :> threads of
+    Nothing -> True
+    Just 1  -> False
+    Just _  -> True
   ghcImports
     | Inst.installGlobal
     = map (</> rst :> outputSubdir) ("." : rst :> importPaths)
@@ -204,7 +211,7 @@ ghcCall rst useGhci recompile mainFile = unwords . filter notNull $
       ] ++ map (</> rst :> outputSubdir) (loadPaths rst)
 
 --- Mode of non-deterministic evaluation of main goal
-data NonDetMode  = DFS | BFS | IDS Int | Par Int | Fair | PrDFS | PrtChoices Int
+data NonDetMode  = DFS | BFS | IDS Int | Fair | PrDFS | PrtChoices Int
 
 data EvalMode    = All | One | Interactive MoreDefault -- | Count
 
@@ -223,7 +230,7 @@ mainModule rst isdet isio mbBindings = unlines
   , "import Curry_" ++ dropExtension mainGoalFile
   , ""
   , "main :: IO ()"
-  , mainExpr "kics2MainGoal" isdet isio (rst :> ndMode) evalMode mbBindings
+  , mainExpr "kics2MainGoal" isdet isio (rst :> ndMode) (rst :> parallel) (rst :> fixed) evalMode mbBindings
   ]
  where
   evalMode
@@ -236,8 +243,8 @@ mainModule rst isdet isio mbBindings = unlines
     "all" -> MoreAll
     _     -> MoreYes
 
-mainExpr :: String -> Bool -> Bool -> NonDetMode -> EvalMode -> Maybe Int -> String
-mainExpr goal isdet isio ndMode evalMode mbBindings
+mainExpr :: String -> Bool -> Bool -> NonDetMode -> Bool -> Bool -> EvalMode -> Maybe Int -> String
+mainExpr goal isdet isio ndMode parallel fixed evalMode mbBindings
   = "main = " ++ mainOperation ++ ' ' : detPrefix ++ goal
  where
   detPrefix = if isdet then "d_C_" else "nd_C_"
@@ -247,18 +254,22 @@ mainExpr goal isdet isio ndMode evalMode mbBindings
     | isio          = "evalIO"
     | otherwise     = case ndMode of
       PrDFS        -> searchExpr $ "prdfs"
-      DFS          -> searchExpr $ "printDFS" ++ searchSuffix
-      BFS          -> searchExpr $ "printBFS" ++ searchSuffix
-      IDS        d -> searchExpr $ "printIDS" ++ searchSuffix ++ ' ' : show d
-      Par        _ -> searchExpr $ "printPar" ++ searchSuffix
       Fair         -> searchExpr $ "printFair" ++ searchSuffix
+      IDS        d -> searchExpr $ "printIDS"  ++ searchSuffix ++ ' ' : show d
       PrtChoices d -> "prtChoiceTree" ++ ' ' : show d
+      _            -> searchExpr $ "print" ++ parMode ++ searchStrategy ++ searchSuffix
   searchExpr strat = strat ++ ' ' : printOperation
   searchSuffix = case evalMode of
     All            -> ""
     One            -> "1"
     Interactive md -> "i " ++ show md
   printOperation = maybe "print" printWithBindings mbBindings
+  searchStrategy = case ndMode of
+    DFS -> "DFS"
+    BFS -> "BFS"
+  parMode | not parallel = ""
+          | fixed        = "Par"
+          | otherwise    = "Bag"
 
   -- Create the following Haskell expression for printing goals with bindings:
   -- (\ (OP_Tuple<n+2> result names v1 ... v<n>) ->

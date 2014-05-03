@@ -341,9 +341,10 @@ compileCurryProgram rst curryprog = do
 execMain :: ReplState -> MainCompile -> String -> IO ()
 execMain rst _ mainexp = do -- _ was cmpstatus
   timecmd <- getTimeCmd
-  let paropts = case rst :> ndMode of
-                  Par n -> "-N" ++ (if n == 0 then "" else show n)
-                  _     -> ""
+  let paropts = case rst :> threads of
+                  Nothing -> "-N"
+                  Just 1  -> ""
+                  Just n  -> "-N" ++ show n
       maincmd = ("." </> rst :> outputSubdir </> "Main") ++
                 (if null (rst :> rtsOpts) && null paropts
                  then " "
@@ -611,7 +612,6 @@ replOptions =
   , ("prdfs"        , \r _ -> return (Just { ndMode       := PrDFS | r }))
   , ("choices"      , setOptionNDMode PrtChoices 10                      )
   , ("ids"          , setOptionNDMode IDS        100                     )
-  , ("parallel"     , setOptionNDMode Par        0                       )
   , ("fair"         , \r _ -> return (Just { ndMode       := Fair  | r }))
   , ("supply"       , setOptionSupply                                    )
   , ("v0"           , \r _ -> return (Just { verbose      := 0     | r }))
@@ -626,6 +626,10 @@ replOptions =
   , ("-first"       , \r _ -> return (Just { firstSol     := False | r }))
   , ("+optimize"    , \r _ -> return (Just { optim        := True  | r }))
   , ("-optimize"    , \r _ -> return (Just { optim        := False | r }))
+  , ("+parallel"    , \r _ -> return (Just { parallel     := True  | r }))
+  , ("-parallel"    , \r _ -> return (Just { parallel     := False | r }))
+  , ("+fixed"       , \r _ -> return (Just { fixed        := True  | r }))
+  , ("-fixed"       , \r _ -> return (Just { fixed        := False | r }))
   , ("+bindings"    , \r _ -> return (Just { showBindings := True  | r }))
   , ("-bindings"    , \r _ -> return (Just { showBindings := False | r }))
   , ("+time"        , \r _ -> return (Just { showTime     := True  | r }))
@@ -638,6 +642,7 @@ replOptions =
   , ("ghc"          , \r a -> return (Just { ghcOpts      := a     | r }))
   , ("rts"          , \r a -> return (Just { rtsOpts      := a     | r }))
   , ("args"         , \r a -> return (Just { rtsArgs      := a     | r }))
+  , ("threads"      , setOptionThreads )
   ]
 
 setPrompt :: ReplState -> String -> IO (Maybe ReplState)
@@ -677,6 +682,15 @@ setOptionSupply rst args
   | otherwise               = skipCommand "unknown identifier supply"
  where allSupplies = ["integer", "ghc", "ioref", "pureio", "giants"]
 
+setOptionThreads :: ReplState -> String -> IO (Maybe ReplState)
+setOptionThreads rst num | null (strip num) = return (Just { threads := Nothing | rst })
+                         | otherwise =
+  case readNat num of
+    Nothing    -> skipCommand "illegal thread number"
+    Just (n,s) -> if null (strip s)
+                    then return (Just { threads := Just n | rst })
+                    else skipCommand "illegal thread number"
+
 printOptions :: ReplState -> IO ()
 printOptions rst = putStrLn $ unlines
   [ "Options for ':set' command:"
@@ -685,7 +699,6 @@ printOptions rst = putStrLn $ unlines
   , "dfs             - set search mode to depth-first search"
   , "bfs             - set search mode to breadth-first search"
   , "ids [<n>]       - set search mode to iterative deepening (initial depth <n>)"
-  , "parallel [<n>]  - set search mode to parallel search with <n> threads"
   , "fair            - set search mode to fair parallel search"
   , "choices [<n>]   - set search mode to print the choice structure as a tree"
   , "                  (up to level <n>)"
@@ -697,6 +710,8 @@ printOptions rst = putStrLn $ unlines
   , "+/-interactive  - turn on/off interactive execution of main goal"
   , "+/-first        - turn on/off printing only first solution"
   , "+/-optimize     - turn on/off optimization"
+  , "+/-parallel     - turn on/off parallel top-level search"
+  , "+/-fixed        - turn on/off using a top-level search with a fixed order"
   , "+/-bindings     - show bindings of free variables in initial goal"
   , "+/-time         - show execution time"
   , "+/-ghci         - use ghci instead of ghc to evaluate main expression"
@@ -706,6 +721,7 @@ printOptions rst = putStrLn $ unlines
   , "ghc     <opts>  - additional options passed to GHC"
   , "rts     <opts>  - run-time options for ghc (+RTS <opts> -RTS)"
   , "args    <args>  - run-time arguments passed to main program"
+  , "threads [<n>]   - number of threads (no argument means automatic)"
   , showCurrentOptions rst
   ]
 
@@ -724,7 +740,6 @@ showCurrentOptions rst = "\nCurrent settings:\n"++
          DFS           -> "depth-first search"
          BFS           -> "breadth-first search"
          IDS d         -> "iterative deepening (initial depth: "++show d++")"
-         Par s         -> "parallel search with "++show s++" threads"
          Fair          -> "fair search"
       ) ++ "\n" ++
   "idsupply          : " ++ rst :> idSupply ++ "\n" ++
@@ -734,16 +749,21 @@ showCurrentOptions rst = "\nCurrent settings:\n"++
   "ghc options       : " ++ rst :> ghcOpts ++ "\n" ++
   "run-time options  : " ++ rst :> rtsOpts ++ "\n" ++
   "run-time arguments: " ++ rst :> rtsArgs ++ "\n" ++
+  "threads           : " ++ showThreads (rst :> threads) ++ "\n" ++
   "verbosity         : " ++ show (rst :> verbose) ++ "\n" ++
   "prompt            : " ++ show (rst :> prompt)  ++ "\n" ++
   showOnOff (rst :> interactive ) ++ "interactive " ++
   showOnOff (rst :> firstSol    ) ++ "first "       ++
   showOnOff (rst :> optim       ) ++ "optimize "    ++
+  showOnOff (rst :> parallel    ) ++ "parallel "    ++
+  showOnOff (rst :> fixed       ) ++ "fixed "       ++
   showOnOff (rst :> showBindings) ++ "bindings "    ++
   showOnOff (rst :> showTime    ) ++ "time "        ++
   showOnOff (rst :> useGhci     ) ++ "ghci "
  where
    showOnOff b = if b then "+" else "-"
+   showThreads Nothing  = "auto"
+   showThreads (Just n) = show n
 
 printHelpOnCommands :: IO ()
 printHelpOnCommands = putStrLn $ unlines

@@ -531,23 +531,87 @@ startIDS olddepth newdepth act goal = do
 -- Parallel search by mapping search results into monadic structure
 -- ---------------------------------------------------------------------------
 
--- Print all values of an expression in a parallel manner:
+-- Print all values of an expression in a parallel depth-first manner:
 -- The first argument is the operation to print a result (e.g., Prelude.print).
-printPar :: NormalForm a => (a -> IO ()) -> NonDetExpr a -> IO ()
-printPar prt goal = computeWithPar goal >>= printAllValues prt
+printParDFS :: NormalForm a => (a -> IO ()) -> NonDetExpr a -> IO ()
+printParDFS prt goal = computeWithParDFS goal >>= printAllValues prt
 
--- Print one value of an expression in a parallel manner:
-printPar1 :: NormalForm a => (a -> IO ()) -> NonDetExpr a -> IO ()
-printPar1 prt goal = computeWithPar goal >>= printOneValue prt
+-- Print one value of an expression in a parallel depth-first manner:
+printParDFS1 :: NormalForm a => (a -> IO ()) -> NonDetExpr a -> IO ()
+printParDFS1 prt goal = computeWithParDFS goal >>= printOneValue prt
 
 -- Print all values on demand of an expression in a parallel manner:
-printPari :: NormalForm a => MoreDefault -> (a -> IO ()) -> NonDetExpr a -> IO ()
-printPari ud prt goal = computeWithPar goal >>= printValsOnDemand ud prt
+printParDFSi :: NormalForm a => MoreDefault -> (a -> IO ()) -> NonDetExpr a -> IO ()
+printParDFSi ud prt goal = computeWithParDFS goal >>= printValsOnDemand ud prt
 
--- Compute all values of a non-deterministic goal in a parallel manner:
-computeWithPar :: NormalForm a => NonDetExpr a -> IO (IOList a)
-computeWithPar goal = getNormalForm goal >>= fromList . parSearch . searchMSearch initCover
+-- Compute all values of a non-deterministic goal in a parallel depth-first manner:
+computeWithParDFS :: NormalForm a => NonDetExpr a -> IO (IOList a)
+computeWithParDFS goal = getNormalForm goal >>= fromList . splitAll . searchMSearch initCover
 
+-- ---------------------------------------------------------------------------
+
+-- Print all values of an expression in a parallel breadth-first manner:
+-- The first argument is the operation to print a result (e.g., Prelude.print).
+printParBFS :: NormalForm a => (a -> IO ()) -> NonDetExpr a -> IO ()
+printParBFS prt goal = computeWithParBFS goal >>= printAllValues prt
+
+-- Print one value of an expression in a parallel breadth-first manner:
+printParBFS1 :: NormalForm a => (a -> IO ()) -> NonDetExpr a -> IO ()
+printParBFS1 prt goal = computeWithParBFS goal >>= printOneValue prt
+
+-- Print all values on demand of an expression in a parallel manner:
+printParBFSi :: NormalForm a => MoreDefault -> (a -> IO ()) -> NonDetExpr a -> IO ()
+printParBFSi ud prt goal = computeWithParBFS goal >>= printValsOnDemand ud prt
+
+-- Compute all values of a non-deterministic goal in a parallel breadth-first manner:
+computeWithParBFS :: NormalForm a => NonDetExpr a -> IO (IOList a)
+computeWithParBFS goal = getNormalForm goal >>= fromList . bfsParallel' . searchMSearch initCover
+
+-- ---------------------------------------------------------------------------
+
+-- Print all values of an expression in a parallel depth-first manner without
+-- fixed ordering:
+-- The first argument is the operation to print a result (e.g., Prelude.print).
+printBagDFS :: NormalForm a => (a -> IO ()) -> NonDetExpr a -> IO ()
+printBagDFS prt goal = computeWithBagDFS goal >>= printAllValues prt
+
+-- Print one value of an expression in a parallel depth-first manner without
+-- fixed ordering:
+printBagDFS1 :: NormalForm a => (a -> IO ()) -> NonDetExpr a -> IO ()
+printBagDFS1 prt goal = computeWithBagDFS goal >>= printOneValue prt
+
+-- Print all values on demand of an expression in a parallel manner without
+-- fixed ordering:
+printBagDFSi :: NormalForm a => MoreDefault -> (a -> IO ()) -> NonDetExpr a -> IO ()
+printBagDFSi ud prt goal = computeWithBagDFS goal >>= printValsOnDemand ud prt
+
+-- Compute all values of a non-deterministic goal in a parallel depth-first
+-- manner without fixed ordering:
+computeWithBagDFS :: NormalForm a => NonDetExpr a -> IO (IOList a)
+computeWithBagDFS goal = getNormalForm goal >>= (dfsBagLazy $ Just takeFirst) . (searchMSearch initCover) >>= fromList
+
+-- ---------------------------------------------------------------------------
+
+-- Print all values of an expression in a parallel breadth-first manner without
+-- fixed ordering:
+-- The first argument is the operation to print a result (e.g., Prelude.print).
+printBagBFS :: NormalForm a => (a -> IO ()) -> NonDetExpr a -> IO ()
+printBagBFS prt goal = computeWithBagBFS goal >>= printAllValues prt
+
+-- Print one value of an expression in a parallel breadth-first manner without
+-- fixed ordering:
+printBagBFS1 :: NormalForm a => (a -> IO ()) -> NonDetExpr a -> IO ()
+printBagBFS1 prt goal = computeWithBagBFS goal >>= printOneValue prt
+
+-- Print all values on demand of an expression in a parallel manner without
+-- fixed ordering:
+printBagBFSi :: NormalForm a => MoreDefault -> (a -> IO ()) -> NonDetExpr a -> IO ()
+printBagBFSi ud prt goal = computeWithBagBFS goal >>= printValsOnDemand ud prt
+
+-- Compute all values of a non-deterministic goal in a parallel breadth-first
+-- manner without fixed ordering:
+computeWithBagBFS :: NormalForm a => NonDetExpr a -> IO (IOList a)
+computeWithBagBFS goal = getNormalForm goal >>= (dfsBagLazy $ Just takeFirst) . (searchMSearch initCover) >>= fromList
 
 -- ---------------------------------------------------------------------------
 -- Fair parallel search by mapping search results into monadic structure
