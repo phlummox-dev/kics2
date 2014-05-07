@@ -505,20 +505,20 @@ stratExpr s = case s of
   EncBFS                 -> "bfsStrategy"
   EncIDS                 -> "idsStrategy"
   EncPar                 -> "parSearch"
-  EncCon n               -> "conSearch " ++ (show n)
+  EncCon n               -> "conSearch " ++ (fromInt n)
   EncFair                -> "fairSearch"
   EncFair'               -> "fairSearch'"
   EncFair''              -> "fairSearch''"
   EncFairBag split       -> "fairBag " ++ fromSplit split
   EncSAll                -> "splitAll"
   EncSAll'               -> "splitAll'"
-  EncSLimit n            -> "splitLimitDepth " ++ (show n)
-  EncSAlt n              -> "splitAlternating " ++ (show n)
+  EncSLimit n            -> "splitLimitDepth "  ++ (fromInt n)
+  EncSAlt n              -> "splitAlternating " ++ (fromInt n)
   EncSPow                -> "splitPower"
-  EncSLeft   n           -> "splitLeft "   ++ (show n)
-  EncSLeft'  n           -> "splitLeft' "  ++ (show n)
-  EncSRight  n           -> "splitRight "  ++ (show n)
-  EncSRight' n           -> "splitRight' " ++ (show n)
+  EncSLeft   n           -> "splitLeft "   ++ (fromInt n)
+  EncSLeft'  n           -> "splitLeft' "  ++ (fromInt n)
+  EncSRight  n           -> "splitRight "  ++ (fromInt n)
+  EncSRight' n           -> "splitRight' " ++ (fromInt n)
   EncBFSEval             -> "bfsParallel"
   EncBFSEval'            -> "bfsParallel'"
   EncBFSEval''           -> "bfsParallel''"
@@ -528,14 +528,16 @@ stratExpr s = case s of
   EncDFSBagCon           -> "dfsBagCon"
   EncFDFSBagCon          -> "fdfsBagCon"
   EncBFSBagCon           -> "bfsBagCon"
-  EncDFSBagLimit split n -> "dfsBagLimit " ++ fromSplit split ++ " " ++ (show n)
-  EncDFSBagRight split n -> "dfsBagRight " ++ fromSplit split ++ " " ++ (show n)
-  EncDFSBagLeft  split n -> "dfsBagLeft "  ++ fromSplit split ++ " " ++ (show n)
+  EncDFSBagLimit split n -> "dfsBagLimit " ++ fromSplit split ++ " " ++ (fromInt n)
+  EncDFSBagRight split n -> "dfsBagRight " ++ fromSplit split ++ " " ++ (fromInt n)
+  EncDFSBagLeft  split n -> "dfsBagLeft "  ++ fromSplit split ++ " " ++ (fromInt n)
+ where
+  fromSplit CommonBuffer  = "commonBuffer"
+  fromSplit TakeFirst     = "takeFirst"
+  fromSplit SplitVertical = "splitVertical"
+  fromSplit SplitHalf     = "splitHalf"
 
-fromSplit CommonBuffer  = "commonBuffer"
-fromSplit TakeFirst     = "takeFirst"
-fromSplit SplitVertical = "splitVertical"
-fromSplit SplitHalf     = "splitHalf"
+  fromInt n = "(" ++ (show n) ++ ")"
 
 mainExprCore :: (Strategy, Output, MainExpr) -> ([String], Strategy, Output, String)
 mainExprCore (strat, out, mainExpr) = foldr mainExprCoreElement ([], strat, out, "") mainExpr
