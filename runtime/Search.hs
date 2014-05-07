@@ -15,6 +15,7 @@ import Solver
 import Strategies
 import Types
 import MonadSearch
+import Control.Concurrent.Bag.TaskBufferSTM (takeFirst)
 
 -- ---------------------------------------------------------------------------
 -- Search combinators for top-level search in the IO monad
