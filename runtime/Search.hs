@@ -628,7 +628,7 @@ printFairi :: NormalForm a => MoreDefault -> (a -> IO ()) -> NonDetExpr a -> IO 
 printFairi ud prt goal = computeWithFair goal >>= printValsOnDemand ud prt
 
 computeWithFair :: NormalForm a => NonDetExpr a -> IO (IOList a)
-computeWithFair goal = getNormalForm goal >>= fairSearch . searchMSearch initCover
+computeWithFair goal = getNormalForm goal >>= fairSearch . (searchMSearch initCover) >>= fromList
 
 -- ---------------------------------------------------------------------------
 -- Encapsulated search

@@ -66,6 +66,7 @@ import Control.Concurrent.STM (TChan)
 import Control.Concurrent.STM.TStack (TStack)
 import Control.Monad.IO.Class
 import System.Mem.Weak
+import System.IO.Unsafe (unsafeInterleaveIO)
 
 import MonadSearch
 import MonadList
@@ -316,7 +317,7 @@ splitRight' n (Choice l r) = runEval $ do
   ls <- rseq $ splitRight' (n-1) l
   return $ ls ++ rs
 
-fairSearch :: SearchTree a -> MList IO a
+fairSearch :: SearchTree a -> IO [a]
 fairSearch = conSearch (-1)
 
 data ExecutionState = Stopped
@@ -329,7 +330,7 @@ data ThreadResult a = ThreadStopped ThreadId
 -- | A parallel search implemented with concurrent Haskell
 conSearch :: Int         -- ^ The maximum number of threads to use
          -> SearchTree a -- ^ The search tree to search in
-         -> MList IO a
+         -> IO [a]
 conSearch i tree = do
   threadVar <- newMVar $ Executing i []
   resultChan <- newChan
@@ -352,7 +353,7 @@ conSearch i tree = do
   _ <- mkWeakIORef dummyRef $ killThreads threadVar
 
   startSearchThread threadVar resultChan tree
-  handleResults dummyRef threadVar resultChan
+  unsafeInterleaveIO $ handleResults dummyRef threadVar resultChan
  where
   removeThread :: ThreadId -> ExecutionState -> ExecutionState
   removeThread tid Stopped = Stopped
@@ -369,10 +370,9 @@ conSearch i tree = do
         mapM_ (forkIO . killThread) tids
     putMVar threadVar Stopped
 
-  handleResults :: IORef () -> MVar ExecutionState -> Chan (ThreadResult a) -> MList IO a
+  handleResults :: IORef () -> MVar ExecutionState -> Chan (ThreadResult a) -> IO [a]
   handleResults dummyRef threadVar resultChan = do
      -- this is for the optimizer not to optimize out the dummyRef
-    writeIORef dummyRef ()
     result <- readChan resultChan
     case result of
       ThreadStopped tid -> do
@@ -380,10 +380,12 @@ conSearch i tree = do
         case state of
           Executing _ (_:_) ->
             handleResults dummyRef threadVar resultChan
-          _ ->
-            mnil
-      Value a  ->
-        mcons a $ handleResults dummyRef threadVar resultChan
+          _ -> do
+            writeIORef dummyRef ()
+            return []
+      Value a  -> do
+        as <- unsafeInterleaveIO $ handleResults dummyRef threadVar resultChan
+        return $ a:as
 
   startSearchThread :: MVar ExecutionState -> Chan (ThreadResult a) -> SearchTree a -> IO ()
   startSearchThread threadVar chan tree = do
@@ -417,10 +419,10 @@ data Stop = Stop
 
 instance Exception Stop
 
-fairSearch' :: SearchTree a -> MList IO a
+fairSearch' :: SearchTree a -> IO [a]
 fairSearch' tree = do
   chan  <- newChan
-  root  <- uninterruptibleMask_ $ forkIOWithUnmask (\restore -> searchThread restore chan tree)
+  root  <- uninterruptibleMask_ $ forkIOWithUnmask (\unmask -> searchThread unmask chan tree)
   dummy <- newIORef ()
   _     <- mkWeakIORef dummy $ void $ forkIO $ throwTo root Stop
   handleResults chan dummy
@@ -430,16 +432,18 @@ fairSearch' tree = do
     case ans of
       ThreadStopped _ -> do
         writeIORef dummy ()
-        mnil
-      Value v         -> mcons v $ handleResults chan dummy
+        return []
+      Value v         -> do
+        vs <- unsafeInterleaveIO $ handleResults chan dummy
+        return $ v:vs
 
   fin parent = do
     tid <- myThreadId
     writeChan parent $ ThreadStopped tid
 
   searchThread :: (forall a. IO a -> IO a) -> Chan (ThreadResult b) -> SearchTree b -> IO ()
-  searchThread restore parent tree = do
-    tree' <- restore (evaluate tree) `catch` (\Stop -> return None)
+  searchThread unmask parent tree = do
+    tree' <- unmask (evaluate tree) `catch` (\Stop -> return None)
     case tree' of
       None  ->
         fin parent
@@ -448,21 +452,21 @@ fairSearch' tree = do
         fin parent
       Choice l r -> do
         chan <- newChan
-        t1   <- forkIO $ searchThread restore chan l
-        t2   <- forkIO $ searchThread restore chan r
-        listenChan restore [t1,t2] chan parent
+        t1   <- forkIO $ searchThread unmask chan l
+        t2   <- forkIO $ searchThread unmask chan r
+        listenChan unmask [t1,t2] chan parent
    where
     listenChan _       []  _    parent = do
       fin parent
-    listenChan restore ts chan parent = do
-      ans <- restore (liftM Just $ readChan chan) `catch` (\Stop -> do
+    listenChan unmask ts chan parent = do
+      ans <- unmask (liftM Just $ readChan chan) `catch` (\Stop -> do
         mapM_ (\t -> throwTo t Stop) ts
         return Nothing)
       case ans of
-        Just (ThreadStopped t) -> listenChan restore (delete t ts) chan parent
+        Just (ThreadStopped t) -> listenChan unmask (delete t ts) chan parent
         Just value             -> do
           writeChan parent value
-          listenChan restore ts chan parent
+          listenChan unmask ts chan parent
         Nothing                -> return ()
 
 data ThreadResult' a = Value' a
@@ -473,53 +477,68 @@ data StoppedSearch = StoppedSearch ThreadId
 
 instance Exception StoppedSearch
 
-fairSearch'' :: SearchTree a -> MList IO a
+data EvalResult a = Finished (SearchTree a) | ReceivedStop | ReceivedStoppedSearch ThreadId
+
+fairSearch'' :: SearchTree a -> IO [a]
 fairSearch'' tree = do
   chan <- newChan
-  root <- uninterruptibleMask_ $ forkIOWithUnmask $ \restore -> searchThread restore (writeChan chan AllStopped) chan [] tree
+  root <- uninterruptibleMask_ $ forkIOWithUnmask $ \unmask -> searchThread unmask (writeChan chan AllStopped) chan [] tree
   dummy <- newIORef ()
   _     <- mkWeakIORef dummy $ throwTo root Stop
-  handleResults chan dummy
+  unsafeInterleaveIO $ handleResults chan dummy
  where
   handleResults chan dummy = do
     ans <- readChan chan
     case ans of
       AllStopped ->
-        writeIORef dummy () >> mnil
-      Value' v   ->
-        mcons v $ handleResults chan dummy
+        writeIORef dummy () >> return []
+      Value' v   -> do
+        vs <- unsafeInterleaveIO $ handleResults chan dummy
+        return $ v:vs
 
   fin :: (forall a. IO a -> IO a) -> IO () -> [ThreadId] -> IO ()
-  fin restore end []      =
+  fin unmask end []      =
     end
-  fin restore end threads = do
+  fin unmask end threads = do
     m <- newEmptyMVar
-    restore (void $ takeMVar m) `catches`
-      [Handler (\Stop        -> stopChildren end threads),
-       Handler (\(StoppedSearch tid) -> fin restore end (tid `delete` threads))]
+    unmask (void $ takeMVar m)
+      `catch` (\Stop        -> stopChildren end threads)
+      `catch` (\(StoppedSearch tid) -> fin unmask end (tid `delete` threads))
 
   stopChildren :: IO () -> [ThreadId] -> IO ()
   stopChildren end threads = mapM_ (\t -> throwTo t Stop) threads >> end
 
-  searchThread :: (forall a. IO a -> IO a) -> IO () -> Chan (ThreadResult' b) -> [ThreadId] -> SearchTree b -> IO ()
-  searchThread restore end chan threads tree = do
-    r <- try (try (restore $ evaluate tree))
+  searchThread :: (forall a. IO a -> IO a)
+               -> IO ()
+               -> Chan (ThreadResult' b)
+               -> [ThreadId]
+               -> SearchTree b -> IO ()
+  searchThread unmask end chan threads tree = do
+    r <- unmask (liftM Finished $ evaluate tree)
+           `catch` (\Stop                -> return ReceivedStop)
+           `catch` (\(StoppedSearch tid) -> return $ ReceivedStoppedSearch tid)
     case r of
-      Left Stop                  -> stopChildren end threads
-      Right (Left (StoppedSearch tid)) -> searchThread restore end chan (tid `delete` threads) tree
-      Right (Right t)            ->
+      ReceivedStop               ->
+        stopChildren end threads
+      ReceivedStoppedSearch tid  ->
+        searchThread unmask end chan (tid `delete` threads) tree
+      Finished t                 ->
         case t of
-          None  -> fin restore end threads
+          None  -> fin unmask end threads
           One v -> do
             -- v is already normal form
-            tr <- try (restore $ writeChan chan $ Value' v)
+            tr <- try (unmask $ writeChan chan $ Value' v)
             case tr of
               Left  Stop -> stopChildren end threads
-              Right ()   -> fin restore end threads
+              Right ()   -> fin unmask end threads
           Choice l r -> do
             tid <- myThreadId
-            child <- forkIO $ searchThread restore (myThreadId >>= (throwTo tid) . StoppedSearch) chan [] r
-            searchThread restore end chan (child:threads) l
+            child <- forkIO $ searchThread unmask (notifyStopped tid) chan [] r
+            searchThread unmask end chan (child:threads) l
+   where
+    notifyStopped :: ThreadId -> IO ()
+    notifyStopped tid =
+      myThreadId >>= (throwTo tid) . StoppedSearch
 
 -- |Breadth-first search
 bfsSearch :: SearchTree a -> [a]
