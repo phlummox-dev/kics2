@@ -231,12 +231,8 @@ splitLimitDepth :: Int -> SearchTree a -> [a]
 splitLimitDepth _ None           = []
 splitLimitDepth _ (One x)        = [x]
 splitLimitDepth 0 c@(Choice _ _) = dfsSearch c
-splitLimitDepth 1   (Choice l r) = runEval $ do
-  rs <- rparWith (evalList rseq) (dfsSearch r)
-  ls <- evalList rseq (dfsSearch l)
-  return $ ls ++ rs
 splitLimitDepth i   (Choice l r) = runEval $ do
-  rs <- rpar $ splitLimitDepth (i-1) r
+  rs <- rparWith (evalList rseq) $ splitLimitDepth (i-1) r
   ls <- rseq $ splitLimitDepth (i-1) l
   return $ ls ++ rs
 
