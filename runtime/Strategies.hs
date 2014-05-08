@@ -523,10 +523,8 @@ fairSearch'' tree = do
           None  -> fin unmask end threads
           One v -> do
             -- v is already normal form
-            tr <- try (unmask $ writeChan chan $ Value' v)
-            case tr of
-              Left  Stop -> stopChildren end threads
-              Right ()   -> fin unmask end threads
+            writeChan chan (Value' v)
+            fin unmask end threads
           Choice l r -> do
             tid <- myThreadId
             child <- forkIO $ searchThread unmask (notifyStopped tid) chan [] r
