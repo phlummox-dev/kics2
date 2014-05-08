@@ -269,11 +269,11 @@ splitLeft :: Int -> SearchTree a -> [a]
 splitLeft _ None         = []
 splitLeft _ (One x)      = [x]
 splitLeft 0 (Choice l r) = runEval $ do
-  rs <- rpar $ dfsSearch r
+  rs <- rparWith (evalList rseq) $ dfsSearch r
   ls <- rseq $ splitLeft 0 l
   return $ ls ++ rs
 splitLeft n (Choice l r) = runEval $ do
-  rs <- rpar $ splitLeft (n-1) r
+  rs <- rparWith (evalList rseq) $ splitLeft (n-1) r
   ls <- rseq $ splitLeft (n-1) l
   return $ ls ++ rs
 
@@ -281,23 +281,26 @@ splitLeft' :: Int -> SearchTree a -> [a]
 splitLeft' _ None         = []
 splitLeft' _ (One x)      = [x]
 splitLeft' 0 (Choice l r) = runEval $ do
-  ls <- rpar $ splitLeft' 0 l
-  rs <- rseq $ dfsSearch    r
+  ls <- rparWith (evalList rseq) $ splitLeft' 0 l
+  rs <- rseq $ dfsSearch r
   return $ rs ++ ls
 splitLeft' n (Choice l r) = runEval $ do
-  ls <- rpar $ splitLeft' (n-1) l
+  ls <- rparWith (evalList rseq) $ splitLeft' (n-1) l
   rs <- rseq $ splitLeft' (n-1) r
   return $ rs ++ ls
+
+
+  rs <- rparWith (evalList rseq) $ splitLimitDepth (i-1) r
 
 splitRight :: Int -> SearchTree a -> [a]
 splitRight _ None         = []
 splitRight _ (One x)      = [x]
 splitRight 0 (Choice l r) = runEval $ do
-  ls <- rpar $ dfsSearch    l
+  ls <- rparWith (evalList rseq) $ dfsSearch    l
   rs <- rseq $ splitRight 0 r
   return $ rs ++ ls
 splitRight n (Choice l r) = runEval $ do
-  ls <- rpar $ splitRight (n-1) l
+  ls <- rparWith (evalList rseq) $ splitRight (n-1) l
   rs <- rseq $ splitRight (n-1) r
   return $ rs ++ ls
 
@@ -305,11 +308,11 @@ splitRight' :: Int -> SearchTree a -> [a]
 splitRight' _ None         = []
 splitRight' _ (One x)      = [x]
 splitRight' 0 (Choice l r) = runEval $ do
-  rs <- rpar $ splitRight' 0 r
+  rs <- rparWith (evalList rseq) $ splitRight' 0 r
   ls <- rseq $ dfsSearch     l
   return $ ls ++ rs
 splitRight' n (Choice l r) = runEval $ do
-  rs <- rpar $ splitRight' (n-1) r
+  rs <- rparWith (evalList rseq) $ splitRight' (n-1) r
   ls <- rseq $ splitRight' (n-1) l
   return $ ls ++ rs
 
