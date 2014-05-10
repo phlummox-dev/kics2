@@ -7,7 +7,7 @@ module Strategies
   , idsSearch, idsDefaultDepth, idsDefaultIncr
   , splitAll, splitLimitDepth, splitAlternating, splitPower
   , splitRight, splitRight', splitLeft, splitLeft'
-  , splitAll'
+  , splitAll', splitAll''
   , bfsParallel, bfsParallel', bfsParallel''
   , fairSearch', fairSearch''
   , dfsBag, fdfsBag, bfsBag, fairBag, getAllResults, getResult
@@ -226,6 +226,14 @@ splitAll (Choice l r) = runEval $ do
 
 splitAll' :: SearchTree a -> [a]
 splitAll' t = dfsSearch (t `using` parTree)
+
+splitAll'' :: SearchTree a -> [a]
+splitAll'' None         = []
+splitAll'' (One x)      = [x]
+splitAll'' (Choice l r) = runEval $ do
+  rs <- rparWith (evalList rseq) $ splitAll'' r
+  ls <- rseq $ splitAll'' l
+  return $ ls ++ rs
 
 splitLimitDepth :: Int -> SearchTree a -> [a]
 splitLimitDepth _ None           = []

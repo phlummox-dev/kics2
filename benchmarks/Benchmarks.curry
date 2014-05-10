@@ -419,7 +419,7 @@ data Strategy
   | EncDFS   | EncBFS   | EncIDS                                  -- encapsulated
   | EncPar   | EncCon Int                                         -- parallel encapsulated
   | EncFair  | EncFair'  | EncFair'' | EncFairBag SplitStrategy   -- fair strategies
-  | EncSAll  | EncSAll'  | EncSLimit Int | EncSAlt Int | EncSPow  -- parallel with Eval
+  | EncSAll  | EncSAll'  | EncSAll'' | EncSLimit Int | EncSAlt Int | EncSPow  -- parallel with Eval
   | EncSLeft Int | EncSLeft' Int | EncSRight Int | EncSRight' Int -- asymmetric strategies
   | EncBFSEval | EncBFSEval' | EncBFSEval''                       -- parallel breadth-first-search
   | EncDFSBag  SplitStrategy
@@ -512,6 +512,7 @@ stratExpr s = case s of
   EncFairBag split       -> "fairBag " ++ fromSplit split
   EncSAll                -> "splitAll"
   EncSAll'               -> "splitAll'"
+  EncSAll''              -> "splitAll''"
   EncSLimit n            -> "splitLimitDepth "  ++ (fromInt n)
   EncSAlt n              -> "splitAlternating " ++ (fromInt n)
   EncSPow                -> "splitPower"
@@ -1251,7 +1252,7 @@ main = run "allBenchmarks" (allBenchmarks 3)
 --main = run fair''StackSize
 --main = run parallelEditSeqBenchmarks
 --main = run "BFSEval"       $ compareStrategies [ EncBFS, EncBFSEval, EncBFSEval', EncBFSEval'' ]
---main = run "DFSEval"       $ compareStrategies [ EncDFS, EncPar,     EncSAll,     EncSAll' ]
+--main = run "DFSEval"       $ compareStrategies [ EncDFS, EncPar,     EncSAll,     EncSAll', EncSAll'' ]
 --main = run "Asymmetric"    $ compareStrategies $ EncSAll : [ s n | s <- [ EncSLeft, EncSLeft', EncSRight, EncSRight' ], n <- [0,1,2,3,4,5,6] ]
 --main = run "LimitBag"      $ compareStrategies $ (EncDFSBag TakeFirst) : [ EncDFSBagLimit TakeFirst n | n <- [4,8,12,16,20,24] ]
 --main = run "AsymmetricBag" $ compareStrategies $ (EncDFSBag TakeFirst) : [ s TakeFirst n | s <- [ EncDFSBagRight, EncDFSBagLeft ], n <- [0,1,2,3,4,5,6] ]
