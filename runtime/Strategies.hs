@@ -297,9 +297,6 @@ splitLeft' n (Choice l r) = runEval $ do
   rs <- rseq $ splitLeft' (n-1) r
   return $ rs ++ ls
 
-
-  rs <- rparWith (evalList rseq) $ splitLimitDepth (i-1) r
-
 splitRight :: Int -> SearchTree a -> [a]
 splitRight _ None         = []
 splitRight _ (One x)      = [x]
