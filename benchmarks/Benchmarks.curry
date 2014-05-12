@@ -1269,8 +1269,8 @@ main = run "allBenchmarks" (allBenchmarks 3)
 --main = run "AsymmetricBag" $ compareStrategies $ (EncDFSBag TakeFirst) : [ s TakeFirst n | s <- [ EncDFSBagRight, EncDFSBagLeft ], n <- [0,1,2,3,4,5,6] ]
 --main = run "CompareAllDFS" $ compareStrategies [ PRDFS, EncDFS, EncPar, EncSAll, EncDFSBag CommonBuffer ]
 --main = run "CompareReduce" $ compareStrategies  $ (EncDFSBag TakeFirst) : [ EncDFSBagLimit TakeFirst n | n <- [4,8,12,16,20,24] ]
---main = run "ReduceUseful"    $ [ concat [ kics2 True True Nothing threads S_IORef strategy output (Goal "PermSortBalanced" (stringExpr "main6")) rpts | strategy <- ([EncSAll] ++ map EncSLimit                  [0,1,2,3,4,5,6,7,8]), threads <- threadNumbers ] | (output, rpts) <- [(One, 10), (All, 3)] ]
---main = run "ReduceUsefulBag" $ [ concat [ kics2 True True Nothing threads S_IORef strategy output (Goal "PermSortBalanced" (stringExpr "main6")) rpts | strategy <- ([EncSAll] ++ map (EncDFSBagLimit TakeFirst) [0,1,2,3,4,5,6,7,8]), threads <- threadNumbers ] | (output, rpts) <- [(One, 10), (All, 3)] ]
+--main = run "ReduceUseful"    $ [ concat [ kics2 True True Nothing threads S_IORef strategy output (Goal "PermSortBalanced" (stringExpr "main6")) rpts | strategy <- ([EncSAll] ++ map EncSLimit                  [-1,1,2,4,6,8,10]), threads <- threadNumbers ] | (output, rpts) <- [(One, 10), (All, 3)] ]
+--main = run "ReduceUsefulBag" $ [ concat [ kics2 True True Nothing threads S_IORef strategy output (Goal "PermSortBalanced" (stringExpr "main6")) rpts | strategy <- ([EncDFSBag TakeFirst] ++ map (EncDFSBagLimit TakeFirst) [-1,1,2,4,6,8,10]), threads <- threadNumbers ] | (output, rpts) <- [(One, 10), (All, 3)] ]
 --main = run [benchFLPCompleteSearch 1 "NDNums"]
 --main = run (benchFPWithMain 1 "ShareNonDet" (stringExpr "goal1") : [])
 --           map (\g -> benchFLPDFSWithMain "ShareNonDet" g) [(stringExpr "goal2"),(stringExpr "goal3")])
