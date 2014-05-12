@@ -1135,15 +1135,22 @@ compareStrategies strategies =
     concat [ benchmarkStrategyOnGoal strategy | strategy <- ss ]
    where
     benchmarkStrategyOnGoal :: Strategy -> [Benchmark]
-    benchmarkStrategyOnGoal s | parallel s = benchThreads True True Nothing   S_IORef s output goal rpts
-                              | otherwise  = kics2        True True Nothing 1 S_IORef s output goal rpts
+    benchmarkStrategyOnGoal s | parallel s = benchThreads True True (runtimeOptions s)   S_IORef s output goal rpts
+                              | otherwise  = kics2        True True (runtimeOptions s) 1 S_IORef s output goal rpts
+
+  runtimeOptions :: Strategy -> Maybe RuntimeOptions
+  runtimeOptions s = case s of
+    EncFair   -> Just {stackInitial := "1536", stackChunk := "32k", stackBuffer := "1k"}
+    EncFair'  -> Just {stackInitial := "1536", stackChunk := "32k", stackBuffer := "1k"}
+    EncFair'' -> Just {stackInitial := "1280", stackChunk := "32k", stackBuffer := "1k"}
+    _         -> Nothing
 
   compareStrategiesOnEditSeq :: [Strategy] -> Int -> [Benchmark]
   compareStrategiesOnEditSeq ss rpts =
     concat [ benchmarkStrategyOnEditSeq strategy | strategy <- ss ]
    where
-    benchmarkStrategyOnEditSeq s | parallel     s = concat [ editSeqBenchmark True True Nothing i S_IORef s rpts | i <- threadNumbers ]
-                                 | encapsulated s =          editSeqBenchmark True True Nothing 1 S_IORef s rpts
+    benchmarkStrategyOnEditSeq s | parallel     s = concat [ editSeqBenchmark True True (runtimeOptions s) i S_IORef s rpts | i <- threadNumbers ]
+                                 | encapsulated s =          editSeqBenchmark True True (runtimeOptions s) 1 S_IORef s rpts
                                  | otherwise      = []
 
 --------------------------------------------------------------------------------
@@ -1253,11 +1260,15 @@ main = run "allBenchmarks" (allBenchmarks 3)
 --main = run parallelEditSeqBenchmarks
 --main = run "BFSEval"       $ compareStrategies [ EncBFS, EncBFSEval, EncBFSEval', EncBFSEval'' ]
 --main = run "DFSEval"       $ compareStrategies [ EncDFS, EncPar,     EncSAll,     EncSAll', EncSAll'' ]
+--main = run "Fair"          $ compareStrategies [ EncBFS, EncFair, EncFair', EncFair'' ]
+--main = run "ReduceSpark"   $ compareStrategies $ (EncSAll : [ s n | s <- [ EncSLeft, EncSLeft', EncSRight, EncSRight' ], n <- [-1,1,2,4,8] ]) ++ (map EncSLimit [-1,1,2,4,8])
+--main = run "BagConcurrent" $ compareStrategies [EncDFSBag CommonBuffer, EncDFSBagCon, EncFDFSBag CommonBuffer, EncFDFSBagCon, EncBFSBag CommonBuffer, EncBFSBagCon, EncFairBag CommonBuffer, EncFairBagCon ]
+--main = run "ReduceBag"     $ compareStrategies $ ((EncDFSBag TakeFirst) : [ s TakeFirst n | s <- [ EncDFSBagRight, EncDFSBagLeft ], n <- [-1,1,2,4,8] ]) ++ [ EncDFSBagLimit TakeFirst n | n <- [-1,1,2,4,8] ]
 --main = run "Asymmetric"    $ compareStrategies $ EncSAll : [ s n | s <- [ EncSLeft, EncSLeft', EncSRight, EncSRight' ], n <- [0,1,2,3,4,5,6] ]
 --main = run "LimitBag"      $ compareStrategies $ (EncDFSBag TakeFirst) : [ EncDFSBagLimit TakeFirst n | n <- [4,8,12,16,20,24] ]
 --main = run "AsymmetricBag" $ compareStrategies $ (EncDFSBag TakeFirst) : [ s TakeFirst n | s <- [ EncDFSBagRight, EncDFSBagLeft ], n <- [0,1,2,3,4,5,6] ]
---main = run "CompareAllDFS" $ compareStrategies [ EncDFS, EncPar, EncSAll, EncDFSBag CommonBuffer ]
---main = run "BagConcurrent" $ compareStrategies [EncDFSBag CommonBuffer, EncDFSBagCon, EncFDFSBag CommonBuffer, EncFDFSBagCon, EncBFSBag CommonBuffer, EncBFSBagCon, EncFairBag CommonBuffer, EncFairBagCon ]
+--main = run "CompareAllDFS" $ compareStrategies [ PRDFS, EncDFS, EncPar, EncSAll, EncDFSBag CommonBuffer ]
+--main = run "CompareReduce" $ compareStrategies  $ (EncDFSBag TakeFirst) : [ EncDFSBagLimit TakeFirst n | n <- [4,8,12,16,20,24] ]
 --main = run "ReduceUseful"    $ [ concat [ kics2 True True Nothing threads S_IORef strategy output (Goal "PermSortBalanced" (stringExpr "main6")) rpts | strategy <- ([EncSAll] ++ map EncSLimit                  [0,1,2,3,4,5,6,7,8]), threads <- threadNumbers ] | (output, rpts) <- [(One, 10), (All, 3)] ]
 --main = run "ReduceUsefulBag" $ [ concat [ kics2 True True Nothing threads S_IORef strategy output (Goal "PermSortBalanced" (stringExpr "main6")) rpts | strategy <- ([EncSAll] ++ map (EncDFSBagLimit TakeFirst) [0,1,2,3,4,5,6,7,8]), threads <- threadNumbers ] | (output, rpts) <- [(One, 10), (All, 3)] ]
 --main = run [benchFLPCompleteSearch 1 "NDNums"]

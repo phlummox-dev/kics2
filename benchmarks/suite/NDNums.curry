@@ -12,3 +12,5 @@ main2 | g 0 == 29 = success
 main3 | g 0 == 26 = success
 
 main4 | g 0 == 9  = success
+
+main5 | g 0 == 19 = success
