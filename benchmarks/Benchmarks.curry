@@ -952,7 +952,7 @@ editSeqSimpleBenchmark hoOpt ghcOpt rts threads idsupply strategy repeats
   kics2 hoOpt ghcOpt rts threads idsupply strategy All (Goal "EditSeq" [Code "(main_simple_par ", Strategy, Code ")"]) repeats
 
 threadNumbers :: [Int]
-threadNumbers = [1,2,4,8,11,12,16,20,23,24]
+threadNumbers = [1,2,4,8,12,24]
 allSplitStrategies = [CommonBuffer, TakeFirst, SplitVertical, SplitHalf]
 
 -- ---------------------------------------------------------------------------
