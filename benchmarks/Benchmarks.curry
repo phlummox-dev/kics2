@@ -1061,7 +1061,7 @@ oneAndAllGoals = [ Goal "SearchQueensLess" (stringExpr "main")
                  , Goal "Half"             (stringExpr "main")
                  , Goal "Last"             (stringExpr "main") ]
 
-bfsOnlyGoals = [ Goal "NDNums"  (stringExpr "main3") ]
+bfsOnlyGoals = [ Goal "NDNums"  (stringExpr "main5") ]
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
