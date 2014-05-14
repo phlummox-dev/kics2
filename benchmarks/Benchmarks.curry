@@ -709,8 +709,9 @@ kics2Compile :: Bool -> Bool -> Bool -> Supply -> String -> ([String], Strategy,
 kics2Compile hoOpt ghcOpt threaded idsupply mod (imports, strategy, output, mainexp) = do
   let supply = chooseSupply idsupply
       ghcOptions = (if ghcOpt then "-O2" else "-O0") ++
-                   (if threaded then " -threaded -rtsopts" else "") ++
-                   (if doTrace then "" else " -v0")
+                   (if threaded then " -threaded" else "") ++
+                   (if doTrace then "" else " -v0") ++
+                   " -rtsopts"
       optOption  = if hoOpt then "+optimize" else "-optimize"
       interactiveOption = case output of
                             Interactive -> "+interactive"
