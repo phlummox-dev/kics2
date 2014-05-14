@@ -478,6 +478,7 @@ bfsComplete s =
     EncBFS        -> True
     EncIDS        -> True
     EncFair       -> True
+    EncFair'      -> True
     EncFair''     -> True
     EncFairBag _  -> True
     EncBFSEval    -> True
