@@ -204,68 +204,34 @@ instance Unifiable Nat where
 -- Higher Order Funcs
 
 -- BEGIN GENERATED FROM PrimTypes.curry
-data Func t0 t1
-     = Func (t0 -> IDSupply -> Cover -> ConstStore -> t1)
-     | Choice_Func Cover ID (Func t0 t1) (Func t0 t1)
-     | Choices_Func Cover ID ([Func t0 t1])
-     | Fail_Func Cover FailInfo
-     | Guard_Func Cover Constraints (Func t0 t1)
+
+newtype Func t0 t1 = Func {unwrapFunc :: t0 -> IDSupply -> Cover -> ConstStore -> t1} 
 
 instance Show (Func a b) where show = internalError "ERROR: no show for Func"
 
 instance Read (Func a b) where readsPrec = internalError "readsPrec for Func"
 
-instance NonDet (Func t0 t1) where
-  choiceCons = Choice_Func
-  choicesCons = Choices_Func
-  failCons = Fail_Func
-  guardCons = Guard_Func
-  try (Choice_Func cd i x y) = tryChoice cd i x y
-  try (Choices_Func cd i xs) = tryChoices cd i xs
-  try (Fail_Func cd info) = Fail cd info
-  try (Guard_Func cd c e) = Guard cd c e
+instance NonDet t1 => NonDet (Func t0 t1) where
+  choiceCons d i f1 f2 = Func (\x s c cs -> choiceCons d i (unwrapFunc f1 x s c cs)
+                                                           (unwrapFunc f2 x s c cs)) 
+  choicesCons d i fs   = Func (\x s c cs -> choicesCons d i (map (\f -> unwrapFunc f x s c cs) fs))  
+  failCons cd info = Func (\_ _ _ _ -> failCons cd info)
+  guardCons cd c f = Func (\x s cd cs -> guardCons cd c (unwrapFunc f x s cd cs))
   try x = Val x
-  match f _ _ _ _ _ (Choice_Func cd i x y) = f cd i x y
-  match _ f _ _ _ _ (Choices_Func cd i@(NarrowedID _ _) xs) = f cd i xs
-  match _ _ f _ _ _ (Choices_Func cd i@(FreeID _ _) xs) = f cd i xs
-  match _ _ _ _ _ _ (Choices_Func _ i _) = internalError ("Prelude.Func.match: Choices with ChoiceID " ++ (show i))
-  match _ _ _ f _ _ (Fail_Func cd info) = f cd info
-  match _ _ _ _ f _ (Guard_Func cd cs e) = f cd cs e
   match _ _ _ _ _ f x = f x
 
-instance Generable (Func a b) where generate _ = internalError "generate for Func"
+instance NonDet b => Generable (Func a b) where generate _ = internalError "generate for Func"
 
 instance (NormalForm t0,NormalForm t1) => NormalForm (Func t0 t1) where
   ($!!) cont f@(Func _) cd cs = cont f cd cs
-  ($!!) cont (Choice_Func d i x y) cd cs = nfChoice cont d i x y cd cs
-  ($!!) cont (Choices_Func d i xs) cd cs = nfChoices cont d i xs cd cs
-  ($!!) cont (Guard_Func d c x) cd cs = guardCons d c ((cont $!! x) cd $! addCs c cs)
-  ($!!) _ (Fail_Func d info) _ _ = failCons d info
   ($##) cont f@(Func _) cd cs = cont f cd cs
-  ($##) cont (Choice_Func d i x y) cd cs = gnfChoice cont d i x y cd cs
-  ($##) cont (Choices_Func d i xs) cd cs = gnfChoices cont d i xs cd cs
-  ($##) cont (Guard_Func d c x) cd cs = guardCons d c ((cont $## x) cd $! addCs c cs)
-  ($##) _ (Fail_Func d info) _ _ = failCons d info
   searchNF search cont (Func x1) = search (\y1 -> cont (Func y1)) x1
-  searchNF _ _ x = internalError ("Prelude.Func.searchNF: no constructor: " ++ (show x))
 
 instance (Unifiable t0,Unifiable t1) => Unifiable (Func t0 t1) where
   (=.=) _ _ cd _ = Fail_C_Success cd defFailInfo
   (=.<=) _ _ cd _ = Fail_C_Success cd defFailInfo
   bind _  _ (Func _) = internalError "can not bind a Func"
-  bind cd i (Choice_Func d j l r) = [(ConstraintChoice d j (bind cd i l) (bind cd i r))]
-  bind cd i (Choices_Func d j@(FreeID _ _) xs) = bindOrNarrow cd i d j xs 
-  bind cd i (Choices_Func d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (bind cd i) xs))]
-  bind _  _ (Choices_Func _ i@(ChoiceID _) _) = internalError ("Prelude.Func.bind: Choices with ChoiceID: " ++ (show i))
-  bind _  _ (Fail_Func _ info) = [Unsolvable info]
-  bind cd i (Guard_Func _ cs e) = (getConstrList cs) ++ (bind cd i e)
-  lazyBind _  _ (Func _) = internalError "can not lazily bind a Func"
-  lazyBind cd i (Choice_Func d j l r) = [(ConstraintChoice d j (lazyBind cd i l) (lazyBind cd i r))]
-  lazyBind cd i (Choices_Func d j@(FreeID _ _) xs) = lazyBindOrNarrow cd i d j xs
-  lazyBind cd i (Choices_Func d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (lazyBind cd i) xs))]
-  lazyBind _  _ (Choices_Func _ i _) = internalError ("Prelude.Func.lazyBind: Choices with ChoiceID: " ++ (show i))
-  lazyBind _ _ (Fail_Func _ info) = [Unsolvable info]
-  lazyBind cd i (Guard_Func _ cs e) = (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]  
+  lazyBind _  _ (Func _) = internalError "can not lazily bind a Func" 
 -- END GENERATED FROM PrimTypes.curry
 
 -- BEGIN GENERATED FROM PrimTypes.curry

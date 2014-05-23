@@ -57,10 +57,8 @@ d_apply f a cd cs = f a cd cs
 
 -- |Apply a non-deterministic function to a value.
 nd_apply :: NonDet b => Func a b -> a -> IDSupply -> Cover -> ConstStore -> b
-nd_apply fun a s cd cs = d_dollar_bang apply fun cd cs
-  where
-  apply (Func f) cd' cs' = f a s cd' cs'
-  apply _        _   _   = internalError "Basics.nd_apply.apply: no ground term"
+nd_apply (Func f) a s cd cs = f a s cd cs
+ 
 
 -- -----------------------------------------------------------------------------
 -- Auxilaries for function application to head normalform
