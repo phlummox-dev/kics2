@@ -251,8 +251,8 @@ splitAlternating n = splitAlternating' 1
   splitAlternating' _ None         = []
   splitAlternating' _ (One x)      = [x]
   splitAlternating' 1 (Choice l r) = runEval $ do
-    rs <- rpar $ splitAlternating' n l
-    ls <- rseq $ splitAlternating' n r
+    rs <- rparWith (evalList rseq) $ splitAlternating' n r
+    ls <- rseq $ splitAlternating' n l
     return $ ls ++ rs
   splitAlternating' i (Choice l r) =
     let ls = splitAlternating' (i-1) l
