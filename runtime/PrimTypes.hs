@@ -73,7 +73,7 @@ instance NormalForm C_Int where
 
 instance Unifiable C_Int where
   (=.=) (C_Int      x1) (C_Int      y1) cd _  = if (x1 ==# y1) then C_Success else Fail_C_Success cd defFailInfo
-  (=.=) (C_Int      x1) (C_CurryInt y1) cd cs = ((primint2curryint x1) =:= y1) cd cs
+  (=.=) (C_Int      x1) (C_CurryInt y1) cd cs = ((primint2curryint x1) =:=# y1) cd cs
   (=.=) (C_CurryInt x1) (C_Int      y1) cd cs = (x1 =:= (primint2curryint y1)) cd cs
   (=.=) (C_CurryInt x1) (C_CurryInt y1) cd cs = (x1 =:= y1) cd cs
   (=.=) _               _               cd _  = Fail_C_Success cd defFailInfo
@@ -112,6 +112,16 @@ instance Unifiable C_Int where
   fromDecision _  i ChooseLeft   = error ("Prelude.Int.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
   fromDecision _  i ChooseRight  = error ("Prelude.Int.fromDecision: ChooseRight decision for free ID: " ++ (show i))
   fromDecision _  _ (LazyBind _) = error "Prelude.Int.fromDecision: No rule for LazyBind decision yet"
+  bindEQ cd op i (C_Int      x2) = (EQRel op i (ChooseN 0 1) 1) : bindEQ cd op (leftID i) (primint2curryint x2)
+  bindEQ cd op i (C_CurryInt x2) = (EQRel op i (ChooseN 0 1) 1) : bindEQ cd op (leftID i) x2
+  bindEQ cd op i (Choice_C_Int d j l r) = [(EQConstraintChoice d j (bindEQ cd op i l) (bindEQ cd op i r))]
+  bindEQ cd op i (Choices_C_Int d j@(FreeID _ _) xs) = bindOrNarrowEQ cd op i d j xs
+  bindEQ cd op i (Choices_C_Int d j@(NarrowedID _ _) xs) = [(EQConstraintChoices d j (map (bindEQ cd op i) xs))]
+  bindEQ _  _  _ c@(Choices_C_Int _ i@(ChoiceID _) _) = error ("Prelude.Int.bindEQ: Choices with ChoiceID: " ++ (show c))
+  bindEQ _  _  _ (Fail_C_Int _ info) = [EQUnsolvable info]
+  bindEQ cd op i (Guard_C_Int _ c e) = case unwrapCs c of
+    Just cs -> getEQConstrList cs ++ (bindEQ cd op i e)
+    Nothing -> error "Prelude.Int.bindEQ: Called bindEQ with a guard expression containing a non-equation constraint"
 
 instance ConvertCurryHaskell C_Int Int where
   toCurry (I# i) = C_Int i
@@ -237,9 +247,9 @@ instance NormalForm BinInt where
 
 
 instance Unifiable BinInt where
-  (=.=) (Neg x1) (Neg y1) cd cs = (x1 =:= y1) cd cs
+  (=.=) (Neg x1) (Neg y1) cd cs = (x1 =:=# y1) cd cs
   (=.=) Zero Zero _ _ = C_Success
-  (=.=) (Pos x1) (Pos y1) cd cs = (x1 =:= y1) cd cs
+  (=.=) (Pos x1) (Pos y1) cd cs = (x1 =:=# y1) cd cs
   (=.=) _ _ cd _ = Fail_C_Success cd defFailInfo
   (=.<=) (Neg x1) (Neg y1) cd cs = (x1 =:<= y1) cd cs
   (=.<=) Zero Zero _ _ = C_Success
@@ -284,7 +294,17 @@ instance Unifiable BinInt where
   fromDecision _  i ChooseLeft   = error ("Prelude.BinInt.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
   fromDecision _  i ChooseRight  = error ("Prelude.BinInt.fromDecision: ChooseRight decision for free ID: " ++ (show i))
   fromDecision _  _ (LazyBind _) = error "Prelude.BinInt.fromDecision: No rule for LazyBind decision yet"
-
+  bindEQ cd op i (Neg x2) = ((EQRel op i (ChooseN 0 1) 3):(concat [(bindEQ cd op (leftID i) x2)]))
+  bindEQ _  op i Zero = ((EQRel op i (ChooseN 1 0) 3):(concat []))
+  bindEQ cd op i (Pos x2) = ((EQRel op i (ChooseN 2 1) 3):(concat [(bindEQ cd op (leftID i) x2)]))
+  bindEQ cd op i (Choice_BinInt d j l r) = [(EQConstraintChoice d j (bindEQ cd op i l) (bindEQ cd op i r))]
+  bindEQ cd op i (Choices_BinInt d j@(FreeID _ _) xs) = bindOrNarrowEQ cd op i d j xs 
+  bindEQ cd op i (Choices_BinInt d j@(NarrowedID _ _) xs) = [(EQConstraintChoices d j (map (bindEQ cd op i) xs))]
+  bindEQ _  _  _ (Choices_BinInt _ i@(ChoiceID _) _) = internalError ("Prelude.BinInt.bindEQ: Choices with ChoiceID: " ++ (show i))
+  bindEQ _  _  _ (Fail_BinInt cd info) = [EQUnsolvable info]
+  bindEQ cd op i (Guard_BinInt _ c e) = case unwrapCs c of
+    Just cs -> (getEQConstrList cs) ++ (bindEQ cd op i e)
+    Nothing -> error "Prelude.BinInt.bindEQ: Called bindEQ with a guard expression containing a non-equation constraint"
 -- Nats
 
 data Nat
@@ -356,8 +376,8 @@ instance NormalForm Nat where
 
 instance Unifiable Nat where
   (=.=) IHi IHi _ _ = C_Success
-  (=.=) (O x1) (O y1) cd cs = (x1 =:= y1) cd cs
-  (=.=) (I x1) (I y1) cd cs = (x1 =:= y1) cd cs
+  (=.=) (O x1) (O y1) cd cs = (x1 =:=# y1) cd cs
+  (=.=) (I x1) (I y1) cd cs = (x1 =:=# y1) cd cs
   (=.=) _ _ cd _ = Fail_C_Success cd defFailInfo
   (=.<=) IHi IHi _ _ = C_Success
   (=.<=) (O x1) (O y1) cd cs = (x1 =:<= y1) cd cs
@@ -402,6 +422,17 @@ instance Unifiable Nat where
   fromDecision _  i ChooseLeft   = error ("Prelude.Nat.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
   fromDecision _  i ChooseRight  = error ("Prelude.Nat.fromDecision: ChooseRight decision for free ID: " ++ (show i))
   fromDecision _  _ (LazyBind _) = error "Prelude.Nat.fromDecision: No rule for LazyBind decision yet"
+  bindEQ _  op i IHi = ((EQRel op i (ChooseN 0 0) 3):(concat []))
+  bindEQ cd op i (O x2) = ((EQRel op i (ChooseN 1 1) 3):(concat [(bindEQ cd op (leftID i) x2)]))
+  bindEQ cd op i (I x2) = ((EQRel op i (ChooseN 2 1) 3):(concat [(bindEQ cd op (leftID i) x2)]))
+  bindEQ cd op i (Choice_Nat d j l r) = [(EQConstraintChoice d j (bindEQ cd op i l) (bindEQ cd op i r))]
+  bindEQ cd op i (Choices_Nat d j@(FreeID _ _) xs) = bindOrNarrowEQ cd op i d j xs
+  bindEQ cd op i (Choices_Nat d j@(NarrowedID _ _) xs) = [(EQConstraintChoices d j (map (bindEQ cd op i) xs))]
+  bindEQ _  _  _ (Choices_Nat _ i@(ChoiceID _) _) = internalError ("Prelude.Nat.bindEQ: Choices with ChoiceID: " ++ (show i))
+  bindEQ _  _  _ (Fail_Nat _ info) = [EQUnsolvable info]
+  bindEQ cd op i (Guard_Nat _ c e) = case unwrapCs c of
+    Just cs -> (getEQConstrList cs) ++ (bindEQ cd op i e)
+    Nothing -> error "Prelude.Nat.bindEQ: Called bindEQ with a guard expression containing a non-equation constraint"
 
 -- Higher Order Funcs
 
