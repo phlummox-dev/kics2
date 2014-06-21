@@ -5,6 +5,7 @@ module Solver.Control (solve) where
 import Debug
 import Solver.Constraints (FDConstraint)
 import Solver.EquationSolver (equationSolver)
+import Solver.EQSolver.EQSolver (eqSolver)
 import Solver.Interface (Solution, processWith)
 import Solver.Overton.OvertonUtils (overtonSolver)
 import Types
@@ -14,7 +15,7 @@ data Solver m a = forall c . (WrappableConstraint c)
 
 -- list of supported solvers
 solvers :: (Store m, NonDet a) => [Solver m a]
-solvers = [Solver equation, Solver overton]
+solvers = [Solver equation, Solver overton, Solver eq]
 
 trySolver :: (Store m, NonDet a) => Cover -> [Solver m a] -> WrappedConstraint -> a -> Solution m a
 trySolver _  []                         wc _   = internalError $ 
@@ -32,3 +33,6 @@ overton = processWith overtonSolver
 
 equation :: (Store m, NonDet a) => Cover -> EquationConstraints -> a -> Solution m a
 equation = processWith equationSolver
+
+eq :: (Store m, NonDet a) => Cover -> EQConstraints -> a -> Solution m a
+eq = processWith eqSolver
