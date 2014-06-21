@@ -13,13 +13,15 @@ module ID
     -- * Decisions
   , Decision (..), defaultDecision, isDefaultDecision
     -- * IDs
-  , ID (..), leftID, rightID, narrowID, getKey, mkInteger, isNarrowed
+  , ID (..), leftID, rightID, narrowID, getKey, mkInteger, isNarrowed, getConsNr
   , IDSupply, initSupply, leftSupply, rightSupply, thisID, freeID, supply
     -- * Decision management
   , traceLookup, traceDecision
   , lookupDecision, lookupID, lookupDecisionID, setDecision, setUnsetDecision
   , nextNIDs, Store (..)
   , WrappableConstraint (..), WrappedConstraint
+    -- * New Equational Constraints
+  , EQOp(..), EQConstraint (..), EQConstraints (..), getEQConstrList 
   ) where
 
 import Control.Monad (liftM, when, zipWithM_)
@@ -94,6 +96,40 @@ instance Eq EquationConstraints where
  c1 == c2 = getConstrList c1 == getConstrList c2
 
 instance WrappableConstraint EquationConstraints
+
+-- ---------------------------------------------------------------------------
+-- Equational Constraints
+-- ---------------------------------------------------------------------------
+
+-- |Type to encode constraints for a Choice(s) structure
+data EQConstraint
+  -- |Binding of an 'ID' to a 'Decision'
+  = EQRel EQOp ID Decision Int
+  -- |Unsolvable constraint
+  | EQUnsolvable FailInfo
+  -- |Non-deterministic choice between two lists of constraints
+  | EQConstraintChoice Cover ID [EQConstraint] [EQConstraint]
+  -- |Non-deterministic choice between a list of lists of constraints
+  | EQConstraintChoices Cover ID [[EQConstraint]]
+ deriving (Show,Eq)
+
+data EQConstraints = EQStructConstr [EQConstraint]
+ deriving Typeable
+
+-- relational operators for equational constraints
+data EQOp = EQEqual
+ deriving (Show,Eq)
+
+getEQConstrList :: EQConstraints -> [EQConstraint]
+getEQConstrList (EQStructConstr eqcs) = eqcs
+
+instance Show EQConstraints where
+  showsPrec _ (EQStructConstr  c) = showString "EQStructC "  . shows c
+
+instance Eq EQConstraints where
+ c1 == c2 = getEQConstrList c1 == getEQConstrList c2
+
+instance WrappableConstraint EQConstraints
 
 -- ---------------------------------------------------------------------------
 -- Wrappable Constraints
@@ -218,6 +254,14 @@ rightID  _              = internalError "ID.rightID: no FreeID"
 getKey :: ID -> Integer
 getKey = mkInteger . getUnique
 
+-- |Get constructor number from a free or narrowed 'ID'
+getConsNr :: ID -> Int
+getConsNr (FreeID     pns _)
+  | null pns  = 100
+  | otherwise = length pns
+getConsNr (NarrowedID pns _) = length pns
+getConsNr (ChoiceID _)       = 2
+
 getUnique :: ID -> Unique
 getUnique (ChoiceID          u) = u
 getUnique (FreeID          _ s) = unique s
@@ -260,6 +304,10 @@ class (Monad m) => Store m where
   getSolverStates :: m SolverStates
   -- |Set solver states
   setSolverStates :: SolverStates -> m ()
+  -- |Get fd store for equational constraints
+  getEQStore :: m States.EQStore
+  -- |Set fd store for equational constraints
+  setEQStore :: States.EQStore -> m ()
 
 instance Store IO where
   getDecisionRaw   = IDSupply.getDecisionRaw
@@ -267,6 +315,8 @@ instance Store IO where
   unsetDecisionRaw = IDSupply.unsetDecisionRaw
   getSolverStates  = States.getSolverStates
   setSolverStates  = States.setSolverStates
+  getEQStore       = States.getEQStore
+  setEQStore       = States.setEQStore
 
 -- ---------------------------------------------------------------------------
 -- Looking up decisions

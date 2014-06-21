@@ -130,6 +130,10 @@ lazyBindOrNarrow :: Unifiable a => Cover -> ID -> Cover -> ID -> [a] -> [Constra
 lazyBindOrNarrow cd i d j@(FreeID p s) xs | d < cd = [ConstraintChoices cd (NarrowedID p s) (map (lazyBind cd i) xs)]
 					  | otherwise    = [ i :=: BindTo j ]
 
+bindOrNarrowEQ :: Unifiable a => Cover -> EQOp -> ID -> Cover -> ID -> [a] -> [EQConstraint]
+bindOrNarrowEQ cd op i d j@(FreeID p s) xs | d < cd    = [EQConstraintChoices cd (NarrowedID p s) (map (bindEQ cd op i) xs)]
+				           | otherwise = [EQRel op i (BindTo j) 100]
+
 -- |Test if given argument is a free variable
 isFree :: NonDet a => a -> Bool
 isFree x = case try x of
@@ -214,6 +218,9 @@ class (NormalForm a, Generable a) => Unifiable a where
   lazyBind :: Cover -> ID -> a -> [Constraint]
   -- |Convert a decision into the original value for the given ID 
   fromDecision :: Store m => Cover -> ID -> Decision -> m a
+  -- |new bind implementation generating new equational constraints
+  bindEQ :: Cover -> EQOp -> ID -> a -> [EQConstraint]
+  bindEQ _ _ _ _ = [EQUnsolvable defFailInfo] -- default implementation
 
 -- |Unification on general terms
 (=:=) :: Unifiable a => a -> a -> Cover -> ConstStore -> C_Success
@@ -340,6 +347,53 @@ constrain cd i v = mkGuardExt cd (ValConstr i v (bind cd i v)) C_Success
 lookupValue :: (Store m, Unifiable a) => Cover -> ID -> m a
 lookupValue cd i = do (dec,j) <- lookupDecisionID i
                       fromDecision cd j dec
+
+-- ---------------------------------------------------------------------------
+-- New implementation of equational constraints using fd solver back-end
+-- ---------------------------------------------------------------------------
+
+(=:=#) :: Unifiable a => a -> a -> Cover -> ConstStore -> C_Success
+(=:=#) = newUnifyTry
+
+-- new unify try implementation generating FDConstraints to represent equational constraints
+newUnifyTry :: Unifiable a => a -> a -> Cover -> ConstStore -> C_Success
+newUnifyTry xVal yVal cd csVal = unify (try xVal) (try yVal) csVal -- 1. compute HNF hx, hy
+  where
+  -- failure
+  unify (Fail d info) _              _ = failCons d info
+  unify _              (Fail d info) _ = failCons d info
+  -- binary choice
+  unify (Choice d i x1 x2) hy cs = choiceCons d i (unify (try x1) hy cs)
+                                                  (unify (try x2) hy cs)
+  unify hx (Choice d j y1 y2) cs = choiceCons d j (unify hx (try y1) cs)
+                                                  (unify hx (try y2) cs)
+  -- n-ary choice
+  unify (Narrowed d i xs) hy cs = choicesCons d i (map (\x -> unify (try x) hy cs) xs)
+  unify hx (Narrowed d j ys) cs = choicesCons d j (map (\y -> unify hx (try y) cs) ys)
+  -- constrained value
+  unify (Guard d c x) hy cs = guardCons d c (unify (try x) hy $! c `addCs` cs)
+  unify hx (Guard d c y) cs = guardCons d c (unify hx (try y) $! c `addCs` cs)
+  -- constructor-rooted terms
+  unify (Val x) (Val y) cs = (x =.= y) cd cs
+  -- two free variables
+  unify hx@(Free cdi i xs) hy@(Free cdj j nfy) cs = lookupCs cs i
+    (\x -> unify (try x) hy cs)
+    (lookupCs cs j (\y -> unify hx (try y) cs)
+                   (if cdi < cd 
+                    then unify (try (narrows cs cdi i id xs)) hy cs
+                    else (if cdj < cd
+                           then unify hx (try (narrows cs cdj j id nfy)) cs
+                           else mkGuardExt cdi (EQStructConstr [EQRel EQEqual i (BindTo j) 100]) C_Success)))
+  -- one free variable and one value
+  unify (Free cdi i xs) hy@(Val y) cs = lookupCs cs i
+    (\x -> unify (try x) hy cs) 
+    (if cdi < cd then unify (try (narrows cs cdi i id xs)) hy cs
+                 else mkGuardExt cd (EQStructConstr (bindEQ cd EQEqual i y)) C_Success)
+  -- one free variable and one value
+  unify hx@(Val x) (Free cdj j ys) cs = lookupCs cs j
+    (\y -> unify hx (try y) cs) 
+    (if cdj < cd then unify hx (try (narrows cs cdj j id ys)) cs
+                 else mkGuardExt cd (EQStructConstr (bindEQ cd EQEqual j x)) C_Success)
 
 -- ---------------------------------------------------------------------------
 -- Conversion between Curry and Haskell data types
@@ -493,7 +547,15 @@ instance Unifiable C_Success where
   fromDecision _  i ChooseLeft    = error ("Prelude.Success.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
   fromDecision _  i ChooseRight   = error ("Prelude.Success.fromDecision: ChooseRight decision for free ID: " ++ (show i))
   fromDecision _  _ (LazyBind _)  = error "Prelude.Success.fromDecision: No rule for LazyBind decision yet"
-
+  bindEQ _  op i C_Success = ((EQRel op i (ChooseN 0 0) 1):(concat []))
+  bindEQ cd op i (Choice_C_Success  d j l r) = [(EQConstraintChoice d j (bindEQ cd op i l) (bindEQ cd op i r))]
+  bindEQ cd op i (Choices_C_Success d j@(FreeID _ _) xs) = bindOrNarrowEQ cd op i d j xs 
+  bindEQ cd op i (Choices_C_Success d j@(NarrowedID _ _) xs) = [(EQConstraintChoices d j (map (bindEQ cd op i) xs))]
+  bindEQ _  _  _ (Choices_C_Success  _ i@(ChoiceID _) _) = internalError ("Prelude.Success.bindEQ: Choices with ChoiceID: " ++ (show i))
+  bindEQ _  _  _ (Fail_C_Success _ info) = [EQUnsolvable info]
+  bindEQ cd op i (Guard_C_Success _ c e) = case unwrapCs c of
+    Just cs -> (getEQConstrList cs) ++ (bindEQ cd op i e)
+    Nothing -> error "Prelude.Success.bindEQ: Called bindEQ with a guard expression containing a non-equation constraint"
 -- END GENERATED FROM PrimTypes.curry
 
 -- ---------------------------------------------------------------------------
