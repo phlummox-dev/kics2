@@ -151,9 +151,8 @@ data Rule = Rule [Pattern] [(Expr,Expr)] [LocalDecl]
 
 --- Data type for representing local (let/where) declarations
 data LocalDecl
-  = LocalFunc FuncDecl                   -- local function declaration
+  = LocalFunc FuncDecl                 -- local function declaration
   | LocalPat  Pattern Expr [LocalDecl] -- local pattern declaration
-  | LocalVar  VarIName                   -- local free variable declaration
 
 --- Data type for representing Haskell expressions.
 data Expr
@@ -190,8 +189,9 @@ data Pattern
 data BranchExpr = Branch Pattern Expr
 
 --- Data type for representing literals occurring in an expression.
---- It is either an integer, a float, or a character constant.
+--- It is either an integer, a float, a character, or a string constant.
 data Literal
-  = Intc   Int
-  | Floatc Float
-  | Charc  Char
+  = Intc    Int
+  | Floatc  Float
+  | Charc   Char
+  | Stringc String

@@ -12,7 +12,7 @@ MAJORVERSION    = 0
 # The minor version number
 MINORVERSION    = 3
 # The revision version number
-REVISIONVERSION = 0
+REVISIONVERSION = 2
 # Complete version
 export VERSION  = $(MAJORVERSION).$(MINORVERSION).$(REVISIONVERSION)
 # The version date, extracted from the last git commit
@@ -169,7 +169,7 @@ tools:
 
 # install the kernel system (binaries and libraries)
 .PHONY: kernel
-kernel: $(PWD) $(WHICH) $(PKGDB) $(CYMAKE) $(CLEANCURRY) scripts
+kernel: $(PWD) $(WHICH) $(PKGDB) $(CYMAKE) $(CLEANCURRY) scripts copylibs
 	$(MAKE) $(INSTALLCURRY) INSTALLPREFIX="$(shell $(PWD))" \
 	                        GHC="$(shell $(WHICH) "$(GHC)")"
 	cd src     && $(MAKE) # build compiler
@@ -180,6 +180,11 @@ ifeq ($(GLOBALINSTALL),yes)
 	cd lib     && $(MAKE)
 endif
 
+# install the library sources from the trunk directory:
+.PHONY: copylibs
+copylibs:
+	@if [ -d lib-trunk ] ; then cd lib-trunk && $(MAKE) -f Makefile.$(CURRYSYSTEM).install ; fi
+
 # create package database
 $(PKGDB):
 	"$(GHC-PKG)" init $@
@@ -187,7 +192,7 @@ $(PKGDB):
 	$(CABAL_INSTALL) $(filter-out $(GHC_LIBS),$(ALLDEPS))
 
 # create frontend binary
-$(CYMAKE):
+$(CYMAKE): .FORCE
 	cd frontend && $(MAKE)
 
 .PHONY: scripts
@@ -199,7 +204,7 @@ $(CLEANCURRY): utils/cleancurry$(EXE_SUFFIX)
 	cp $< $@
 
 # build installation utils
-utils/%:
+utils/%: .FORCE
 	cd utils && $(MAKE) $(@F)
 
 # run the test suite to check the installation
@@ -214,7 +219,7 @@ clean: $(CLEANCURRY)
 	cd currytools  && $(MAKE) clean
 	-cd docs/src   && $(MAKE) clean
 	cd frontend    && $(MAKE) clean
-	cd lib         && $(MAKE) clean
+	-cd lib        && $(MAKE) clean
 	cd runtime     && $(MAKE) clean
 	cd src         && $(MAKE) clean
 	-cd talks      && $(MAKE) clean
@@ -227,7 +232,7 @@ clean: $(CLEANCURRY)
 .PHONY: cleanall
 cleanall: clean
 	-cd docs/src && $(MAKE) cleanall
-	cd lib       && $(MAKE) cleanall
+	-cd lib      && $(MAKE) cleanall
 	cd scripts   && $(MAKE) cleanall
 	cd src       && $(MAKE) cleanall
 	-cd talks    && $(MAKE) cleanall
@@ -238,6 +243,10 @@ cleanall: clean
 .PHONY: maintainer-clean
 maintainer-clean: cleanall
 	rm -rf $(BINDIR)
+	rm -rf $(LIBDIR)
+
+.PHONY: .FORCE
+.FORCE:
 
 ##############################################################################
 # Building the compiler itself
@@ -289,7 +298,7 @@ endif
 	echo "" >> $@
 	echo 'ghcOptions :: String' >> $@
 ifeq ($(GLOBALINSTALL),yes)
-	echo 'ghcOptions = "$(subst ",\",$(GHC_OPTS)) -package kics2-runtime -package kics2-libraries"' >> $@
+	echo 'ghcOptions = "$(subst ",\",$(GHC_OPTS)) -package kics2-runtime -package kics2-libraries -package kics2-libraries-trace"' >> $@
 else
 	echo 'ghcOptions = "$(subst ",\",$(GHC_OPTS))"' >> $@
 endif
@@ -396,7 +405,7 @@ endif
 	cd currytools              && rm -rf .git .gitignore
 	cd frontend/curry-base     && rm -rf .git .gitignore dist
 	cd frontend/curry-frontend && rm -rf .git .gitignore dist
-	cd lib                     && rm -rf .git .gitignore
+	rm -rf lib-trunk
 	cd utils                   && $(MAKE) cleanall
 	rm -rf $(BINDIR)
 	rm -rf $(DEV_DIRS)
@@ -452,11 +461,11 @@ bootstrap: $(COMP)
 frontend: $(CYMAKE)
 
 .PHONY: Compile
-Compile: $(PKGDB) $(INSTALLCURRY) scripts
+Compile: $(PKGDB) $(INSTALLCURRY) scripts copylibs
 	cd src && $(MAKE) CompileBoot
 
 .PHONY: REPL
-REPL: $(PKGDB) $(INSTALLCURRY) scripts
+REPL: $(PKGDB) $(INSTALLCURRY) scripts copylibs
 	cd src && $(MAKE) REPLBoot
 
 .PHONY: typeinference
@@ -468,7 +477,7 @@ typeinference:
 benchmarks:
 	cd benchmarks && $(MAKE)
 
-$(COMP): | $(INSTALLCURRY) $(PKGDB) $(CYMAKE) $(CLEANCURRY) scripts
+$(COMP): | $(INSTALLCURRY) $(PKGDB) $(CYMAKE) $(CLEANCURRY) scripts copylibs
 	cd src && $(MAKE) bootstrap
 
 # Peform a full bootstrap - distribution - installation - uninstallation

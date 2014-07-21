@@ -262,14 +262,14 @@ doubled after each iteration.
 \item[\fbox{\code{ids $n$}}]\pindex{ids}
 Similarly to \code{ids} but use an initial depth bound of $n$.
 
-\item[\fbox{\code{par}}]\pindex{par}
+\item[\fbox{\code{parallel}}]\pindex{parallel}
 Similarly to \code{bfs} but use a parallel search strategy
 to compute and print the values of the initial expression.
 The system chooses an appropriate number
 of threads according the current number of available processors.
 
-\item[\fbox{\code{par $n$}}]\pindex{par}
-Similarly to \code{par} but use $n$ parallel threads.
+\item[\fbox{\code{parallel $n$}}]\pindex{parallel}
+Similarly to \code{parallel} but use $n$ parallel threads.
 
 \item[\fbox{\code{prdfs }}]\pindex{prdfs}
 Set the search mode to evaluate non-deterministic expressions
@@ -379,6 +379,31 @@ of the Glasgow Haskell Compiler. This might result in a slower
 execution but in a faster startup time since the linker
 to create the main executable is not used.
 
+\item[\fbox{\code{safe}}]\pindex{safe}
+Turn on the safe execution mode.
+In the safe execution mode, the initial goal is
+not allowed to be of type \code{IO} and the program should not
+import the module \code{Unsafe}.
+Furthermore, the allowed commands are
+\code{eval}, \code{load}, \code{quit}, and \code{reload}.
+This mode is useful to use \CYS in uncontrolled environments,
+like a computation service in a web page, where \CYS could
+be invoked by
+\begin{curry}
+kics2 :set safe
+\end{curry}
+
+\item[\fbox{\code{parser $opts$}}]\pindex{parser}
+Define additional options passed to the \CYS front end, i.e.,
+the parser program \code{\cyshome/bin/cymake}.
+For instance, setting the option
+\begin{curry}
+:set parser -F --pgmF=transcurry
+\end{curry}
+has the effect that each Curry module to be compiled is
+transformed by the preprocessor command \code{transcurry}
+into a new Curry program which is actually compiled.
+
 \item[\fbox{\code{cmp $opts$}}]\pindex{cmp}
 Define additional options passed to the \CYS compiler.
 For instance, setting the option
@@ -391,7 +416,10 @@ are turned off.
 \item[\fbox{\code{ghc $opts$}}]\pindex{ghc}
 Define additional options passed to the Glasgow Haskell Compiler (GHC)
 when the generated Haskell programs are compiled.
-One has to be careful when using such options.
+Many options necessary to compile Curry programs
+are already set (you can see them by setting the verbosity
+level to 2 or greater).
+One has to be careful when providing additional options.
 For instance, in a global installation of \CYS
 (see Section~\ref{sec-install}), libraries are pre-compiled
 so that inconsistencies might occur if compilation options

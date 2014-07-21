@@ -4,12 +4,10 @@
 -- ID module
 -- ---------------------------------------------------------------------------
 module ID
-  ( -- * FailInfo
-    FailInfo, defFailInfo
-    -- * Cover
-  , Cover, incCover, decCover, initCover
+  ( -- * Cover
+    Cover, incCover, decCover, initCover
     -- * Constraints
-  , Constraint (..), EquationConstraints(..), getConstrList
+  , Constraint (..), EquationConstraints(..), getConstrList, makeStrictCList
     -- * Decisions
   , Decision (..), defaultDecision, isDefaultDecision
     -- * IDs
@@ -24,39 +22,33 @@ module ID
   , EQOp(..), EQConstraint (..), EQConstraints (..), getEQConstrList 
   ) where
 
-import Control.Monad (liftM, when, zipWithM_)
-import Data.List (partition)
 import Data.Typeable -- for unwrapping wrappable constraints
-
-import Debug
-import IDSupply hiding (getDecisionRaw, setDecisionRaw, unsetDecisionRaw)
+import           Control.Monad   (liftM, when, zipWithM_)
+import           Debug
+import           FailInfo        (FailInfo)
+import           IDSupply hiding (getDecisionRaw, setDecisionRaw, unsetDecisionRaw)
 import qualified IDSupply
 import qualified Solver.States as States
 import Solver.States (SolverStates)
 
 -- ---------------------------------------------------------------------------
--- Fail Info
---  - will eventually collect information about the origin of failures
--- ---------------------------------------------------------------------------
-
-type FailInfo = ()
-
-defFailInfo :: FailInfo
-defFailInfo = ()
-
--- ---------------------------------------------------------------------------
 -- Cover
--- - used to store information about the covering depth of choices,
---   guards and failures
+-- ---------------------------------------------------------------------------
 
+-- |Type used to store information about the covering depth of choices,
+-- guards and failures
 type Cover = Int
+
+-- |Increase covering depth
 incCover :: Cover -> Cover
 incCover = (+ 1)
+
+-- |Decrease covering depth
 decCover :: Cover -> Cover
 decCover = flip (-) 1
+
 initCover :: Cover
 initCover = 0
-
 
 -- ---------------------------------------------------------------------------
 -- Constraint
@@ -74,7 +66,6 @@ data Constraint
   | ConstraintChoices Cover ID [[Constraint]]
  deriving (Show,Eq)
 
-
 -- A Value Constraint is used to bind a Value to an id it also contains the
 -- structural constraint information that describes the choice to be taken
 -- for a given id, a Struct Constraint has only the structural information
@@ -87,6 +78,16 @@ data EquationConstraints
 getConstrList :: EquationConstraints -> [Constraint]
 getConstrList (ValConstr _ _ c) = c
 getConstrList (StructConstr  c) = c
+
+-- transforms a constraint to a list of constraints that are not lazy
+makeStrictCList :: Constraint -> [Constraint]
+makeStrictCList (_ :=: (LazyBind cs)) = concatMap makeStrictCList cs
+makeStrictCList binding@(_ :=: _)     = [binding]
+makeStrictCList u@(Unsolvable _)      = [u]
+makeStrictCList (ConstraintChoice cd i csl csr) 
+  = [ConstraintChoice cd i (concatMap makeStrictCList csl)(concatMap makeStrictCList csr)]
+makeStrictCList (ConstraintChoices cd i css) 
+  = [ConstraintChoices cd i (map (concatMap makeStrictCList) css)]
 
 instance Show EquationConstraints where
   showsPrec _ (ValConstr _ _ c) = showString "ValC "     . shows c

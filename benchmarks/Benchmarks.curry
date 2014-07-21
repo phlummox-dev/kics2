@@ -11,7 +11,7 @@
 import Char
 import IO
 import IOExts
-import List (isPrefixOf, isInfixOf, intersperse, last)
+import List (isPrefixOf, isInfixOf, init, intercalate, intersperse, last, scanl)
 import Maybe
 import System
 import Time
@@ -43,23 +43,6 @@ monInstalled = False -- is the monadic curry compiler installed?
 -- ---------------------------------------------------------------------------
 -- Helper
 -- ---------------------------------------------------------------------------
-
-init :: [a] -> [a]
-init []       = []
-init [_]      = []
-init (x:y:zs) = x : init (y : zs)
-
-intercalate :: [a] -> [[a]] -> [a]
-intercalate xs xss = concat (intersperse xs xss)
-
-scanl :: (a -> b -> a) -> a -> [b] -> [a]
-scanl f q ls =  q : (case ls of
-  []   -> []
-  x:xs -> scanl f (f q x) xs)
-
--- lift a pure function into the IO monad
-liftIO :: (a -> b) -> IO a -> IO b
-liftIO f act = act >>= return . f
 
 -- Like `mapIO`, but with flipped arguments.
 --
@@ -207,7 +190,7 @@ timeCmd (cmd, args) = do
  where
   timeFile    = ".time"
   timeCommand = "/usr/bin/time"
-  timeArgs    = [ "--quiet", "--verbose", "-o", timeFile ] ++ cmd : args
+  timeArgs    = [ "--verbose", "-o", timeFile ] ++ cmd : args
   extractInfo = map (splitInfo . trim) . lines
   trim        = reverse . dropWhile isSpace . reverse . dropWhile isSpace
   splitInfo s@[]       = ([], s)
@@ -332,7 +315,7 @@ data Strategy
   | MPLUSDFS | MPLUSBFS | MPLUSIDS Int String | MPLUSPar          -- MonadPlus
   | EncDFS   | EncBFS   | EncIDS                                  -- encapsulated
 
-data Goal   = Goal Bool String String -- non-det? / main-expr / module
+data Goal   = Goal Bool String String -- non-det? / module / main-expr
 data Output = All | One | Interactive | Count
 
 detGoal :: String -> String -> Goal
@@ -371,8 +354,8 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
   searchExpr EncBFS           = wrapEnc "BFS"
   searchExpr EncIDS           = wrapEnc "IDS"
   wrapEnc strat      = "import qualified Curry_SearchTree as ST\n"
-    ++ "main = prdfs print (\\i c -> ST.d_C_allValues" ++ strat
-    ++ " (ST.d_C_someSearchTree (nd_C_" ++ goal ++ " i c) c) c)"
+    ++ "main = prdfs print (\\i cov cs -> ST.d_C_allValues" ++ strat
+    ++ " cov cs (ST.d_C_someSearchTree (nd_C_" ++ goal ++ " i cov cs) cov cs) cov cs)"
   searchComb search  = "main = " ++ comb ++ " " ++ search ++ " $ " ++ "nd_C_" ++ goal
   comb = case o of
     All         -> "printAll"
@@ -380,6 +363,7 @@ mainExpr s o (Goal True  _ goal) = searchExpr s
     Interactive -> "printInteractive"
     Count       -> "countAll"
 
+kics2 :: Bool -> Bool -> Supply -> Strategy -> Output -> Goal -> [Benchmark]
 kics2 hoOpt ghcOpt supply strategy output gl@(Goal _ mod goal)
   = kics2Benchmark tag hoOpt ghcOpt (chooseSupply supply) mod goal (mainExpr strategy output gl)
  where tag = concat [ "KICS2"
@@ -484,8 +468,7 @@ kics2Compile mod hooptim ghcoptim idsupply mainexp = do
                           , mainexp
                           ]
   -- show to put parentheses around the source code
-  let mainCmd = ("echo", [show mainCode, ">", mainFile])
-  traceCmd mainCmd
+  writeFile mainFile mainCode
 
   -- 3. Call the GHC
   let ghcImports = [ kics2Home ++ "/runtime"
@@ -493,12 +476,15 @@ kics2Compile mod hooptim ghcoptim idsupply mainexp = do
                    ,".curry/kics2"
                    , kics2Home ++ "/lib/.curry/kics2"
                    ]
-      ghcCmd = ("ghc" , [ if ghcoptim then "-O2" else ""
+      ghcPkgDbOpts = "-no-user-package-db -package-db " ++ 
+                     kics2Home ++ "/pkg/kics2.conf.d"
+      ghcCmd = ("ghc" , [ ghcPkgDbOpts 
+                        , if ghcoptim then "-O2" else ""
                         , "--make"
                         , if doTrace then "" else "-v0"
                         , "-package ghc"
                         , "-cpp" -- use the C preprocessor
-                        , "-DDISABLE_CS" -- disable constraint store
+--                         , "-DDISABLE_CS" -- disable constraint store
                         --,"-DSTRICT_VAL_BIND" -- strict value bindings
                         , "-XMultiParamTypeClasses","-XFlexibleInstances"
 --                         , "-fforce-recomp"

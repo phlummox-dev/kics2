@@ -5,6 +5,7 @@ import System.IO (Handle)
 import GHC.Exts (Int (I#), Int#, (==#), (<#), (*#), (+#), quotInt#, remInt#, negateInt#)
 
 import Debug
+import FailInfo
 import Types
 
 -- Curry_Int
@@ -259,10 +260,10 @@ instance Unifiable BinInt where
   bind _  i Zero = ((i :=: (ChooseN 1 0)):(concat []))
   bind cd i (Pos x2) = ((i :=: (ChooseN 2 1)):(concat [(bind cd (leftID i) x2)]))
   bind cd i (Choice_BinInt d j l r) = [(ConstraintChoice d j (bind cd i l) (bind cd i r))]
-  bind cd i (Choices_BinInt d j@(FreeID _ _) xs) = bindOrNarrow cd i d j xs 
+  bind cd i (Choices_BinInt d j@(FreeID _ _) xs) = bindOrNarrow cd i d j xs
   bind cd i (Choices_BinInt d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (bind cd i) xs))]
   bind _  _ (Choices_BinInt _ i@(ChoiceID _) _) = internalError ("Prelude.BinInt.bind: Choices with ChoiceID: " ++ (show i))
-  bind _  _ (Fail_BinInt cd info) = [Unsolvable info]
+  bind _  _ (Fail_BinInt _ info) = [Unsolvable info]
   bind cd i (Guard_BinInt _ c e) = case unwrapCs c of
     Just cs -> (getConstrList cs) ++ (bind cd i e)
     Nothing -> error "Prelude.BinInt.bind: Called bind with a guard expression containing a non-equation constraint"
@@ -343,7 +344,7 @@ instance NonDet Nat where
   match f _ _ _ _ _ (Choice_Nat cd i x y) = f cd i x y
   match _ f _ _ _ _ (Choices_Nat cd i@(NarrowedID _ _) xs) = f cd i xs
   match _ _ f _ _ _ (Choices_Nat cd i@(FreeID _ _) xs) = f cd i xs
-  match _ _ _ _ _ _ (Choices_Nat cd i@(ChoiceID _) _) = internalError ("Prelude.Nat.match: Choices with ChoiceID " ++ (show i))
+  match _ _ _ _ _ _ (Choices_Nat _ i@(ChoiceID _) _) = internalError ("Prelude.Nat.match: Choices with ChoiceID " ++ (show i))
   match _ _ _ f _ _ (Fail_Nat cd info) = f cd info
   match _ _ _ _ f _ (Guard_Nat cd cs e) = f cd cs e
   match _ _ _ _ _ f x = f x
@@ -444,7 +445,12 @@ data Func t0 t1
      | Fail_Func Cover FailInfo
      | Guard_Func Cover WrappedConstraint (Func t0 t1)
 
-instance Show (Func a b) where show = internalError "ERROR: no show for Func"
+instance Show (Func a b) where
+ showsPrec d (Choice_Func cd i f1 f2) = showsChoice d cd i f1 f2 
+ showsPrec d (Choices_Func cd i fs)   = showsChoices d cd i fs
+ showsPrec _ (Fail_Func _ _)          = showChar '!'
+ showsPrec d (Guard_Func cd c f)      = showsGuard d cd c f
+ showsPrec _ (Func _)                 = showString "<<function>>"
 
 instance Read (Func a b) where readsPrec = internalError "readsPrec for Func"
 
@@ -461,7 +467,7 @@ instance NonDet (Func t0 t1) where
   match f _ _ _ _ _ (Choice_Func cd i x y) = f cd i x y
   match _ f _ _ _ _ (Choices_Func cd i@(NarrowedID _ _) xs) = f cd i xs
   match _ _ f _ _ _ (Choices_Func cd i@(FreeID _ _) xs) = f cd i xs
-  match _ _ _ _ _ _ (Choices_Func cd i _) = internalError ("Prelude.Func.match: Choices with ChoiceID " ++ (show i))
+  match _ _ _ _ _ _ (Choices_Func _ i _) = internalError ("Prelude.Func.match: Choices with ChoiceID " ++ (show i))
   match _ _ _ f _ _ (Fail_Func cd info) = f cd info
   match _ _ _ _ f _ (Guard_Func cd cs e) = f cd cs e
   match _ _ _ _ _ f x = f x
@@ -508,13 +514,15 @@ instance (Unifiable t0,Unifiable t1) => Unifiable (Func t0 t1) where
 
 -- BEGIN GENERATED FROM PrimTypes.curry
 data C_IO t0
-     = C_IO (IO t0)
+     = C_IO (IO (Either FailInfo t0))
+     | HO_C_IO (IDSupply -> Cover -> ConstStore -> IO (Either FailInfo t0))
      | Choice_C_IO Cover ID (C_IO t0) (C_IO t0)
      | Choices_C_IO Cover ID ([C_IO t0])
      | Fail_C_IO Cover FailInfo
      | Guard_C_IO Cover WrappedConstraint (C_IO t0)
 
-instance Show (C_IO a) where show = internalError "show for C_IO"
+instance Show (C_IO a) where
+  show _ = "<<IO action>>"
 
 instance Read (C_IO a) where readsPrec = internalError "readsPrec for C_IO"
 
@@ -539,23 +547,27 @@ instance NonDet (C_IO t0) where
 instance Generable (C_IO a) where generate _ _ = internalError "generate for C_IO"
 
 instance (NormalForm t0) => NormalForm (C_IO t0) where
-  ($!!) cont io@(C_IO _) cd cs = cont io cd cs
+  ($!!) cont io@(C_IO    _) cd cs = cont io cd cs
+  ($!!) cont io@(HO_C_IO _) cd cs = cont io cd cs
   ($!!) cont (Choice_C_IO d i x y) cd cs = nfChoice cont d i x y cd cs
   ($!!) cont (Choices_C_IO d i xs) cd cs = nfChoices cont d i xs cd cs
   ($!!) cont (Guard_C_IO d c x) cd cs = guardCons d c ((cont $!! x) cd $! addCs c cs)
   ($!!) _ (Fail_C_IO d info) _ _ = failCons d info
-  ($##) cont io@(C_IO _) cd cs = cont io cd cs
+  ($##) cont io@(C_IO    _) cd cs = cont io cd cs
+  ($##) cont io@(HO_C_IO _) cd cs = cont io cd cs
   ($##) cont (Choice_C_IO d i x y) cd cs = gnfChoice cont d i x y cd cs
   ($##) cont (Choices_C_IO d i xs) cd cs = gnfChoices cont d i xs cd cs
   ($##) cont (Guard_C_IO d c x) cd cs = guardCons d c ((cont $## x) cd $! addCs c cs)
   ($##) _ (Fail_C_IO d info) _ _ = failCons d info
-  searchNF _ cont io@(C_IO _) = cont io
+  searchNF _ cont io@(C_IO    _) = cont io
+  searchNF _ cont io@(HO_C_IO _) = cont io
   searchNF _ _ x = internalError ("Prelude.IO.searchNF: no constructor: " ++ (show x))
 
 instance Unifiable t0 => Unifiable (C_IO t0) where
   (=.=) _ _ cd _ = Fail_C_Success cd defFailInfo
   (=.<=) _ _ cd _ = Fail_C_Success cd defFailInfo
   bind _  _(C_IO _) = internalError "can not bind IO"
+  bind _  _(HO_C_IO _) = internalError "can not bind IO"
   bind cd i (Choice_C_IO d j l r) = [(ConstraintChoice d j (bind cd i l) (bind cd i r))]
   bind cd i (Choices_C_IO d j@(FreeID _ _) xs) = bindOrNarrow cd i d j xs
   bind cd i (Choices_C_IO d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (bind cd i) xs))]
@@ -565,20 +577,25 @@ instance Unifiable t0 => Unifiable (C_IO t0) where
     Just cs -> (getConstrList cs) ++ (bind cd i e)
     Nothing -> error "Prelude.IO.bind: Called bind with a guard expression containing a non-equation constraint"
   lazyBind _  _ (C_IO _)            = internalError "can not lazily bind IO"
+  lazyBind _  _ (HO_C_IO _)         = internalError "can not lazily bind IO"
   lazyBind cd i (Choice_C_IO d j l r) = [(ConstraintChoice d j (lazyBind cd i l) (lazyBind cd i r))]
   lazyBind cd i (Choices_C_IO d j@(FreeID _ _) xs) = lazyBindOrNarrow cd i d j xs
   lazyBind cd i (Choices_C_IO d j@(NarrowedID _ _) xs) = [(ConstraintChoices d j (map (lazyBind cd i) xs))]
   lazyBind _  _ (Choices_C_IO _ i@(ChoiceID _) _) = internalError ("Prelude.IO.lazyBind: Choices with ChoiceID: " ++ (show i))
-  lazyBind _  _ (Fail_C_IO cd info) = [Unsolvable info]
+  lazyBind _  _ (Fail_C_IO _ info) = [Unsolvable info]
   lazyBind cd i (Guard_C_IO _ c e) = case unwrapCs c of
     Just cs -> (getConstrList cs) ++ [(i :=: (LazyBind (lazyBind cd i e)))]
     Nothing -> error "Prelude.IO.lazyBind: Called lazyBind with a guard expression containing a non-equation constraint"
   fromDecision _ _ _ = error "ERROR: No fromDecision for C_IO"
 -- END GENERATED FROM PrimTypes.curry
 
+-- Convert an IO action to a Curry IO action without converting the result.
+fromIO :: IO a -> C_IO a
+fromIO io = C_IO (io >>= return . Right)
+
 instance ConvertCurryHaskell ca ha => ConvertCurryHaskell (C_IO ca) (IO ha)
   where
-  toCurry io  = C_IO (io >>= return . toCurry)
+  toCurry io  = C_IO (io >>= return . Right . toCurry)
   fromCurry _ = internalError "C_IO.fromCurry: Use top-level search instead."
 
 -- ---------------------------------------------------------------------------

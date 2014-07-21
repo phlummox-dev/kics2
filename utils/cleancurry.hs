@@ -10,7 +10,6 @@
 
     Command line tool for cleaning up Curry directories.
 -}
-
 module Main where
 
 import Control.Exception as E (catch, throwIO)
@@ -122,6 +121,7 @@ cleanModule dir mdl = do
   when sdExists $ do
     removeFiles $ map (subdir </>) mainFiles
     removeFiles $ map ((subdir </> "Curry_" ++ mdl) <.>) kics2Exts
+    removeFiles $ map ((subdir </> "Curry_Trace_" ++ mdl) <.>) kics2Exts
     rmdirIfEmpty subdir
   cyExists <- doesDirectoryExist cydir
   when cyExists $ do
@@ -169,7 +169,6 @@ isDirectory f = E.catch (searchable `liftM` getPermissions f) handler
   handler e | isDoesNotExistError e = return False
             | isPermissionError   e = return False
             | otherwise             = E.throwIO e
-
 
 getUsefulContents :: FilePath -> IO [String]
 getUsefulContents dir = filter (`notElem` [".", ".."])

@@ -7,25 +7,22 @@
 module Files
   ( -- File name modification
     withComponents, withDirectory, withBaseName, withExtension
-    -- directory creation
-  , createDirectoryIfMissing
     -- file creation
   , writeFileInDir, writeQTermFileInDir
     -- file deletion
-  , removeFileIfExists
+  , removeFileIfExists, (</?>), lookupFileInPath
   ) where
 
 import Directory
-  ( createDirectory, doesDirectoryExist
+  ( createDirectory, createDirectoryIfMissing, doesDirectoryExist
   , doesFileExist, removeFile
   )
 import FilePath
-  ( extSeparator, pathSeparator, (</>), (<.>)
+  ( FilePath, joinPath, (</>), (<.>), isAbsolute
   , splitFileName, splitExtension, splitDirectories, takeDirectory
   )
-import List         (last, scanl1)
+import List         (isPrefixOf, last, scanl1)
 import ReadShowTerm (writeQTermFile)
-import Utils        (unless, when)
 
 --- Apply functions to all parts of a file name
 withComponents :: (String -> String) -- change path
@@ -46,22 +43,7 @@ withBaseName f fn = withComponents id f id fn
 
 --- Apply a function to the extension component of a file path
 withExtension :: (String -> String) -> String -> String
-withExtension f fn =withComponents id id f fn
-
---- Create a directory if it does not exist. The flag signals if all missing
---- parent directories should also be created
-createDirectoryIfMissing :: Bool -> String -> IO ()
-createDirectoryIfMissing createParents path
-  | createParents = createDirs parents
-  | otherwise     = createDirs [last parents]
-  where
-    parents = scanl1 (</>) $ splitDirectories $ path
-
-    createDirs [] = done
-    createDirs (dir:dirs) = do
-      dde <- doesDirectoryExist dir
-      unless dde $ createDirectory dir
-      createDirs dirs
+withExtension f fn = withComponents id id f fn
 
 --- write the 'String' into a file where the file name may contain a path.
 --- The corresponding directories are created first if missing.
@@ -72,12 +54,46 @@ writeFileInDir file content = do
 
 --- write the 'String' into a file where the file name may contain a path.
 --- The corresponding directories are created first if missing.
-writeQTermFileInDir :: String -> a -> IO ()
+writeQTermFileInDir :: FilePath -> a -> IO ()
 writeQTermFileInDir file content = do
   createDirectoryIfMissing True $ takeDirectory file
   writeQTermFile file content
 
-removeFileIfExists :: String -> IO ()
+--- This operation removes the specified file only if it exists.
+removeFileIfExists :: FilePath -> IO ()
 removeFileIfExists file = do
   exists <- doesFileExist file
   when exists $ removeFile file
+
+--- `dir </?> subdir` appends the only the path components of `subdir` to `dir`
+--- which are not already the suffix if `dir`. Examples:
+---
+--- `"debug"              </?> ".curry/kics2"` -> "debug/.curry/kics2"
+--- `"debug/.curry"       </?> ".curry/kics2"` -> "debug/.curry/kics2"
+--- `"debug/.curry/kics2" </?> ".curry/kics2"` -> "debug/.curry/kics2"
+(</?>) :: FilePath -> FilePath -> FilePath
+fn </?> sfx = joinPath $ reverse $ add (reverse $ splitDirectories sfx)
+                                       (reverse $ splitDirectories fn)
+  where
+  add []         dirs = dirs
+  add dir@(d:ds) dirs
+    | dir `isPrefixOf` dirs = dirs
+    | otherwise             = d : add ds dirs
+
+--- Looks up the first file with a possible extension in a list of directories.
+--- Returns Nothing if such a file does not exist.
+lookupFileInPath :: FilePath -> [String] -> [FilePath] -> IO (Maybe FilePath)
+lookupFileInPath file exts path
+  | isAbsolute file = lookupExtFile file exts
+  | otherwise       = lookupFile path
+  where
+    lookupFile []         = return Nothing
+    lookupFile (dir:dirs) = do
+      mbfile <- lookupExtFile (dir </> file) exts
+      maybe (lookupFile dirs) (return . Just) mbfile
+
+    lookupExtFile _ []         = return Nothing
+    lookupExtFile f (ext:exts) = do
+      let fExt = f <.> ext
+      exists <- doesFileExist fExt
+      if exists then return (Just fExt) else lookupExtFile f exts
