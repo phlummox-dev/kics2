@@ -8,6 +8,18 @@ import Debug
 import FailInfo
 import Types
 
+#if __GLASGOW_HASKELL__ > 706
+import GHC.Exts (isTrue#)
+#endif
+
+-- #endimport - do not remove this line!
+
+#if !(__GLASGOW_HASKELL__ > 706)
+isTrue# :: Bool -> Bool
+{-# INLINE isTrue# #-}
+isTrue# x = x
+#endif
+
 -- Curry_Int
 -- BEGIN GENERATED FROM PrimTypes.curry
 data C_Int
@@ -142,27 +154,27 @@ instance ConvertCurryHaskell C_Int Integer where
 
 primint2curryint :: Int# -> BinInt
 primint2curryint n
-  | n <#  0#  = Neg (primint2currynat (negateInt# n))
-  | n ==# 0#  = Zero
-  | otherwise = Pos (primint2currynat n)
+  | isTrue# (n <#  0#) = Neg (primint2currynat (negateInt# n))
+  | isTrue# (n ==# 0#) = Zero
+  | otherwise          = Pos (primint2currynat n)
 
 primint2currynat :: Int# -> Nat
 primint2currynat n
-  | n ==# 1#                = IHi
-  | (n `remInt#` 2#) ==# 0# = O (primint2currynat (n `quotInt#` 2#))
-  | otherwise               = I (primint2currynat (n `quotInt#` 2#))
-
-currynat2primint :: Nat -> Int#
-currynat2primint IHi   = 1#
-currynat2primint (O n) = 2# *# currynat2primint n
-currynat2primint (I n) = 2# *# currynat2primint n +# 1#
-currynat2primint _ = error "KiCS2 error: Prelude.currynat2primint: no ground term"
+  | isTrue# (n ==# 1#)                = IHi
+  | isTrue# ((n `remInt#` 2#) ==# 0#) = O (primint2currynat (n `quotInt#` 2#))
+  | otherwise                         = I (primint2currynat (n `quotInt#` 2#))
 
 curryint2primint :: BinInt -> Int#
 curryint2primint Zero    = 0#
 curryint2primint (Pos n) = currynat2primint n
 curryint2primint (Neg n) = negateInt# (currynat2primint n)
-curryint2primint _ = error "KiCS2 error: Prelude.curryint2primint: no ground term"
+curryint2primint int     = error $ "KiCS2 error: Prelude.curryint2primint: no ground term, but " ++ show int
+
+currynat2primint :: Nat -> Int#
+currynat2primint IHi   = 1#
+currynat2primint (O n) = 2# *# currynat2primint n
+currynat2primint (I n) = 2# *# currynat2primint n +# 1#
+currynat2primint nat   = error $ "KiCS2 error: Prelude.currynat2primint: no ground term, but " ++ show nat
 
 -- ---------------------------------------------------------------------------
 -- Conversion to constrainable term types
