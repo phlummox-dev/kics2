@@ -428,7 +428,7 @@ lazyTry x y cd cs = case try x of
   Free     d i xs    -> lookupCs cs i (\xVal -> (xVal =:<= y) cd cs)
                         (if d < cd
                           then (narrows cs d i id xs =:<= y) cd cs
-                          else guardCons d (StructConstr [i :=: LazyBind (lazyBind cd i y)]) C_Success)
+                          else mkGuardExt d (StructConstr [i :=: LazyBind (lazyBind cd i y)]) C_Success)
   Val        vx      -> lazyVal cs y
     where
     lazyVal cs' y' = case try y' of
@@ -444,7 +444,7 @@ lazyTry x y cd cs = case try x of
       Free     d j ys    -> lookupCs cs' j (lazyVal cs')
                             (if d < cd
                             then lazyVal cs' (narrows cs' d j id ys)
-                            else guardCons d (StructConstr [j :=: LazyBind (lazyBind cd j vx)]) C_Success)
+                            else mkGuardExt d (StructConstr [j :=: LazyBind (lazyBind cd j vx)]) C_Success)
       Val        vy      -> (vx =.<= vy) cd cs'
 
 -- ---------------------------------------------------------------------------

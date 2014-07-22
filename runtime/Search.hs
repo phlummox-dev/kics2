@@ -19,13 +19,14 @@ import Solver.States (SolverStates, initStates)
 import FailInfo    (FailInfo (failCause), defFailInfo, customFail, nondetIO)
 import FailTrace   (inspectTrace)
 
+import Solver.EQSolver.EQSolver (lookupDom, setDom)
+
+import qualified Debug.Trace as DT
+
 type DetExpr    a =             Cover -> ConstStore -> a
 type NonDetExpr a = IDSupply -> Cover -> ConstStore -> a
 type Strategy   a = NonDetExpr a -> IO (IOList a)
 
-import Solver.EQSolver.EQSolver (lookupDom, setDom)
-
-import qualified Debug.Trace as DT
 -- ---------------------------------------------------------------------------
 -- Search combinators for top-level search in the IO monad
 -- ---------------------------------------------------------------------------
@@ -113,7 +114,7 @@ searchIO s cd cs act = case act of
     ChooseN idx _ -> searchIO s cd cs (xs !! idx)
     NoDecision    -> failWith $ nondetIO (show i)
     LazyBind cs'  -> searchIO s cd cs
-                   $ guardCons initCover (StructConstr cs')
+                   $ mkGuardExt initCover (StructConstr cs')
                    $ choicesCons initCover i xs
     _             -> internalError $ "followToIO: " ++ show c
 
@@ -298,12 +299,12 @@ printValsDFSMatch backTrack cont goal = do
   processLB True cs i xs = do
     reset <- setUnsetDecision i NoDecision
     printValsDFSMatch backTrack cont
-      (guardCons initCover (StructConstr cs) $ choicesCons initCover i xs)
+      (mkGuardExt initCover (StructConstr cs) $ choicesCons initCover i xs)
     reset
   processLB False cs i xs = do
     setDecision i NoDecision
     printValsDFSMatch backTrack cont
-      (guardCons initCover (StructConstr cs) $ choicesCons initCover i xs)
+      (mkGuardExt initCover (StructConstr cs) $ choicesCons initCover i xs)
 
 
 
@@ -357,12 +358,12 @@ printValsDFSTry backTrack cont goal = do
   processLB True cs i xs = do
     reset <- setUnsetDecision i NoDecision
     printValsDFSTry backTrack cont
-      (guardCons initCover (StructConstr cs) $ choicesCons initCover i xs)
+      (mkGuardExt initCover (StructConstr cs) $ choicesCons initCover i xs)
     reset
   processLB False cs i xs = do
     setDecision i NoDecision
     printValsDFSTry backTrack cont
-      (guardCons initCover (StructConstr cs) $ choicesCons initCover i xs)
+      (mkGuardExt initCover (StructConstr cs) $ choicesCons initCover i xs)
 
 
 {-

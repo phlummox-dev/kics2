@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, MagicHash #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, MagicHash, CPP #-}
 module PrimTypes where
 
 import System.IO (Handle)
@@ -85,12 +85,12 @@ instance NormalForm C_Int where
   searchNF _ _ x = error ("Prelude.Int.searchNF: no constructor: " ++ (show x))
 
 instance Unifiable C_Int where
-  (=.=) (C_Int      x1) (C_Int      y1) cd _  = if (x1 ==# y1) then C_Success else Fail_C_Success cd defFailInfo
+  (=.=) (C_Int      x1) (C_Int      y1) cd _  = if isTrue# (x1 ==# y1) then C_Success else Fail_C_Success cd defFailInfo
   (=.=) (C_Int      x1) (C_CurryInt y1) cd cs = ((primint2curryint x1) =:=# y1) cd cs
   (=.=) (C_CurryInt x1) (C_Int      y1) cd cs = (x1 =:= (primint2curryint y1)) cd cs
   (=.=) (C_CurryInt x1) (C_CurryInt y1) cd cs = (x1 =:= y1) cd cs
   (=.=) _               _               cd _  = Fail_C_Success cd defFailInfo
-  (=.<=) (C_Int      x1) (C_Int      y1) cd _ = if (x1 ==# y1) then C_Success else Fail_C_Success cd defFailInfo
+  (=.<=) (C_Int      x1) (C_Int      y1) cd _ = if isTrue# (x1 ==# y1) then C_Success else Fail_C_Success cd defFailInfo
   (=.<=) (C_Int      x1) (C_CurryInt y1) cd cs = ((primint2curryint x1) =:<= y1) cd cs
   (=.<=) (C_CurryInt x1) (C_Int      y1) cd cs = (x1 =:<= (primint2curryint y1)) cd cs
   (=.<=) (C_CurryInt x1) (C_CurryInt y1) cd cs = (x1 =:<= y1) cd cs
@@ -168,13 +168,13 @@ curryint2primint :: BinInt -> Int#
 curryint2primint Zero    = 0#
 curryint2primint (Pos n) = currynat2primint n
 curryint2primint (Neg n) = negateInt# (currynat2primint n)
-curryint2primint int     = error $ "KiCS2 error: Prelude.curryint2primint: no ground term, but " ++ show int
+curryint2primint int     = error ("KiCS2 error: Prelude.curryint2primint: no ground term, but " ++ show int)
 
 currynat2primint :: Nat -> Int#
 currynat2primint IHi   = 1#
 currynat2primint (O n) = 2# *# currynat2primint n
 currynat2primint (I n) = 2# *# currynat2primint n +# 1#
-currynat2primint nat   = error $ "KiCS2 error: Prelude.currynat2primint: no ground term, but " ++ show nat
+currynat2primint nat   = error ("KiCS2 error: Prelude.currynat2primint: no ground term, but " ++ show nat)
 
 -- ---------------------------------------------------------------------------
 -- Conversion to constrainable term types

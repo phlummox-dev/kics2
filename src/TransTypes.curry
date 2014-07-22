@@ -705,12 +705,12 @@ bindGuardRule qf lazy = (funcName,
       else applyF funcName [Var d, Var i, Var e]
 
 -- Generate fromDecisionRules for a data constructor
-fromDecisionConsRule :: HOResult -> QName -> (Expr -> Expr -> Expr) -> (Int, FC.ConsDecl) -> [(QName, Rule)]
+fromDecisionConsRule :: ConsHOResult -> QName -> (Expr -> Expr -> Expr) -> (Int, FC.ConsDecl) -> [(QName, Rule)]
 fromDecisionConsRule hoResult funcName lookupValueArgs (num, (FC.Cons qn _ _ texps))
   | isHoCons  = map rule [qn, mkHoConsName qn]
   | otherwise = [rule qn]
   where
-    isHoCons = lookupFM hoResult qn == Just HO
+    isHoCons = lookupFM hoResult qn == Just ConsHO
     carity = length texps
     rulePattern cd i = [PVar (1, cd), PVar (2, i), PComb (basics "ChooseN") [PLit (Intc num), (PLit . Intc) carity]]
     vars = map (\i -> Var (i, 'x':show i)) [2 ..carity + 1]
