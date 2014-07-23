@@ -246,7 +246,7 @@ prdfs prt goal = getNormalForm goal >>=
 #else
    printValsDFSMatch False prt
 #endif
-
+{-
 -- The first argument backTrack indicates whether backtracking is needed
 printValsDFSMatch :: NormalForm a => Bool -> (a -> IO ()) -> a -> IO ()
 printValsDFSMatch backTrack cont goal = do
@@ -365,20 +365,20 @@ printValsDFSTry backTrack cont goal = do
     printValsDFSTry backTrack cont
       (mkGuardExt initCover (StructConstr cs) $ choicesCons initCover i xs)
 
+-}
 
-{-
 -- The first argument backTrack indicates whether backtracking is needed
-printValsDFS :: NormalForm a => Bool -> (a -> IO ()) -> a -> IO ()
-printValsDFS backTrack cont goal = do
+printValsDFSMatch :: NormalForm a => Bool -> (a -> IO ()) -> a -> IO ()
+printValsDFSMatch backTrack cont goal = do
   trace $ "prdfs: " ++ take 200 (show goal)
   match prChoice prNarrowed prFree prFail prGuard prVal goal
   where
   prFail _ _       = return ()
-  prVal v          = searchNF (printValsDFS backTrack) cont v
+  prVal v          = searchNF (printValsDFSMatch backTrack) cont v
   prChoice _ i x y = lookupDom i >>= follow
     where
-    follow [0]     = printValsDFS backTrack cont x
-    follow [1]     = printValsDFS backTrack cont y
+    follow [0]     = printValsDFSMatch backTrack cont x
+    follow [1]     = printValsDFSMatch backTrack cont y
     follow d@(_:_) = if backTrack then do decide True 0 x
                                           decide True 1 y
                                           setDom i d
@@ -387,35 +387,35 @@ printValsDFS backTrack cont goal = do
       -- Assumption 1: Binary choices can only be set to one of
       -- [NoDecision, ChooseLeft, ChooseRight], therefore the reset action may
       -- be ignored in between
-      where decide bt c a = setDom i c >> printValsDFS bt cont a
+      where decide bt c a = setDom i c >> printValsDFSMatch bt cont a
     follow c           = error $ "Search.prChoice: " ++ show c
 
   prFree _ i xs   = lookupDom i >>= follow
     where
 --    follow (LazyBind cs, _) = processLB backTrack cs i xs
-    follow [c]   = printValsDFS backTrack cont (xs !! c)
+    follow [c]   = printValsDFSMatch backTrack cont (xs !! c)
     follow (_:_) = cont $ choicesCons initCover i xs
     follow c                = error $ "Search.prFree: " ++ show c
 
   prNarrowed _ i@(NarrowedID pns _) xs = lookupDom i >>= follow
     where
 --    follow (LazyBind cs) = processLB backTrack cs i xs
-    follow [c]     = printValsDFS backTrack cont (xs !! c)
+    follow [c]     = printValsDFSMatch backTrack cont (xs !! c)
     follow d@(_:_)
       | backTrack        = do
         foldr1 (>>) $ zipWith3 (decide True) [0 ..] xs pns
         setDom i d
       | otherwise        = foldr1 (>>) $
         zipWithButLast3 (decide True) (decide False) [0 ..] xs pns
-      where decide bt n a pn = setDom i n >> printValsDFS bt cont a
+      where decide bt n a pn = setDom i n >> printValsDFSMatch bt cont a
     follow c           = error $ "Search.prNarrowed: Bad choice " ++ show c
   prNarrowed _ i _ = error $ "Search.prNarrowed: Bad narrowed ID " ++ show i
 
   prGuard _ c e = solve initCover c e >>= \mbSltn -> case mbSltn of
     Nothing                      -> return ()
-    Just (reset, e') | backTrack -> printValsDFS True  cont e' >> reset
-                     | otherwise -> printValsDFS False cont e'
--}
+    Just (reset, e') | backTrack -> printValsDFSMatch True  cont e' >> reset
+                     | otherwise -> printValsDFSMatch False cont e'
+
 
 -- |Apply the first ternary function to the zipping of three lists, but
 -- take the second function for the last triple.
