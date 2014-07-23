@@ -299,7 +299,7 @@ addSum = addArithmeticConstraint (-) (-) (+)
 addSub = addArithmeticConstraint (+) (flip (-)) (-)
 
 -- TODO: Verify that (.*/.) hack works
-addMult = addArithmeticConstraint (.*/.) (.*/.) (*)
+addMult = addArithmeticConstraint (./.) (./.) (*)
 
 addDiv = addArithmeticConstraint (*) (flip (./.)) (./.)
 

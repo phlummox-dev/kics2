@@ -67,10 +67,12 @@ instance Ord Domain where
   (Set xs)      <= (Range l u)   = xs <= IntSet.fromList [l..u]
   (Range l u)   <= (Set ys)      = IntSet.fromList [l..u] <= ys
 
+
+-- TODO: use chooseDomOp as soon as it works properly
 instance Num Domain where
-  (+)         = chooseDomOp domainPlusC domainPlusI
-  (-)         = chooseDomOp domainMinusC domainMinusI
-  (*)         = chooseDomOp domainMultC domainMultI
+  (+)         = domainPlusI
+  (-)         = domainMinusI
+  (*)         = domainMultI
   abs         = domainAbs
   signum      = domainSignum
   fromInteger = toDomain
@@ -159,7 +161,10 @@ mapDomain d f = Set $ IntSet.fromList $ concatMap f $ elems d
 
 -- type for interval operations on FD domains
 type IntervalOp = Domain -> Domain -> Domain
- 
+
+-- Choose type of arithmetic operations on domains depending on
+-- the domain size
+-- TODO: Not working properly for all clpfd examples (smm) 
 chooseDomOp :: IntervalOp -> IntervalOp -> Domain -> Domain -> Domain
 chooseDomOp crossOp intervalOp domA domB
   | size domA * size domB <= 1000 = crossOp domA domB
@@ -195,7 +200,6 @@ domainDivI xs ys = toDomain (a,b)
   a        = minimum (quotients minBound)
   b        = maximum (quotients maxBound)
   quotients z = [if y /= 0 then x `div` y else z |
-                --[if 0 `member` ys then z else x `div` y |
                   x <- [findMin xs, findMax xs]
                 , y <- [findMin ys, findMax ys]]
 
@@ -212,8 +216,10 @@ domainMultC domA domB = Set $ IntSet.fromList $ crossOp (*) (elems domA) (elems 
 domainDivC :: Domain -> Domain -> Domain
 domainDivC domA domB = Set $ IntSet.fromList $ crossOp div (elems domA) (filter (/=0) (elems domB))
 
+-- TODO: use chooseDomOp as soon as it works properly
 (./.) :: Domain -> Domain -> Domain
-(./.) = chooseDomOp domainDivC domainDivI
+--(./.) = chooseDomOp domainDivC domainDivI
+(./.) = domainDivI
 
 (.*/.) :: Domain -> Domain -> Domain
 domA .*/. domB = union (singleton 0) $ domA ./. domB
