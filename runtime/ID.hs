@@ -3,12 +3,10 @@
 -- ID module
 -- ---------------------------------------------------------------------------
 module ID
-  ( -- * FailInfo
-    FailInfo, defFailInfo
-    -- * Cover
-  , Cover, incCover, decCover, initCover
+  ( -- * Cover
+    Cover, incCover, decCover, initCover
     -- * Constraints
-  , Constraint (..), Constraints(..), getConstrList
+  , Constraint (..), Constraints(..), getConstrList, makeStrictCList
     -- * Decisions
   , Decision (..), defaultDecision, isDefaultDecision
     -- * IDs
@@ -21,37 +19,32 @@ module ID
   , WrappableConstraint (..), WrappedConstraint
   ) where
 
-import Control.Monad (liftM, when, zipWithM_)
-import Data.List (partition)
+import           Control.Monad   (liftM, when, zipWithM_)
 import Data.Typeable -- for unwrapping wrappable constraints
 
-import Debug
-import IDSupply hiding (getDecisionRaw, setDecisionRaw, unsetDecisionRaw)
+import           Debug
+import           FailInfo        (FailInfo)
+import           IDSupply hiding (getDecisionRaw, setDecisionRaw, unsetDecisionRaw)
 import qualified IDSupply
 
 -- ---------------------------------------------------------------------------
--- Fail Info
---  - will eventually collect information about the origin of failures
--- ---------------------------------------------------------------------------
-
-type FailInfo = ()
-
-defFailInfo :: FailInfo
-defFailInfo = ()
-
--- ---------------------------------------------------------------------------
 -- Cover
--- - used to store information about the covering depth of choices,
---   guards and failures
+-- ---------------------------------------------------------------------------
 
+-- |Type used to store information about the covering depth of choices,
+-- guards and failures
 type Cover = Int
+
+-- |Increase covering depth
 incCover :: Cover -> Cover
 incCover = (+ 1)
+
+-- |Decrease covering depth
 decCover :: Cover -> Cover
 decCover = flip (-) 1
+
 initCover :: Cover
 initCover = 0
-
 
 -- ---------------------------------------------------------------------------
 -- Constraint
@@ -68,7 +61,6 @@ data Constraint
   -- |Non-deterministic choice between a list of lists of constraints
   | ConstraintChoices Cover ID [[Constraint]]
  deriving (Show,Eq)
-
 
 -- A Value Constraint is used to bind a Value to an id it also contains the
 -- structural constraint information that describes the choice to be taken
@@ -92,6 +84,15 @@ instance Show Constraints where
 instance Eq Constraints where
  c1 == c2 = getConstrList c1 == getConstrList c2
 
+-- transforms a constraint to a list of constraints that are not lazy
+makeStrictCList :: Constraint -> [Constraint]
+makeStrictCList (_ :=: (LazyBind cs)) = concatMap makeStrictCList cs
+makeStrictCList binding@(_ :=: _)     = [binding]
+makeStrictCList u@(Unsolvable _)      = [u]
+makeStrictCList (ConstraintChoice cd i csl csr) 
+  = [ConstraintChoice cd i (concatMap makeStrictCList csl)(concatMap makeStrictCList csr)]
+makeStrictCList (ConstraintChoices cd i css) 
+  = [ConstraintChoices cd i (map (concatMap makeStrictCList) css)]
 -- ---------------------------------------------------------------------------
 -- Wrappable Constraints
 -- ---------------------------------------------------------------------------

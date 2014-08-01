@@ -11,15 +11,17 @@ module Utils where
 
 import Char (isSpace)
 
-unless :: Bool -> IO () -> IO ()
-unless flag act = if flag then done else act
-
 notNull :: [a] -> Bool
 notNull = not . null
-
-when :: Bool -> IO () -> IO ()
-when flag act = if flag then act else done
 
 --- Remove leading and trailing whitespace
 strip :: String -> String
 strip = reverse . dropWhile isSpace . reverse . dropWhile isSpace
+
+--- Extend a String to a given minimal length by adding *leading* spaces.
+lpad :: Int -> String -> String
+lpad n s = replicate (n - length s) ' ' ++ s
+
+--- Extend a String to a given minimal length by adding *trailing* spaces.
+rpad :: Int -> String -> String
+rpad n s = s ++ replicate (n - length s) ' '

@@ -1,7 +1,7 @@
 {- |
     Module      :  $Header$
     Description :  cleancurry binary
-    Copyright   :  2012 Björn Peemöller
+    Copyright   :  2012 - 2013 Björn Peemöller
     License     :  OtherLicense
 
     Maintainer  :  bjp@informatik.uni-kiel.de
@@ -10,7 +10,6 @@
 
     Command line tool for cleaning up Curry directories.
 -}
-
 module Main where
 
 import Control.Exception as E (catch, throwIO)
@@ -24,7 +23,7 @@ import System.Environment     (getArgs, getProgName)
 import System.Exit            (exitFailure, exitSuccess)
 
 version :: String
-version = "0.1"
+version = "0.2"
 
 -- |cleancurry options
 data Options = Options
@@ -69,10 +68,10 @@ printUsage prog = do
     where header = "usage: " ++ prog ++ " [OPTION] ... MODULE ..."
 
 badUsage :: String -> [String] -> IO a
-badUsage prog []         = do
+badUsage prog errs = do
+  mapM_ (hPutStrLn stderr) errs
   hPutStrLn stderr $ "Try '" ++ prog ++ " --help' for more information"
   exitFailure
-badUsage prog (err:errs) = hPutStrLn stderr err >> badUsage prog errs
 
 processOpts :: String -> (Options, [String], [String])
             -> IO (Options, [String])
@@ -122,6 +121,7 @@ cleanModule dir mdl = do
   when sdExists $ do
     removeFiles $ map (subdir </>) mainFiles
     removeFiles $ map ((subdir </> "Curry_" ++ mdl) <.>) kics2Exts
+    removeFiles $ map ((subdir </> "Curry_Trace_" ++ mdl) <.>) kics2Exts
     rmdirIfEmpty subdir
   cyExists <- doesDirectoryExist cydir
   when cyExists $ do
@@ -138,7 +138,7 @@ srcExts :: [String]
 srcExts = [".curry", ".lcurry"]
 
 cyExts :: [String]
-cyExts = ["fcy", "fint", "acy", "uacy"]
+cyExts = ["fcy", "fint", "acy", "uacy", "icurry"]
 
 hasNoPath :: String -> Bool
 hasNoPath = (== ".") . takeDirectory
@@ -169,7 +169,6 @@ isDirectory f = E.catch (searchable `liftM` getPermissions f) handler
   handler e | isDoesNotExistError e = return False
             | isPermissionError   e = return False
             | otherwise             = E.throwIO e
-  
 
 getUsefulContents :: FilePath -> IO [String]
 getUsefulContents dir = filter (`notElem` [".", ".."])

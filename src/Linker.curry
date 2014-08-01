@@ -4,11 +4,12 @@
 --- and compiling this main file together with all compiled Curry modules.
 ---
 --- @author Michael Hanus, Bjoern Peemoeller
---- @version July 2012
+--- @version January 2014
 --- --------------------------------------------------------------------------
-
+{-# LANGUAGE Records #-}
 module Linker
   ( ReplState (..), NonDetMode (..), MainCompile (..), loadPaths
+  , setExitStatus
   , writeVerboseInfo, mainGoalFile, initReplState, createAndCompileMain
   ) where
 
@@ -25,19 +26,21 @@ import qualified Installation as Inst
 import GhciComm
 import Names         (funcInfoFile)
 import RCFile
-import Utils         (notNull, strip, unless)
+import Utils         (notNull, strip)
 
 type ReplState =
   { kics2Home    :: String     -- installation directory of the system
   , rcvars       :: [(String, String)] -- content of rc file
   , idSupply     :: String     -- IDSupply implementation (ioref, integer or ghc)
-  , verbose      :: Int        -- verbosity level: 0 = quiet,
-                               -- 1 = show frontend (module) compile/load
-                               -- 2 = show backend (Haskell) compile/load
-                               -- 3 = show intermediate messages, commands
-                               -- 4 = show intermediate results
+  , verbose      :: Int        -- verbosity level:
+                               -- 0 = errors and warnings
+                               -- 1 = show frontend compilation status
+                               -- 2 = show also kics2c compilation status
+                               -- 3 = show also ghc compilation status
+                               -- 4 = show analysis information
   , importPaths  :: [String]   -- additional directories to search for imports
-  , libPaths     :: [String]   -- direcoties containg the standard libraries
+  , libPaths     :: [String]   -- directories containg the standard libraries
+  , preludeName  :: String     -- the name of the standard prelude
   , outputSubdir :: String
   , mainMod      :: String     -- name of main module
   , addMods      :: [String]   -- names of additionally added modules
@@ -48,12 +51,16 @@ type ReplState =
   , interactive  :: Bool       -- interactive execution of goal?
   , showBindings :: Bool       -- show free variables in main goal in output?
   , showTime     :: Bool       -- show execution of main goal?
+  , traceFailure :: Bool       -- trace failure in deterministic expression
   , useGhci      :: Bool       -- use ghci to evaluate main goal
+  , safeExec     :: Bool       -- safe execution mode without I/O actions
+  , parseOpts    :: String     -- additional options for the front end
   , cmpOpts      :: String     -- additional options for calling kics2 compiler
   , ghcOpts      :: String     -- additional options for ghc compilation
   , rtsOpts      :: String     -- run-time options for ghc
   , rtsArgs      :: String     -- run-time arguments passed to main application
   , quit         :: Bool       -- terminate the REPL?
+  , exitStatus   :: Int        -- exit status (set in case of REPL errors)
   , sourceguis   :: [(String,(String,Handle))] -- handles to SourceProgGUIs
   , ghcicomm     :: Maybe GhciComm -- possible ghci comm. info
   }
@@ -67,6 +74,7 @@ initReplState =
   , verbose      := 1
   , importPaths  := []
   , libPaths     := map (Inst.installDir </>) ["lib", "lib" </> "meta"]
+  , preludeName  := "Prelude"
   , outputSubdir := ".curry" </> "kics2"
   , mainMod      := "Prelude"
   , addMods      := []
@@ -77,18 +85,26 @@ initReplState =
   , interactive  := False
   , showBindings := True
   , showTime     := False
+  , traceFailure := False
   , useGhci      := False
+  , safeExec     := False
+  , parseOpts    := ""
   , cmpOpts      := ""
   , ghcOpts      := ""
   , rtsOpts      := ""
   , rtsArgs      := ""
   , quit         := False
+  , exitStatus   := 0
   , sourceguis   := []
   , ghcicomm     := Nothing
   }
 
 loadPaths :: ReplState -> [String]
 loadPaths rst = "." : rst :> importPaths ++ rst :> libPaths
+
+--- Sets the exit status in the REPL state.
+setExitStatus :: Int -> ReplState -> ReplState
+setExitStatus s rst = { exitStatus := s | rst }
 
 -- ---------------------------------------------------------------------------
 
@@ -115,7 +131,7 @@ getGoalInfo rst = do
       isio  = snd (head (filter (\i -> snd (fst i) ==
                            (if isdet then "d" else "nd") ++ "_C_kics2MainGoal")
                         infos))
-  writeVerboseInfo rst 3 $ "Initial goal is " ++
+  writeVerboseInfo rst 2 $ "Initial goal is " ++
                 (if isdet then "" else "non-") ++ "deterministic and " ++
                 (if isio  then "" else "not ") ++ "of IO type..."
   return (isdet, isio)
@@ -143,15 +159,17 @@ createAndCompileMain :: ReplState -> Bool -> String -> Maybe Int
 createAndCompileMain rst createExecutable mainExp bindings = do
   (isdet, isio) <- getGoalInfo rst
   (rst',wasUpdated) <- updateGhcOptions rst
-  writeFile mainFile $ mainModule rst' isdet isio bindings
+  writeFile mainFile $ mainModule rst' isdet isio (rst :> traceFailure) bindings
 
   let ghcCompile = ghcCall rst' useGhci wasUpdated mainFile
-  writeVerboseInfo rst' 2 $ "Compiling " ++ mainFile ++ " with: " ++ ghcCompile
+  writeVerboseInfo rst' 3 $ "Compiling " ++ mainFile ++ " with: " ++ ghcCompile
   (rst'', status) <- if useGhci
                       then compileWithGhci rst' ghcCompile mainExp
                       else system ghcCompile >>= \stat -> return (rst', stat)
-  return (rst'', if status > 0 then MainError else
-                 if isdet || isio then MainDet else MainNonDet)
+  return (if status > 0
+          then (setExitStatus 1 rst'', MainError)
+          else (setExitStatus 0 rst'',
+                if isdet || isio then MainDet else MainNonDet))
  where
   mainFile = "." </> rst :> outputSubdir </> "Main.hs"
   -- option parsing
@@ -178,10 +196,10 @@ ghcCall rst useGhci recompile mainFile = unwords . filter notNull $
   , if isParSearch                 then "-threaded"      else ""
   , if withRtsOpts                 then "-rtsopts"       else ""
   , if recompile                   then "-fforce-recomp" else ""
-  , rst :> ghcOpts
       -- XRelaxedPolyRec due to problem in FlatCurryShow
   , "-XMultiParamTypeClasses", "-XFlexibleInstances", "-XRelaxedPolyRec"
 --   , "-cpp" -- use the C pre processor -- TODO WHY?
+  , rst :> ghcOpts
   , "-i" ++ (intercalate ":" ghcImports)
   , mainFile
   ]
@@ -207,17 +225,21 @@ data EvalMode    = All | One | Interactive MoreDefault -- | Count
 data MoreDefault = MoreYes | MoreNo | MoreAll
 
 -- Create the Main.hs program containing the call to the initial expression:
-mainModule :: ReplState -> Bool -> Bool -> Maybe Int -> String
-mainModule rst isdet isio mbBindings = unlines
+mainModule :: ReplState -> Bool -> Bool -> Bool -> Maybe Int -> String
+mainModule rst isdet isio isTF mbBindings = unlines
   [ "module Main where"
   , if rst :> interactive then "import MonadList" else ""
   , "import Basics"
   , "import SafeExec"
-  , if mbBindings==Nothing then "" else "import Curry_Prelude"
-  , "import Curry_" ++ dropExtension mainGoalFile
+  , if mbBindings==Nothing
+    then ""
+    else ("import Curry_"++ rst :> preludeName)
+  , if (rst :> traceFailure)
+      then "import Curry_Trace_" ++ dropExtension mainGoalFile
+      else "import Curry_" ++ dropExtension mainGoalFile
   , ""
   , "main :: IO ()"
-  , mainExpr "kics2MainGoal" isdet isio (rst :> ndMode) evalMode mbBindings
+  , mainExpr "kics2MainGoal" isdet isio isTF (rst :> ndMode) evalMode mbBindings
   ]
  where
   evalMode
@@ -230,16 +252,18 @@ mainModule rst isdet isio mbBindings = unlines
     "all" -> MoreAll
     _     -> MoreYes
 
-mainExpr :: String -> Bool -> Bool -> NonDetMode -> EvalMode -> Maybe Int -> String
-mainExpr goal isdet isio ndMode evalMode mbBindings
+mainExpr :: String -> Bool -> Bool -> Bool -> NonDetMode -> EvalMode -> Maybe Int -> String
+mainExpr goal isdet isio isTF ndMode evalMode mbBindings
   = "main = " ++ mainOperation ++ ' ' : detPrefix ++ goal
  where
   detPrefix = if isdet then "d_C_" else "nd_C_"
   mainOperation
-    | isio && isdet = "evalDIO"
-    | isdet         = "evalD"
-    | isio          = "evalIO"
-    | otherwise     = case ndMode of
+    | isio && isdet && isTF = "failtraceDIO"
+    | isio && isdet         = "evalDIO"
+    | isio                  = "evalIO"
+    | isdet && isTF         = "failtraceD"
+    | isdet                 = "evalD"
+    | otherwise             = case ndMode of
       PrDFS        -> searchExpr $ "prdfs"
       DFS          -> searchExpr $ "printDFS" ++ searchSuffix
       BFS          -> searchExpr $ "printBFS" ++ searchSuffix

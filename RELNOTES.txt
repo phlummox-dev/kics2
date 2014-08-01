@@ -1,11 +1,46 @@
 Release Notes for KiCS2
 =======================
 
-Release notes for KiCS2 Version 0.3.0 (under development)
----------------------------------------------------------
+Release notes for KiCS2 Version 0.3.1
+-------------------------------------
+
+Changes to version 0.3.0:
+
+  * REPL: The prompt now shows the loaded module first instead of after
+    the list of added modules.
+  * REPL: The command `:add` now accepts a list of modules to be added
+    instead of only a single module. The list of added modules is now
+    sorted in ascending order and no longer contains duplicates.
+  * REPL: new (experimental) options `prelude` (for defining the name
+    of the standard prelude) and `parser` (for setting additional
+    front-end options) included.
+  * Library `Distribution`: front-end parameters extended by supporting
+    "special" (i.e., aribrary) arguments.
+  * Library `Distribution`: front-end paramter `outfile` removed and
+    front-end parameter `htmldir` added.
+  * Library `Distribution` and `FlatCurry`: after calling the front end,
+    an exception is raised if the front end returns with an error
+    (due to an illegal source program).
+  * Libraries `Float` and `Integer`: Power operators added.
+  * Library `Float`: hyperbolic/ arc sine/cosine/tangent operators added.
+  * Library `HTML`: `formMetaInfo` added, HTML header changed to HTML5.
+  * Library `List`: Improved version of `inits` added.
+  * Library `Prelude`: Functions `forIO`, `forIO_`, `when`, `unless` added.
+  * Library `SetFunctions`: `notEmpty` added.
+  * Libraries `Format` and `RegExp` added.
+  * Tool `erd2curry` updated to support easier installation.
+    Bug fix in code generation w.r.t. checking of cardinality constraints.
+  * Tool `spicey` (web framework) added and updated with a RESTful interface
+    for entities.
+
+
+Release notes for KiCS2 Version 0.3.0
+-------------------------------------
 
 Changes to version 0.2.4:
 
+  * Front-end updated (it writes and reads new kinds of interface files
+    with the suffix `.icurry`).
   * The default search strategy has been changed to *breadth-first search*.
   * Fixed a bug in `IO.hGetLine` which caused an end-of-file error when
     reading a non-empty line without a newline termination.

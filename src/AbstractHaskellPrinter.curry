@@ -6,27 +6,26 @@
 ---
 --- @author Martin Engelke, Bernd Brassel, Michael Hanus, Marion Mueller,
 ---         Parissa Sadeghi, Bjoern Peemoeller
---- @version April 2011
+--- @version May 2014
 ------------------------------------------------------------------------------
-
+{-# LANGUAGE Records #-}
 module AbstractHaskellPrinter
   ( showProg, showModuleHeader, showDecls, showTypeDecls, showTypeDecl
-  , showTypeExpr, showFuncDecl
-  , showLiteral, showExpr, showPattern, showInt, showFloat
+  , showTypeExpr, showFuncDecl, showLiteral, showExpr, showPattern
   ) where
 
 import Char  (isDigit)
-import List  (intersperse, partition)
+import List  (intercalate, partition)
 import Maybe (isJust)
 import Read  (readNat)
 
 import AbstractHaskell
-import Names (isHaskellModule, prelude, curryPrelude)
+import Names (isHaskellModule, prelude, curryPrelude, addTrace)
 
-type Options = { currentModule :: String }
+type Options = { currentModule :: String, traceFailure :: Bool }
 
 defaultOptions :: Options
-defaultOptions = { currentModule := "" }
+defaultOptions = { currentModule := "", traceFailure := False }
 
 -- ---------------------------------------------------------------------------
 -- Functions to print an AbstractHaskell program in standard Curry syntax
@@ -38,31 +37,31 @@ defaultOptions = { currentModule := "" }
 --- otherwise only the type constructors.
 --- The potential comments in function declarations are formatted as
 --- documentation comments.
-showProg :: Prog -> String
-showProg (Prog m imports typedecls funcdecls opdecls) =
+showProg ::Bool ->  Prog -> String
+showProg trace (Prog m imports typedecls funcdecls opdecls) =
   intercalate "\n\n" $ filter (not . null) $
-    [ showModuleHeader m typedecls funcdecls imports
-    , showDecls m opdecls typedecls funcdecls
+    [ showModuleHeader trace m typedecls funcdecls imports
+    , showDecls trace m opdecls typedecls funcdecls
     ]
 
-showModuleHeader :: String -> [TypeDecl] -> [FuncDecl] -> [String] -> String
-showModuleHeader m typedecls funcdecls imps = concat
-  [ "module " ++ m
+showModuleHeader :: Bool -> String -> [TypeDecl] -> [FuncDecl] -> [String] -> String
+showModuleHeader trace m ts fs imps = concat
+  [ "module " ++ (if trace then addTrace m else m)
   , " (" ++ exports ++ ")"
   , " where"
   , if null imports then "" else "\n\n" ++ imports
   ]
-  where exports = showExports typedecls funcdecls
-        imports = showImports imps
+  where exports = showExports ts fs
+        imports = showImports trace imps
 
-showDecls :: String -> [OpDecl] -> [TypeDecl] -> [FuncDecl] -> String
-showDecls m opdecls typedecls funcdecls
+showDecls :: Bool -> String -> [OpDecl] -> [TypeDecl] -> [FuncDecl] -> String
+showDecls trace m opdecls typedecls funcdecls
   = intercalate "\n\n" $ filter (not . null)
     [ showOpDecls opdecls
     , showTypeDecls opts typedecls
     , showFuncDecls opts funcdecls
     ]
-    where opts = { currentModule := m }
+  where opts = { currentModule := m, traceFailure := trace }
 
 -- ---------------------------------------------------------------------------
 -- Module Header
@@ -79,12 +78,12 @@ showExports types funcs =
     ++ map getFuncName (filter isPublicFunc funcs)
   where
     isPublicType :: TypeDecl -> Bool
-    isPublicType (Type _ visibility _ _)    = visibility == Public
-    isPublicType (TypeSyn _ visibility _ _) = visibility == Public
-    isPublicType (Instance _ _ _ _)         = False
+    isPublicType (Type    _ vis _ _) = vis == Public
+    isPublicType (TypeSyn _ vis _ _) = vis == Public
+    isPublicType (Instance  _ _ _ _) = False
 
     isPublicFunc :: FuncDecl -> Bool
-    isPublicFunc (Func _ _ _ visibility _ _) = visibility == Public
+    isPublicFunc (Func _ _ _ vis _ _) = vis == Public
 
     getTypeName :: TypeDecl -> String
     getTypeName (Type     (_,name) _ _ _) = name
@@ -93,7 +92,7 @@ showExports types funcs =
 
     allPublicCons :: TypeDecl -> Bool
     allPublicCons (Type _ _ _ c) = length (filter isPublicCons c) == length c
-      where isPublicCons (Cons _ _ visibility _) = visibility == Public
+      where isPublicCons (Cons _ _ vis _) = vis == Public
     allPublicCons (TypeSyn _ _ _ _)  = False
     allPublicCons (Instance _ _ _ _) = False
 
@@ -101,13 +100,14 @@ showExports types funcs =
     getFuncName (Func _ (_,name) _ _ _ _) =
       if isInfixOpName name then "(" ++ name ++ ")" else name
 
-showImports :: [String] -> String
-showImports imports = prefixInter showImport imports "\n"
+showImports :: Bool -> [String] -> String
+showImports trace imports = prefixInter showImport imports "\n"
   where
   showImport imp
       -- Haskell modules are imported unqualified
     | isHaskellModule imp = "import " ++ imp
       -- all Curry modules are imported qualified
+    | trace               = "import qualified " ++ addTrace imp ++ " as " ++ imp
     | otherwise           = "import qualified " ++ imp
 
 -- ---------------------------------------------------------------------------
@@ -161,7 +161,7 @@ showContext :: Options -> [Context] -> String
 showContext _    []         = ""
 showContext opts [ctxt]     = showClass opts ctxt ++ " => "
 showContext opts cs@(_:_:_) =
-  "(" ++ concat (intersperse "," (map (showClass opts) cs)) ++ ") => "
+  "(" ++ intercalate "," (map (showClass opts) cs) ++ ") => "
 
 showClass :: Options -> Context -> String
 showClass opts (Context qn tvars) =
@@ -195,6 +195,7 @@ showTypeSig opts fname (CType ctxt texp) =
   ++ " :: " ++ showContext opts ctxt ++ showTypeExpr opts False texp ++ "\n"
 
 -- Show a1,a2,a3 as a_1,a_2,a_3 (due to bug in PAKCS front-end):
+showTypeVar []     = []
 showTypeVar (c:cs) =
   if c == 'a' && not (null cs) && all isDigit cs
   then c:'_':cs
@@ -260,26 +261,25 @@ showCrhsList opts ((g,r):cs)
    | otherwise
    = "\n" ++ showBlock (combineMap (showCrhs opts) ((g,r):cs) "\n")
 
-showCrhs :: Options -> (Expr,Expr) -> String
+showCrhs :: Options -> (Expr, Expr) -> String
 showCrhs opts (cond,expr) =
   "| " ++ showExprOpt opts cond ++ "\n= " ++ showExprOpt opts expr
 
 showLocalDecl :: Options -> LocalDecl -> String
-showLocalDecl opts (LocalFunc funcdecl) = showLocalFuncDecl opts funcdecl
-showLocalDecl opts (LocalPat pattern expr localdecls) =
-  showPattern opts pattern ++ " = " ++ showExprOpt opts expr ++
-  (if null localdecls
+showLocalDecl opts (LocalFunc     f) = showLocalFuncDecl opts f
+showLocalDecl opts (LocalPat p e ds) =
+  showPattern opts p ++ " = " ++ showExprOpt opts e ++
+  (if null ds
    then ""
    else "\n   where\n" ++
-        showBlock (prefixMap (showLocalDecl opts) localdecls "\n")
+        showBlock (prefixMap (showLocalDecl opts) ds "\n")
   )
-showLocalDecl opts (LocalVar index) = showPattern opts (PVar index) ++ " free"
 
---- Shows an AbstractHaskell expression in standard Curry syntax.
 showExpr = showExprOpt defaultOptions
 
+--- Shows an AbstractHaskell expression in standard Curry syntax.
 showExprOpt :: Options -> Expr -> String
-showExprOpt _ (Var (_,name))   = showIdentifier name
+showExprOpt _ (Var (_, name))  = showIdentifier name
 showExprOpt _ (Lit lit)        = showLiteral lit
 showExprOpt opts (Symbol name) = if isInfixOpName (snd name)
   then "(" ++ showSymbol opts name ++ ")"
@@ -307,13 +307,11 @@ showExprOpt opts (IfThenElse boolExpr expr1 expr2)  =
 showSymbol :: Options -> QName -> String
 showSymbol opts (modName, symName)
     -- all Haskell modules are imported unqualified
-  | isHaskellModule modName           = symName
+  | isHaskellModule modName            = symName
     -- the current module isn't imported at all
   | modName == (opts :> currentModule) = symName
     -- all Curry modules are imported qualified
   | otherwise                          = modName ++ "." ++ symName
---   | isJust (lookupFM fm symName) = thatModule++"."++symName
---   | otherwise = symName
 
 -- show a lambda expression as a left/right section, if
 -- it is a literal, var other than the pattern var or non-infix symbol.
@@ -364,12 +362,12 @@ showPattern opts (PAs (_,name) pat)     = showIdentifier name ++ "@"
 showPattern opts (PFuncComb qname pats) = showPattern opts (PComb qname pats)
 
 showLitPattern :: Options -> Literal -> String
-showLitPattern opts (Intc i) =
-  '(' : showSymbol opts (curryPrelude, "C_Int") ++ " " ++ showInt i ++ "#)"
-showLitPattern opts (Floatc f) =
-  '(' : showSymbol opts (curryPrelude, "C_Float") ++ " " ++ showFloat f ++ "#)"
-showLitPattern opts c@(Charc _) =
-  '(' : showSymbol opts (curryPrelude, "C_Char") ++ " '" ++ showCharc c ++ "'#)"
+showLitPattern opts l = '(' : cons ++ ' ' : showLiteral l ++ "#)"
+  where
+  cons = showSymbol opts $ case l of
+    Intc   _ -> (curryPrelude, "C_Int"  )
+    Floatc _ -> (curryPrelude, "C_Float")
+    Charc  _ -> (curryPrelude, "C_Char" )
 
 showPreludeCons :: Options -> Pattern -> String
 showPreludeCons opts p
@@ -382,48 +380,33 @@ showPreludeCons opts p
 showPatternList :: Options -> Pattern -> String
 showPatternList opts p
   | isClosedStringPattern p
-  = '\"':filter (/='\'') (concat (showPatListElems opts p))++"\""
+  = '\"' : filter (/='\'') (concat (showPatListElems opts p)) ++ "\""
   | isClosedPatternList p
-  = "["++concat (intersperse "," (showPatListElems opts p))++"]"
+  = "[" ++ intercalate "," (showPatListElems opts p) ++ "]"
   | isAsPattern p
   = showAsPatternList opts p
-  | otherwise = "(" ++ concat (intersperse ":" (showPatListElems opts p))++")"
+  | otherwise = "(" ++ intercalate ":" (showPatListElems opts p) ++ ")"
 
-showPatListElems opts (PComb (_,":") [x,xs])
-  = showPattern opts x : showPatListElems opts xs
-showPatListElems _ (PComb (_,"[]") []) = []
-showPatListElems opts (PVar v)         = [showPattern opts (PVar v)]
-showPatListElems opts (PAs name p)     = [showPattern opts (PAs name p)]
+showPatListElems opts pat = case pat of
+  (PComb (_,":")  [x,xs]) -> showPattern opts x : showPatListElems opts xs
+  (PComb (_,"[]") [])     -> []
+  (PVar v)                -> [showPattern opts (PVar v)]
+  (PAs name p)            -> [showPattern opts (PAs name p)]
+  _                       -> error "AbstractHaskellPrinter.showPatListElems"
 
-showAsPatternList opts (PAs (_,name) p) =
-  name ++ "@" ++ "(" ++ intercalate ":" (showPatListElems opts p) ++ ")"
+showAsPatternList opts pat = case pat of
+  (PAs (_,name) p) -> name ++ "@" ++ "(" ++ intercalate ":" (showPatListElems opts p) ++ ")"
+  _                -> error "AbstractHaskellPrinter.showAsPatternList"
 
 showBranchExpr :: Options -> BranchExpr -> String
 showBranchExpr opts (Branch pattern expr)
    = (showPattern opts pattern) ++ " -> " ++ (showExprOpt opts expr)
 
 showLiteral :: Literal -> String
-showLiteral (Intc i)   = showInt i
-showLiteral (Floatc f) = showFloat f
-showLiteral (Charc c)  = show c
--- showLiteral (Charc c)  = "'" ++ showCharc (Charc c) ++ "'"
-
--- Show an integer (no brackets around negative numbers):
-showInt :: Int -> String
-showInt i = if i>=0 then show i else '-':show (negate i)
-
--- Show an integer (no brackets around negative numbers):
-showFloat :: Float -> String
-showFloat f = if f>=0 then show f else '-':show (negateFloat f)
-
-showCharc :: Literal -> String
-showCharc (Charc c) | c=='\n'   = "\\n"
-                    | c=='\r'   = "\\r"
-                    | c=='\t'   = "\\t"
-                    | c=='\\'   = "\\\\"
-                    | c=='\"'   = "\\\""
-                    | c=='\''   = "\\\'"
-                    | otherwise = [c]
+showLiteral (Intc    i) = show i
+showLiteral (Floatc  f) = show f
+showLiteral (Charc   c) = show c
+showLiteral (Stringc s) = show s
 
 showBlock :: String -> String
 showBlock text
@@ -472,59 +455,55 @@ showSymbolApplication opts (mod,name) appl
 
 showListApplication :: Options -> Expr -> String
 showListApplication opts appl
-  | isStringList appl
-    = "\"" ++ (showCharListApplication opts appl) ++ "\""
   | isClosedList appl
-    = "[" ++ (showConsListApplication opts appl) ++ "]"
+    = "[" ++ showConsListApplication opts appl ++ "]"
   | otherwise
-    = "(" ++ (showSimpleListApplication opts appl) ++ ")"
-
-showCharListApplication :: Options -> Expr -> String
-showCharListApplication opts (Apply (Apply _ (Lit c)) tail) = case tail of
-  (Symbol _) -> showCharc c
-  _          -> showCharc c ++ showCharListApplication opts tail
+    = "(" ++ showSimpleListApplication opts appl ++ ")"
 
 showConsListApplication :: Options -> Expr -> String
-showConsListApplication opts (Apply (Apply _ head) tail) = case tail of
-  (Symbol _) -> showBoxedExpr opts head
-  _           -> (showBoxedExpr opts head) ++ ","
-                  ++ (showConsListApplication opts tail)
+showConsListApplication opts expr = case expr of
+  (Apply (Apply _ head) tail) -> case tail of
+    (Symbol _) -> showBoxedExpr opts head
+    _          -> (showBoxedExpr opts head) ++ "," ++ (showConsListApplication opts tail)
+  _                           -> error "AbstractHaskellPrinter.showConsListApplication"
 
 showSimpleListApplication :: Options -> Expr -> String
-showSimpleListApplication opts (Apply (Apply _ head) tail) = case tail of
-  (Symbol _) -> showBoxedExpr opts head ++ ":[]"
-  _           -> showBoxedExpr opts head ++ ":" ++ showBoxedExpr opts tail
-showSimpleListApplication opts (Apply (Symbol (_,str)) tail) =
-  showBoxedExpr opts tail ++ str
+showSimpleListApplication opts expr = case expr of
+  (Apply (Apply _ head) tail)   -> case tail of
+    (Symbol _) -> showBoxedExpr opts head ++ ":[]"
+    _          -> showBoxedExpr opts head ++ ":" ++ showBoxedExpr opts tail
+  (Apply (Symbol (_,str)) tail) -> showBoxedExpr opts tail ++ str
+  _                             -> error "AbstractHaskellPrinter.showSimpleListApplication"
 
 showInfixApplication :: Options -> QName -> Expr -> String
-showInfixApplication opts infixop (Apply func arg2) = case func of
-  (Apply f arg1) -> case f of
-    (Apply _ _) ->
-        "(" ++ showInfixApplication opts infixop func ++ ") " ++
-          showBoxedExpr opts arg2
-    _ -> showBoxedExpr opts arg1 ++ " "
-        ++ showSymbol opts infixop
-        ++ " " ++ showBoxedExpr opts arg2
-  _ -> "(" ++ showSymbol opts infixop ++ ") " ++ (showBoxedExpr opts arg2)
+showInfixApplication opts infixop expr = case expr of
+  (Apply func arg2) -> case func of
+    (Apply f arg1) -> case f of
+      (Apply _ _) -> "(" ++ showInfixApplication opts infixop func ++ ") " ++ showBoxedExpr opts arg2
+      _           -> showBoxedExpr opts arg1 ++ " "
+                     ++ showSymbol opts infixop
+                     ++ " " ++ showBoxedExpr opts arg2
+    _              -> "(" ++ showSymbol opts infixop ++ ") " ++ (showBoxedExpr opts arg2)
+  _                 -> error "AbstractHaskellPrinter.showInfixApplication"
 
 showITEApplication :: Options -> Expr -> String
-showITEApplication opts (Apply (Apply (Apply (Symbol _) condExpr)
-                                                        thenExpr)
-                                                        elseExpr)
-   =    "if " ++ (showExprOpt opts condExpr) ++ " then "
-     ++ (showExprOpt opts thenExpr) ++ " else "
-     ++ (showExprOpt opts elseExpr)
-showITEApplication opts (Apply e@(Apply (Apply (Apply _ _) _) _) e')
-   = "("++showITEApplication opts e ++ ") "++showBoxedExpr opts e'
+showITEApplication opts expr = case expr of
+  (Apply (Apply (Apply (Symbol _) condExpr) thenExpr) elseExpr) ->
+      "if " ++ (showExprOpt opts condExpr) ++ " then "
+        ++ (showExprOpt opts thenExpr) ++ " else "
+        ++ (showExprOpt opts elseExpr)
+  (Apply e@(Apply (Apply (Apply _ _) _) _) e')                  ->
+      "("++showITEApplication opts e ++ ") "++showBoxedExpr opts e'
+  _                                                             ->
+      error "AbstractHaskellPrinter.showITEApplication"
 
 showTupleApplication :: Options -> Expr -> String
 showTupleApplication opts appl = "(" ++ (p_showTuple appl) ++ ")"
   where
-   p_showTuple (Apply (Symbol _) arg)
-      = showExprOpt opts arg
-   p_showTuple (Apply (Apply e1 e2) arg)
-      = (p_showTuple (Apply e1 e2)) ++ "," ++ (showExprOpt opts arg)
+   p_showTuple expr = case expr of
+      (Apply (Symbol _) arg)    -> showExprOpt opts arg
+      (Apply (Apply e1 e2) arg) -> (p_showTuple (Apply e1 e2)) ++ "," ++ (showExprOpt opts arg)
+      _                         -> error "AbstractHaskellPrinter.showTupleApplication"
 
 showSimpleApplication :: Options -> Expr -> String
 showSimpleApplication opts appl = case appl of
@@ -541,20 +520,18 @@ showBoxedExpr opts expr
 --- composition functions for AbstractHaskellPrinter
 ------------------------------------------------------------------------------
 
-intercalate :: [a] -> [[a]] -> [a]
-intercalate xs xss = concat (intersperse xs xss)
-
 prefixMap :: (a -> String) -> [a] ->  String -> String
 prefixMap f xs s = concatMap (s ++) (map f xs)
 
 prefixInter :: (a -> String) -> [a] ->  String -> String
-prefixInter f xs s = concat $ intersperse s (map f xs)
+prefixInter f xs s = intercalate s (map f xs)
 
 combineMap :: (a -> String) -> [a] ->  String -> String
-combineMap _ [] _     = ""
-combineMap f (x:xs) s = (f x) ++ (prefixMap f xs s)
+combineMap _ []     _ = ""
+combineMap f (x:xs) s = f x ++ prefixMap f xs s
 
 dropTags :: String -> String
+dropTags []     = []
 dropTags (x:xs) = case x of
   '\"' -> dropTags $ tail $ dropWhile (/= '\"') xs
   '>'  -> xs
@@ -564,17 +541,21 @@ dropTags (x:xs) = case x of
 --- tests for various properties of AbstractHaskell constructs
 ------------------------------------------------------------------------------
 
-isClosedPatternList (PComb (m,":") [_, xs]) =
-  m == prelude && isClosedPatternList xs
-isClosedPatternList (PComb (m,"[]") []) = m == prelude
-isClosedPatternList (PVar _) = False
-isClosedPatternList (PAs _ p) = isClosedPatternList p
+isClosedPatternList :: Pattern -> Bool
+isClosedPatternList pat = case pat of
+  (PComb (m,":") [_, xs]) -> m == prelude && isClosedPatternList xs
+  (PComb (m,"[]") [])     -> m == prelude
+  (PVar _)                -> False
+  (PAs _ p)               -> isClosedPatternList p
+  _                       -> error "AbstractHaskellPrinter.isClosedPatternList"
 
-isClosedStringPattern (PComb (m,":") [x,xs])
-  = m == prelude && isCharPattern x && isClosedStringPattern xs
-isClosedStringPattern (PComb (m,"[]") []) = m == prelude
-isClosedStringPattern (PVar _)  = False
-isClosedStringPattern (PAs _ _) = False
+isClosedStringPattern :: Pattern -> Bool
+isClosedStringPattern pat = case pat of
+  (PComb (m,":") [x,xs]) -> m == prelude && isCharPattern x && isClosedStringPattern xs
+  (PComb (m,"[]") [])    -> m == prelude
+  (PVar _)               -> False
+  (PAs _ _)              -> False
+  _                      -> error "AbstractHaskellPrinter.isClosedStringPattern"
 
 isCharPattern p = case p of
   PLit (Charc _) -> True
@@ -587,14 +568,6 @@ isAsPattern p = case p of
 
 isInfixOpName :: String -> Bool
 isInfixOpName = all (`elem` infixIDs)
-
--- TODO: Does this still work?
-isStringList :: Expr -> Bool
-isStringList (Symbol (mod,name)) = mod == prelude && name == "[]"
-isStringList (Var _)             = False
-isStringList (Apply head tail)   = case head of
-  (Apply _ (Lit (Charc _))) -> isStringList tail
-  _                         -> False
 
 isClosedList :: Expr -> Bool
 isClosedList expr = case expr of

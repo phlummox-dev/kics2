@@ -43,8 +43,8 @@ endif
 	echo "Version:        $(VERSION)"                        >> $@
 	echo "Description:    The runtime environment for KiCS2" >> $@
 	echo "License:        OtherLicense"                      >> $@
-	echo "Author:         Fabian Reck"                       >> $@
-	echo "Maintainer:     fre@informatik.uni-kiel.de"        >> $@
+	echo "Author:         The KiCS2 Team"                    >> $@
+	echo "Maintainer:     kics2@curry-language.org"          >> $@
 	echo "Build-Type:     Simple"                            >> $@
 	echo "Cabal-Version:  >= 1.9.2"                          >> $@
 	echo ""                                                  >> $@
@@ -57,9 +57,10 @@ endif
 	echo "Library"                                           >> $@
 	echo "  Build-Depends: $(CABAL_RUNTIMEDEPS)"             >> $@
 	echo "  Exposed-modules:"                                >> $@
-	echo "      Basics, CurryException, Debug, IDSupply"     >> $@
-	echo "    , Installation, MonadList, MonadSearch"        >> $@
-	echo "    , PrimTypes, SafeExec, Solver.Constraints"     >> $@
+	echo "      Basics, CurryException, Debug, FailInfo"     >> $@
+	echo "    , FailTrace, IDSupply, Installation"           >> $@
+	echo "    , MonadList, MonadSearch, PrimTypes, SafeExec" >> $@
+	echo "    , Solver.Constraints"                          >> $@
 	echo "  Other-modules:"                                  >> $@
 	echo "      ConstStore, ID, Search"                      >> $@
 	echo "    , Solver.EquationSolver"                       >> $@
