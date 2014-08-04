@@ -311,8 +311,8 @@ printValsDFSMatch backTrack cont goal = do
   prNarrowed _ i _ = internalError $ "Search.prNarrowed: Bad narrowed ID " ++ show i
 
   prGuard _ (WrappedConstr wcs) e = 
-    solveAll initCover wcs solvers e >>= \e' -> if backTrack then printValsDFS True  cont e'
-                                                             else printValsDFS False cont e'
+    solveAll initCover wcs solvers e >>= \e' -> if backTrack then printValsDFSMatch True  cont e'
+                                                             else printValsDFSMatch False cont e'
   prGuard _ cs e = solve initCover cs e >>= \mbSltn -> case mbSltn of
     Nothing                      -> return ()
     Just (reset, e') | backTrack -> printValsDFSMatch True  cont e' >> reset

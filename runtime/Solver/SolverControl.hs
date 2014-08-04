@@ -3,6 +3,7 @@
 
 module Solver.SolverControl where
 
+import FailInfo (defFailInfo)
 import Solver.Constraints (FDConstraint, BConstraint)
 import Solver.ExternalSolver
 import Solver.OvertonSolver (OvertonSolver)

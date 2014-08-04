@@ -111,6 +111,16 @@ instance Unifiable C_Int where
   lazyBind _  _ c@(Choices_C_Int _ i@(ChoiceID _) _) = error ("Prelude.Int.lazyBind: Choices with ChoiceID: " ++ (show c))
   lazyBind _  _ (Fail_C_Int _ info) = [Unsolvable info]
   lazyBind cd i (Guard_C_Int _ cs e) = getConstrList cs ++ [(i :=: (LazyBind (lazyBind cd i e)))]
+  fromDecision cd i (ChooseN 0 1) = 
+    do
+     x3 <- lookupValue cd (leftID i)
+     if (isFree x3)
+         then (return (generate (supply i) cd))
+         else (return (C_CurryInt x3))
+  fromDecision cd i NoDecision   = return (generate (supply i) cd)
+  fromDecision _  i ChooseLeft   = error ("Prelude.Int.fromDecision: ChooseLeft decision for free ID: " ++ (show i))
+  fromDecision _  i ChooseRight  = error ("Prelude.Int.fromDecision: ChooseRight decision for free ID: " ++ (show i))
+  fromDecision _  _ (LazyBind _) = error "Prelude.Int.fromDecision: No rule for LazyBind decision yet"
 -- END GENERATED FROM PrimTypes.curry
 
 instance ConvertCurryHaskell C_Int Int where
@@ -145,13 +155,13 @@ curryint2primint :: BinInt -> Int#
 curryint2primint Zero    = 0#
 curryint2primint (Pos n) = currynat2primint n
 curryint2primint (Neg n) = negateInt# (currynat2primint n)
-curryint2primint int     = error $ "KiCS2 error: Prelude.curryint2primint: no ground term, but " ++ show int
+curryint2primint int     = error ("KiCS2 error: Prelude.curryint2primint: no ground term, but " ++ show int)
 
 currynat2primint :: Nat -> Int#
 currynat2primint IHi   = 1#
 currynat2primint (O n) = 2# *# currynat2primint n
 currynat2primint (I n) = 2# *# currynat2primint n +# 1#
-currynat2primint nat   = error $ "KiCS2 error: Prelude.currynat2primint: no ground term, but " ++ show nat
+currynat2primint nat   = error ("KiCS2 error: Prelude.currynat2primint: no ground term, but " ++ show nat)
 
 -- ---------------------------------------------------------------------------
 -- Constrainable instances:

@@ -495,7 +495,7 @@ trPattern :: Pattern -> M AH.Pattern
 trPattern (Pattern qn vs) =
   renameCons qn >+= \qn' ->
   returnM $ AH.PComb qn' $ map (AH.PVar . cvVarIndex) vs
-trPattern (LPattern    l) = returnM $ AH.PLit $ cvLit l
+trPattern (LPattern    l) = returnM $ AH.PULit $ cvLit l
 
 --- During unification the internal representation of `Int` and `Char` values
 --- is changed to an algebraic data type. Hence, we have to extend the pattern
@@ -521,7 +521,7 @@ litBranches bs = case branchPairs of
                                      (basics, "matchChar")]
     _                   -> []
   where
-    branchPairs = [ (l, e) | AH.Branch (AH.PLit l) e <- bs ]
+    branchPairs = [ (l, e) | AH.Branch (AH.PULit l) e <- bs ]
     mkBranch cons match = AH.Branch (AH.PComb cons [AH.PVar litVar])
                         $ funcCall match
                           [ AH.list2ac $ map pair2ac
