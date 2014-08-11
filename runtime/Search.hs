@@ -15,7 +15,6 @@ import Solver
 import Strategies
 import Types
 import MonadSearch
-import Control.Concurrent.Bag.STM ( takeFirst )
 
 -- ---------------------------------------------------------------------------
 -- Search combinators for top-level search in the IO monad
@@ -53,9 +52,6 @@ mplusBFS goal = getNormalForm goal >>= fromList . bfsSearch . searchMSearch init
 
 mplusIDS :: NormalForm a => Int -> (Int -> Int) -> NonDetExpr a -> IO (IOList a)
 mplusIDS initDepth incr goal = getNormalForm goal >>= fromList . idsSearch initDepth incr . searchMSearch initCover
-
-mplusPar :: NormalForm a => NonDetExpr a -> IO (IOList a)
-mplusPar goal = getNormalForm goal >>= fromList . parSearch . searchMSearch initCover
 
 -- ---------------------------------------------------------------------------
 
@@ -566,7 +562,7 @@ printParBFSi ud prt goal = computeWithParBFS goal >>= printValsOnDemand ud prt
 
 -- Compute all values of a non-deterministic goal in a parallel breadth-first manner:
 computeWithParBFS :: NormalForm a => NonDetExpr a -> IO (IOList a)
-computeWithParBFS goal = getNormalForm goal >>= fromList . bfsParallel' . searchMSearch initCover
+computeWithParBFS goal = getNormalForm goal >>= fromList . bfsParallel . searchMSearch initCover
 
 -- ---------------------------------------------------------------------------
 
@@ -589,7 +585,7 @@ printBagDFSi ud prt goal = computeWithBagDFS goal >>= printValsOnDemand ud prt
 -- Compute all values of a non-deterministic goal in a parallel depth-first
 -- manner without fixed ordering:
 computeWithBagDFS :: NormalForm a => NonDetExpr a -> IO (IOList a)
-computeWithBagDFS goal = getNormalForm goal >>= (dfsBagLazy $ Just takeFirst) . (searchMSearch initCover) >>= fromList
+computeWithBagDFS goal = getNormalForm goal >>= dfsBagLazy . (searchMSearch initCover) >>= fromList
 
 -- ---------------------------------------------------------------------------
 
@@ -612,7 +608,7 @@ printBagBFSi ud prt goal = computeWithBagBFS goal >>= printValsOnDemand ud prt
 -- Compute all values of a non-deterministic goal in a parallel breadth-first
 -- manner without fixed ordering:
 computeWithBagBFS :: NormalForm a => NonDetExpr a -> IO (IOList a)
-computeWithBagBFS goal = getNormalForm goal >>= (dfsBagLazy $ Just takeFirst) . (searchMSearch initCover) >>= fromList
+computeWithBagBFS goal = getNormalForm goal >>= bfsBagLazy . (searchMSearch initCover) >>= fromList
 
 -- ---------------------------------------------------------------------------
 -- Fair parallel search by mapping search results into monadic structure

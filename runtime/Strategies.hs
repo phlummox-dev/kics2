@@ -3,26 +3,15 @@
 {-# LANGUAGE MagicHash, UnboxedTuples #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Strategies
-  ( bfsSearch, dfsSearch, parSearch, fairSearch, conSearch
+  ( bfsSearch, dfsSearch, fairSearch, conSearch
   , idsSearch, idsDefaultDepth, idsDefaultIncr
-  , splitAll, splitLimitDepth, splitAlternating, splitPower
-  , splitRight, splitRight', splitLeft, splitLeft'
-  , splitAll', splitAll''
-  , bfsParallel, bfsParallel', bfsParallel''
-  , fairSearch', fairSearch''
+  , splitAll, bfsParallel
   , dfsBag, fdfsBag, bfsBag, fairBag, getAllResults, getResult
   , dfsBagLazy, fdfsBagLazy, bfsBagLazy, fairBagLazy
-  , dfsBagCon, fdfsBagCon, bfsBagCon, fairBagCon
-  , dfsBagConLazy, fdfsBagConLazy, bfsBagConLazy, fairBagConLazy
-  , dfsBagLimit, dfsBagLimitLazy
-  , dfsBagRight, dfsBagRightLazy
-  , dfsBagLeft,  dfsBagLeftLazy
   ) where
 
 import System.IO (hPutStr, stderr)
 import Control.Monad.SearchTree
-import Control.Parallel (par)
-import Control.Parallel.TreeSearch (parSearch)
 import Control.Parallel.Strategies
 import Data.IORef (newIORef, mkWeakIORef, IORef, writeIORef)
 import Data.List (delete, partition)
@@ -38,11 +27,9 @@ import           Control.Concurrent.Bag.STM ( SplitFunction
                                             , Interruptible (..)
                                             , TaskIO
                                             , addTask
-                                            , writeResult
                                             , BagT
                                             , getAllResults
                                             , getResult )
-import qualified Control.Concurrent.Bag.Concurrent as ConBag
 import Control.Monad.IO.Class
 import System.Mem.Weak
 import System.IO.Unsafe (unsafeInterleaveIO)
@@ -54,32 +41,20 @@ instance MonadSearch SearchTree where
   constrainMSearch _ _ x = x
   var              x _   = x
 
-dfsBag :: MonadIO m => Maybe (SplitFunction r) -> SearchTree r -> BagT r m a -> m a
-dfsBag split = (STMBag.runTaskBag Stack split) . (:[]) . dfsTask
+dfsBag :: MonadIO m => SearchTree r -> BagT r m a -> m a
+dfsBag = (STMBag.runTaskBag Stack $ Just STMBag.takeFirst) . (:[]) . dfsTask
 
-dfsBagLazy :: Maybe (SplitFunction r) -> SearchTree r -> IO [r]
-dfsBagLazy split = (STMBag.lazyTaskBag Stack split) . (:[]) . dfsTask
-
-dfsBagCon :: MonadIO m => SearchTree r -> BagT r m a -> m a
-dfsBagCon = (ConBag.runTaskBag Stack) . (:[]) . dfsTask
-
-dfsBagConLazy :: SearchTree r -> IO [r]
-dfsBagConLazy = (ConBag.lazyTaskBag Stack) . (:[]) . dfsTask
+dfsBagLazy :: SearchTree r -> IO [r]
+dfsBagLazy = (STMBag.lazyTaskBag Stack $ Just STMBag.takeFirst) . (:[]) . dfsTask
 
 -- | Fake depth-first search
 --   Real depth-first search would use a stack instead of a queue for
 --   the task bag.
-fdfsBag :: MonadIO m => Maybe (SplitFunction r) -> SearchTree r -> BagT r m a -> m a
-fdfsBag split = (STMBag.runTaskBag Queue split) . (:[]) . dfsTask
+fdfsBag :: MonadIO m => SearchTree r -> BagT r m a -> m a
+fdfsBag = (STMBag.runTaskBag Queue $ Just STMBag.takeFirst) . (:[]) . dfsTask
 
-fdfsBagLazy :: Maybe (SplitFunction r) -> SearchTree r -> IO [r]
-fdfsBagLazy split = (STMBag.lazyTaskBag Queue split) . (:[]) . dfsTask
-
-fdfsBagCon :: MonadIO m => SearchTree r -> BagT r m a -> m a
-fdfsBagCon = (ConBag.runTaskBag Queue) . (:[]) . dfsTask
-
-fdfsBagConLazy :: SearchTree r -> IO [r]
-fdfsBagConLazy = (ConBag.lazyTaskBag Queue) . (:[]) . dfsTask
+fdfsBagLazy :: SearchTree r -> IO [r]
+fdfsBagLazy = (STMBag.lazyTaskBag Queue $ Just STMBag.takeFirst) . (:[]) . dfsTask
 
 dfsTask :: SearchTree a -> TaskIO a (Maybe a)
 dfsTask None         = return   Nothing
@@ -88,98 +63,29 @@ dfsTask (Choice l r) = do
   addTask $ dfsTask r
   dfsTask l
 
-bfsBag :: MonadIO m => Maybe (SplitFunction r) -> SearchTree r -> BagT r m a -> m a
-bfsBag split = (STMBag.runTaskBag Queue split) . (:[]) . bfsTask
+bfsBag :: MonadIO m => SearchTree r -> BagT r m a -> m a
+bfsBag = (STMBag.runTaskBag Queue $ Just STMBag.takeFirst) . (:[]) . bfsTask
 
-bfsBagLazy :: Maybe (SplitFunction r) -> SearchTree r -> IO [r]
-bfsBagLazy split = (STMBag.lazyTaskBag Queue split) . (:[]) . bfsTask
-
-bfsBagCon :: MonadIO m => SearchTree r -> BagT r m a -> m a
-bfsBagCon = (ConBag.runTaskBag Queue) . (:[]) . bfsTask
-
-bfsBagConLazy :: SearchTree r -> IO [r]
-bfsBagConLazy = (ConBag.lazyTaskBag Queue) . (:[]) . bfsTask
+bfsBagLazy :: SearchTree r -> IO [r]
+bfsBagLazy = (STMBag.lazyTaskBag Queue $ Just STMBag.takeFirst) . (:[]) . bfsTask
 
 bfsTask None         = NoResult
 bfsTask (One v)      = OneResult v
 bfsTask (Choice l r) = AddInterruptibles [bfsTask l, bfsTask r]
 
-fairBag :: MonadIO m => Maybe (SplitFunction r) -> SearchTree r -> BagT r m a -> m a
-fairBag split = (STMBag.runInterruptingBag Queue split) . (:[]) . bfsTask
+fairBag :: MonadIO m => SearchTree r -> BagT r m a -> m a
+fairBag = (STMBag.runInterruptingBag Queue $ Just STMBag.takeFirst) . (:[]) . bfsTask
 
-fairBagLazy :: Maybe (SplitFunction r) -> SearchTree r -> IO [r]
-fairBagLazy split = (STMBag.lazyInterruptingBag Queue split) . (:[]) . bfsTask
-
-fairBagCon :: MonadIO m => SearchTree r -> BagT r m a -> m a
-fairBagCon = (ConBag.runInterruptingBag Queue) . (:[]) . bfsTask
-
-fairBagConLazy :: SearchTree r -> IO [r]
-fairBagConLazy = (ConBag.lazyInterruptingBag Queue) . (:[]) . bfsTask
-
-dfsBagLimit :: MonadIO m => Maybe (SplitFunction r) -> Int -> SearchTree r -> BagT r m a -> m a
-dfsBagLimit split n tree = STMBag.runTaskBag Stack split [dfsTaskLimit n tree]
-
-dfsBagLimitLazy :: Maybe (SplitFunction r) -> Int -> SearchTree r -> IO [r]
-dfsBagLimitLazy split n tree = STMBag.lazyTaskBag Stack split [dfsTaskLimit n tree]
-
-dfsTaskLimit :: Int -> SearchTree a -> TaskIO a (Maybe a)
-dfsTaskLimit n None    = return   Nothing
-dfsTaskLimit n (One x) = return $ Just x
-dfsTaskLimit 0 t@(Choice _ _) = do
-  mapM_ writeResult $ dfsSearch t
-  return Nothing
-dfsTaskLimit n   (Choice l r) = do
-  addTask $ dfsTaskLimit (n-1) r
-  dfsTaskLimit (n-1) l
-
-dfsBagRight :: MonadIO m => Maybe (SplitFunction r) -> Int -> SearchTree r -> BagT r m a -> m a
-dfsBagRight split n tree = STMBag.runTaskBag Stack split [dfsTaskRight n tree]
-
-dfsBagRightLazy :: Maybe (SplitFunction r) -> Int -> SearchTree r -> IO [r]
-dfsBagRightLazy split n tree = STMBag.lazyTaskBag Stack split [dfsTaskRight n tree]
-
-dfsTaskRight :: Int -> SearchTree a -> TaskIO a (Maybe a)
-dfsTaskRight _ None    = return   Nothing
-dfsTaskRight _ (One x) = return $ Just x
-dfsTaskRight 0 (Choice l r) = do
-  addTask $ dfsTaskRight 0 r
-  mapM_ writeResult $ dfsSearch l
-  return Nothing
-dfsTaskRight n (Choice l r) = do
-  addTask $ dfsTaskRight (n-1) r
-  dfsTaskRight (n-1) l
-
-dfsBagLeft :: MonadIO m => Maybe (SplitFunction r) -> Int -> SearchTree r -> BagT r m a -> m a
-dfsBagLeft split n tree = STMBag.runTaskBag Stack split [dfsTaskLeft n tree]
-
-dfsBagLeftLazy :: Maybe (SplitFunction r) -> Int -> SearchTree r -> IO [r]
-dfsBagLeftLazy split n tree = STMBag.lazyTaskBag Stack split [dfsTaskLeft n tree]
-
-dfsTaskLeft :: Int -> SearchTree a -> TaskIO a (Maybe a)
-dfsTaskLeft _ None    = return   Nothing
-dfsTaskLeft _ (One x) = return $ Just x
-dfsTaskLeft 0 (Choice l r) = do
-  addTask $ dfsTaskLeft 0 l
-  mapM_ writeResult $ dfsSearch r
-  return Nothing
-dfsTaskLeft n (Choice l r) = do
-  addTask $ dfsTaskLeft (n-1) r
-  dfsTaskLeft (n-1) l
+fairBagLazy :: SearchTree r -> IO [r]
+fairBagLazy = (STMBag.lazyInterruptingBag Queue $ Just STMBag.takeFirst) . (:[]) . bfsTask
 
 -- | Parallel Breadth-first search
+--   This is the /bfsParallel2/ in: Integration of
+--   Parallel and Fair Search Strategies
+--   for Non-Deterministic Programs
+--   into the Curry System KiCS2
 bfsParallel :: SearchTree a -> [a]
-bfsParallel t = bfs [t]
- where
-  bfs :: [SearchTree a] -> [a]
-  bfs [] = []
-  bfs (x:xs) = runEval $ do
-    rs <- parList rseq xs
-    r  <- rseq x
-    let rss = r:rs
-    return $ values rss ++ (bfs $ children rss)
-
-bfsParallel' :: SearchTree a -> [a]
-bfsParallel' t =
+bfsParallel t =
   bfsSearch (t `using` parTree)
 
 parTree :: SearchTree a -> Eval (SearchTree a)
@@ -189,12 +95,10 @@ parTree (Choice l r) = do
   return (Choice l' r')
 parTree  t           = r0 t
 
-bfsParallel'' :: SearchTree a -> [a]
-bfsParallel'' t = evalList (splitAll t) `par` bfsSearch t
- where
-  evalList []     = ()
-  evalList (_:xs) = evalList xs
-
+--   This is the /splitAll1/ in: Integration of
+--   Parallel and Fair Search Strategies
+--   for Non-Deterministic Programs
+--   into the Curry System KiCS2
 splitAll :: SearchTree a -> [a]
 splitAll None         = []
 splitAll (One x)      = [x]
@@ -202,106 +106,6 @@ splitAll (Choice l r) = runEval $ do
   rs <- rpar $ splitAll r
   ls <- rseq $ splitAll l
   return $ ls ++ rs
-
-splitAll' :: SearchTree a -> [a]
-splitAll' t = dfsSearch (t `using` parTree)
-
-splitAll'' :: SearchTree a -> [a]
-splitAll'' None         = []
-splitAll'' (One x)      = [x]
-splitAll'' (Choice l r) = runEval $ do
-  rs <- rparWith (evalList rseq) $ splitAll'' r
-  ls <- rseq $ splitAll'' l
-  return $ ls ++ rs
-
-splitLimitDepth :: Int -> SearchTree a -> [a]
-splitLimitDepth _ None           = []
-splitLimitDepth _ (One x)        = [x]
-splitLimitDepth 0 c@(Choice _ _) = dfsSearch c
-splitLimitDepth i   (Choice l r) = runEval $ do
-  rs <- rparWith (evalList rseq) $ splitLimitDepth (i-1) r
-  ls <- rseq $ splitLimitDepth (i-1) l
-  return $ ls ++ rs
-
-splitAlternating :: Int -> SearchTree a -> [a]
-splitAlternating n = splitAlternating' 1
- where
-  splitAlternating' :: Int -> SearchTree a -> [a]
-  splitAlternating' _ None         = []
-  splitAlternating' _ (One x)      = [x]
-  splitAlternating' 1 (Choice l r) = runEval $ do
-    rs <- rparWith (evalList rseq) $ splitAlternating' n r
-    ls <- rseq $ splitAlternating' n l
-    return $ ls ++ rs
-  splitAlternating' i (Choice l r) =
-    let ls = splitAlternating' (i-1) l
-        rs = splitAlternating' (i-1) r
-    in ls ++ rs
-
-splitPower :: SearchTree a -> [a]
-splitPower = splitPower' 1 2
- where
-  splitPower' _ _ None = []
-  splitPower' _ _ (One x) = [x]
-  splitPower' 1 n (Choice l r) = runEval $ do
-    rs <- rpar $ splitPower' n (n*2) r
-    ls <- rseq $ splitPower' n (n*2) l
-    return $ ls ++ rs
-  splitPower' i n (Choice l r) =
-    let ls = splitPower' (i-1) n l
-        rs = splitPower' (i-1) n r
-    in ls ++ rs
-
-splitLeft :: Int -> SearchTree a -> [a]
-splitLeft _ None         = []
-splitLeft _ (One x)      = [x]
-splitLeft 0 (Choice l r) = runEval $ do
-  rs <- rparWith (evalList rseq) $ dfsSearch r
-  ls <- rseq $ splitLeft 0 l
-  return $ ls ++ rs
-splitLeft n (Choice l r) = runEval $ do
-  rs <- rparWith (evalList rseq) $ splitLeft (n-1) r
-  ls <- rseq $ splitLeft (n-1) l
-  return $ ls ++ rs
-
-splitLeft' :: Int -> SearchTree a -> [a]
-splitLeft' _ None         = []
-splitLeft' _ (One x)      = [x]
-splitLeft' 0 (Choice l r) = runEval $ do
-  ls <- rparWith (evalList rseq) $ splitLeft' 0 l
-  rs <- rseq $ dfsSearch r
-  return $ rs ++ ls
-splitLeft' n (Choice l r) = runEval $ do
-  ls <- rparWith (evalList rseq) $ splitLeft' (n-1) l
-  rs <- rseq $ splitLeft' (n-1) r
-  return $ rs ++ ls
-
-splitRight :: Int -> SearchTree a -> [a]
-splitRight _ None         = []
-splitRight _ (One x)      = [x]
-splitRight 0 (Choice l r) = runEval $ do
-  ls <- rparWith (evalList rseq) $ dfsSearch    l
-  rs <- rseq $ splitRight 0 r
-  return $ rs ++ ls
-splitRight n (Choice l r) = runEval $ do
-  ls <- rparWith (evalList rseq) $ splitRight (n-1) l
-  rs <- rseq $ splitRight (n-1) r
-  return $ rs ++ ls
-
-splitRight' :: Int -> SearchTree a -> [a]
-splitRight' _ None         = []
-splitRight' _ (One x)      = [x]
-splitRight' 0 (Choice l r) = runEval $ do
-  rs <- rparWith (evalList rseq) $ splitRight' 0 r
-  ls <- rseq $ dfsSearch     l
-  return $ ls ++ rs
-splitRight' n (Choice l r) = runEval $ do
-  rs <- rparWith (evalList rseq) $ splitRight' (n-1) r
-  ls <- rseq $ splitRight' (n-1) l
-  return $ ls ++ rs
-
-fairSearch :: SearchTree a -> IO [a]
-fairSearch = conSearch (-1)
 
 data ExecutionState = Stopped
                  -- number of threads left / running threads
@@ -402,8 +206,13 @@ data Stop = Stop
 
 instance Exception Stop
 
-fairSearch' :: SearchTree a -> IO [a]
-fairSearch' tree = do
+-- | Fair search strategy.
+--   This is the /fairSearch2/ in: Integration of
+--   Parallel and Fair Search Strategies
+--   for Non-Deterministic Programs
+--   into the Curry System KiCS2
+fairSearch :: SearchTree a -> IO [a]
+fairSearch tree = do
   chan  <- newChan
   root  <- uninterruptibleMask_ $ forkIOWithUnmask (\unmask -> searchThread unmask chan tree)
   dummy <- newIORef ()
@@ -451,75 +260,6 @@ fairSearch' tree = do
           writeChan parent value
           listenChan unmask ts chan parent
         Nothing                -> return ()
-
-data ThreadResult' a = Value' a
-                     | AllStopped
-
-data StoppedSearch = StoppedSearch ThreadId
-  deriving (Typeable, Show)
-
-instance Exception StoppedSearch
-
-data EvalResult a = Finished (SearchTree a) | ReceivedStop | ReceivedStoppedSearch ThreadId
-
-fairSearch'' :: SearchTree a -> IO [a]
-fairSearch'' tree = do
-  chan <- newChan
-  root <- uninterruptibleMask_ $ forkIOWithUnmask $ \unmask -> searchThread unmask (writeChan chan AllStopped) chan [] tree
-  dummy <- newIORef ()
-  _     <- mkWeakIORef dummy $ throwTo root Stop
-  unsafeInterleaveIO $ handleResults chan dummy
- where
-  handleResults chan dummy = do
-    ans <- readChan chan
-    case ans of
-      AllStopped ->
-        writeIORef dummy () >> return []
-      Value' v   -> do
-        vs <- unsafeInterleaveIO $ handleResults chan dummy
-        return $ v:vs
-
-  fin :: (forall a. IO a -> IO a) -> IO () -> [ThreadId] -> IO ()
-  fin unmask end []      =
-    end
-  fin unmask end threads = do
-    m <- newEmptyMVar
-    unmask (void $ takeMVar m)
-      `catch` (\Stop        -> stopChildren end threads)
-      `catch` (\(StoppedSearch tid) -> fin unmask end (tid `delete` threads))
-
-  stopChildren :: IO () -> [ThreadId] -> IO ()
-  stopChildren end threads = mapM_ (\t -> throwTo t Stop) threads >> end
-
-  searchThread :: (forall a. IO a -> IO a)
-               -> IO ()
-               -> Chan (ThreadResult' b)
-               -> [ThreadId]
-               -> SearchTree b -> IO ()
-  searchThread unmask end chan threads tree = do
-    r <- unmask (liftM Finished $ evaluate tree)
-           `catch` (\Stop                -> return ReceivedStop)
-           `catch` (\(StoppedSearch tid) -> return $ ReceivedStoppedSearch tid)
-    case r of
-      ReceivedStop               ->
-        stopChildren end threads
-      ReceivedStoppedSearch tid  ->
-        searchThread unmask end chan (tid `delete` threads) tree
-      Finished t                 ->
-        case t of
-          None  -> fin unmask end threads
-          One v -> do
-            -- v is already normal form
-            writeChan chan (Value' v)
-            fin unmask end threads
-          Choice l r -> do
-            tid <- myThreadId
-            child <- forkIO $ searchThread unmask (notifyStopped tid) chan [] r
-            searchThread unmask end chan (child:threads) l
-   where
-    notifyStopped :: ThreadId -> IO ()
-    notifyStopped tid =
-      myThreadId >>= (throwTo tid) . StoppedSearch
 
 -- |Breadth-first search
 bfsSearch :: SearchTree a -> [a]
