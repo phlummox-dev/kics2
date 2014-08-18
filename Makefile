@@ -138,6 +138,8 @@ export GHC_UNREGISTER = "$(GHC-PKG)" unregister --$(GHC_PKG_OPT)="$(PKGDB)"
 export CABAL_INSTALL  = "$(CABAL)" install --with-compiler="$(GHC)"       \
                         --with-hc-pkg="$(GHC-PKG)" --prefix="$(LOCALPKG)" \
                         --global --package-db="$(PKGDB)" -O2
+# Additional flags passed to the runtime
+export RUNTIMEFLAGS   =
 
 # Adapting cabal install instruction, runtime dependencies and ghc options
 # in case of installing the gecode solver backend for fd constraints
