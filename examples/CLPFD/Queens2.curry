@@ -7,7 +7,7 @@ queens n =
       constraints = allDifferent qs /\
                     allDifferent (zipWith (+#) qs offsets) /\
                     allDifferent (zipWith (-#) qs offsets)
-  in solveFD [GecodeRuntime,MiddleOut] constraints
+  in solveFD [GecodeSearch,MiddleOut,AllSolutions] constraints
 
 queensHO :: Int -> [[Int]]
 queensHO n =
@@ -17,6 +17,7 @@ queensHO n =
                         noattack i j (qs !# i) (qs !# j)
   in solveFD [GecodeSearch] constraints
 
+noattack :: FDExpr -> FDExpr -> FDExpr -> FDExpr -> FDConstr
 noattack i j qi qj =
   qi      /=# qj      /\
   qi +# i /=# qj +# j /\
