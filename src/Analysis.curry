@@ -236,8 +236,8 @@ externalCons :: [(QName, ConsHOClass)]
 externalCons = [(successType, ConsFO)]
 
 consOrder :: ConsDecl -> (QName, ConsHOClass)
-consOrder (Cons qn _ _ tys) = (qn, class)
-  where class = typeToConsHOClass $ maximumTypeHOClass (map classifyHOType tys)
+consOrder (Cons qn _ _ tys) = (qn, class')
+  where class' = typeToConsHOClass $ maximumTypeHOClass (map classifyHOType tys)
 
 -- -----------------------------------------------------------------------------
 -- (first/higher)-order analysis of functions
