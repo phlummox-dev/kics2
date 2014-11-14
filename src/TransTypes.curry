@@ -693,8 +693,8 @@ bindGuardRule qf lazy = (funcName,
 -- ---------------------------------------------------------------------------
 
 curryInstance :: ConsHOResult -> FC.TypeDecl -> TypeDecl
-curryInstance hoResult tdecl = case tdecl of
-  (FC.Type qf _ tnums cdecls)
+curryInstance _ tdecl = case tdecl of
+  (FC.Type qf _ tnums _)
     -> mkInstance (curryPre "Curry") [] ctype targs $ concat
            [ -- rules for equality
              -- extConsRules (curryPre "=?=") qf
@@ -708,9 +708,9 @@ curryInstance hoResult tdecl = case tdecl of
          where
            targs = map fcy2absTVar tnums
            ctype = TCons qf (map TVar targs)
-           catchAllPattern qn
-             | length cdecls > 1 = catchAllCase qn (constF (curryPre "C_False"))
-             | otherwise         = []
+           -- catchAllPattern qn
+           --   | length cdecls > 1 = catchAllCase qn (constF (curryPre "C_False"))
+           --   | otherwise         = []
   _ -> error "TransTypes.curryInstance"
 
 extConsRules :: QName -> QName -> [(QName,Rule)]
