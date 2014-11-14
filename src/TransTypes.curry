@@ -697,13 +697,13 @@ curryInstance hoResult tdecl = case tdecl of
   (FC.Type qf _ tnums cdecls)
     -> mkInstance (curryPre "Curry") [] ctype targs $ concat
            [ -- rules for equality
-             extConsRules (curryPre "=?=") qf
-           , eqConsRules hoResult cdecls
-           , catchAllPattern (curryPre "=?=")
+             -- extConsRules (curryPre "=?=") qf
+           -- , eqConsRules hoResult cdecls
+           -- , catchAllPattern (curryPre "=?=")
              -- rules for less than
-           , extConsRules (curryPre "<?=") qf
-           , ordConsRules hoResult cdecls
-           , catchAllPattern (curryPre "<?=")
+           -- , extConsRules (curryPre "<?=") qf
+           -- , ordConsRules hoResult cdecls
+           -- , catchAllPattern (curryPre "<?=")
            ]
          where
            targs = map fcy2absTVar tnums
