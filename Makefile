@@ -48,7 +48,7 @@ export INSTALLPREFIX = $(ROOT)
 export LOCALPKG      = $(INSTALLPREFIX)/pkg
 # The path to the package database
 export PKGDB         = $(LOCALPKG)/kics2.conf.d
-# The path to a local Gecode 3.1.0 installation 
+# The path to a local Gecode 3.1.0 installation
 # (needed for usage of the gecode solver backend for fd constraints)
 export GECODE        =
 
@@ -86,8 +86,8 @@ WHICH               = utils/which$(EXE_SUFFIX)
 export RUNTIMEDEPS = base containers ghc incremental-sat-solver monadiccp \
                      mtl parallel-tree-search tree-monad
 # Dependencies for the kics2 libraries
-export LIBDEPS     = base directory network old-time parallel-tree-search \
-                     process time
+export LIBDEPS     = base containers directory monadiccp mtl network old-time \
+                     parallel-tree-search process time
 # Dependency to system library
 ifdef WINDOWS
 export SYSTEMDEPS  = Win32
@@ -141,13 +141,14 @@ export CABAL_INSTALL  = "$(CABAL)" install --with-compiler="$(GHC)"       \
 # Additional flags passed to the runtime
 export RUNTIMEFLAGS   =
 
-# Adapting cabal install instruction, runtime dependencies and ghc options
-# in case of installing the gecode solver backend for fd constraints
-# (local gecode installation needed)
+# Adapting cabal install instruction, library dependencies, runtime dependencies
+# and ghc options in case of installing the gecode solver back end for
+# fd constraints (local gecode installation needed)
 export CABAL_INSTALL_GECODE  = $(CABAL_INSTALL)
 ifdef GECODE
 CABAL_INSTALL_GECODE += --flags=Gecode --extra-include-dirs=$(GECODE)/include \
                         --extra-lib-dirs=$(GECODE)/lib
+LIBDEPS              += monadiccp-gecode
 RUNTIMEDEPS          += monadiccp-gecode
 GHC_OPTS             += -cpp -DGECODE
 endif
