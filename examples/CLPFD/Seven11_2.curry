@@ -11,6 +11,7 @@
 
 import CLPFD2
 
+seven11 :: [[Int]]
 seven11 = let l@[a,b,c,d] = take 4 (domain 0 711)
               constraints = allDifferent l /\
                             sorted l /\ --a <=# b /\ b <=# c /\ c <=# d /\

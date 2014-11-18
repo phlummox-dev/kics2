@@ -54,4 +54,5 @@ zebra =
   in solveFDVars [GecodeRuntime, AllSolutions] constraints
        (colors ++ nationalities ++ drinks ++ smokes ++ pets)
 
+nextTo :: FDExpr -> FDExpr -> FDConstr
 nextTo h1 h2 = (h1 =# h2 +# fdc 1) \/ (h1 =# h2 -# fdc 1)

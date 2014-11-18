@@ -15,7 +15,7 @@ queensHO n =
       constraints = loopall (fdc 0) (fdc (n-2)) $ \i ->
                       loopall (i +# (fdc 1)) (fdc (n-1)) $ \j ->
                         noattack i j (qs !# i) (qs !# j)
-  in solveFD [GecodeSearch] constraints
+  in solveFD [GecodeSearch,AllSolutions] constraints
 
 noattack :: FDExpr -> FDExpr -> FDExpr -> FDExpr -> FDConstr
 noattack i j qi qj =
