@@ -6,6 +6,13 @@ Release notes for KiCS2 Version 0.3.3
 
 Changes to version 0.3.2:
 
+  * Curry progams can use (unary) type classes with the following
+    language extension:
+    `{-# OPTIONS_CYMAKE -X TypeClassExtensions #-}`
+    In addition, a simple defaulting algorithm is used to instantiate
+    numeric literals with `Integer` and `Float`, respectively, instead
+    of `Num a` if appropriate.
+    
   * Curry programs compiled with `kics2` can now be profiled using the GHC's
     profiling capabilities. Please see the manual for additional information.
   * Tool `data2xml` for data conversion to XML and back added.
