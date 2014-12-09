@@ -5,6 +5,9 @@
 --- @author  Michael Hanus, Björn Peemöller, Fabian Skrlac
 --- @version May 2014
 --- ----------------------------------------------------------------------------
+
+{-# OPTIONS_CYMAKE -X TypeClassExtensions #-}
+
 module Analysis
   ( AnalysisResult, showAnalysisResult, readAnalysisResult
   , TypeMap, initTypeMap, getTypeMap
@@ -77,7 +80,7 @@ getTypeMap ts = listToFM (<)
 
 type Analysis t a = Map a -> (t, [QName]) -> (QName, a)
 
-fullIteration :: Analysis t a -> [(t, [QName])] -> Map a -> Map a -> Map a
+fullIteration :: (Eq a, Eq t) => Analysis t a -> [(t, [QName])] -> Map a -> Map a -> Map a
 fullIteration analyze calls env start =
   let after = listToFM (<) $ map (analyze (env `plusFM` start)) calls
   in if (start `eqFM` after)
@@ -292,11 +295,14 @@ splitFuncType t@(TCons     _ _) = [t]
 
 data Visibilities = Vis ([QName],[QName]) ([QName],[QName]) ([QName],[QName])
 
-getPrivateFunc (Vis (_  ,priv) _                   _) = priv
+getPrivateFunc :: Visibilities -> [QName]
+getPrivateFunc (Vis (_, priv) _ _) = priv
 
-getPrivateType (Vis _          (_  ,priv)          _) = priv
+getPrivateType :: Visibilities -> [QName]
+getPrivateType (Vis _ (_, priv) _) = priv
 
-getPrivateCons (Vis _          _          (_  ,priv)) = priv
+getPrivateCons :: Visibilities -> [QName]
+getPrivateCons (Vis _ _ (_, priv)) = priv
 
 analyzeVisibility :: Prog -> Visibilities
 analyzeVisibility p =
@@ -307,14 +313,17 @@ analyzeVisibility p =
  where
   types = progTypes p
 
+splitVisibleFuncs :: [FuncDecl] -> ([QName],[QName])
 splitVisibleFuncs funcs =
   let (pubs, privs) =  partition (\f -> funcVisibility f == Public) funcs
   in  (map funcName pubs, map funcName privs)
 
+splitVisibleTypes :: [TypeDecl] -> ([QName],[QName])
 splitVisibleTypes types =
   let (pubs, privs) = partition (\t -> typeVisibility t == Public) types
   in  (map typeName pubs, map typeName privs)
 
+splitVisibleCons  :: [ConsDecl] -> ([QName],[QName])
 splitVisibleCons cons =
   let (pubs, privs) = partition (\c -> consVisibility c == Public) cons
   in  (map consName pubs, map consName privs)
@@ -334,10 +343,10 @@ ioType = renameQName (prelude, "IO")
 
 -- Small interface to Sets
 
-empty :: SetRBT a
+empty :: Ord a => SetRBT a
 empty = emptySetRBT (<=)
 
-unionMap :: (a -> SetRBT b) -> [a] -> SetRBT b
+unionMap :: (Ord a, Ord b) => (a -> SetRBT b) -> [a] -> SetRBT b
 unionMap f = foldr unionRBT empty . map f
 
 toList :: SetRBT a -> [a]

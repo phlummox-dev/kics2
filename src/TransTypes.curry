@@ -7,6 +7,9 @@
 --- @author Michael Hanus, Bjoern Peemoeller, Fabian Reck
 --- @version January 2011
 -- ---------------------------------------------------------------------------
+
+{-# OPTIONS_CYMAKE -X TypeClassExtensions #-}
+
 module TransTypes (transTypes) where
 
 import qualified FlatCurry as FC
@@ -124,11 +127,13 @@ showInstance hoResult tdecl = case tdecl of
   _ -> error "TransTypes.showInstance"
 
   -- Generate specific show for lists (only for finite lists!)
+showRule4List :: (QName, Rule)
 showRule4List =
     (pre "showsPrec",
     Rule [] [noGuard (constF (pre "showsPrec4CurryList"))] [])
 
 -- Generate Show instance rule for a data constructor:
+showConsRule :: ConsHOResult -> FC.ConsDecl -> [(QName, Rule)]
 showConsRule hoResult (FC.Cons qn carity _ _)
   | isHoCons  = map rule [qn, mkHoConsName qn]
   | otherwise = [rule qn]
@@ -598,7 +603,7 @@ bindConsRule hoResult funcName bindArgs combine (num, (FC.Cons qn _ _ texps))
   where
     isHoCons = lookupFM hoResult qn == Just ConsHO
     rule name = (funcName,
-      simpleRule [PVar (1,"cd"), PVar (2, "i"), PComb name $ map (\i -> PVar (i, 'x':show i)) [3 .. (length texps) + 2] ]
+      simpleRule [PVar (1,"cd"), PVar (2, "i"), PComb name $ map (\i -> PVar (i, 'x':show i)) [3 .. (length texps) + (2 :: Int)] ]
         ( applyF (pre ":")
                   [ applyF (basics ":=:")
                     [ Var (2, "i")
@@ -606,8 +611,8 @@ bindConsRule hoResult funcName bindArgs combine (num, (FC.Cons qn _ _ texps))
                     ]
                   , combine [list2ac (zipWith3 bindArgs
                                         (repeat (Var (1, "cd")))
-                                        (mkIdList (length texps) (Var (2, "i")))
-                    (map (\i -> Var (i, 'x':show i)) [3 ..(length texps) + 2]))]
+                                        (mkIdList (length texps :: Int) (Var (2, "i")))
+                    (map (\i -> Var (i, 'x':show i)) [3 ..(length texps) + (2 :: Int)]))]
                   ]))
 
 -- bind i (Choice_TYPENAME j l r) = [ConstraintChoice j (bind i l) (bind i r)]
@@ -697,7 +702,7 @@ curryInstance _ tdecl = case tdecl of
   (FC.Type qf _ tnums _)
     -> mkInstance (curryPre "Curry") [] ctype targs $ concat
            [ -- rules for equality
-             -- extConsRules (curryPre "=?=") qf
+           --   extConsRules (curryPre "=?=") qf
            -- , eqConsRules hoResult cdecls
            -- , catchAllPattern (curryPre "=?=")
              -- rules for less than
@@ -812,28 +817,43 @@ ordCons2Rule hoResult (qn1, ar1) (FC.Cons qn2 carity2 _ _)
 -- Auxiliary functions
 -- ---------------------------------------------------------------------------
 
-mkChoicePattern  qn idStr = PComb (mkChoiceName  qn) [PVar cd, PVar idVar , PVar x, PVar y]
+mkChoicePattern :: QName -> String -> Pattern
+mkChoicePattern qn idStr = PComb (mkChoiceName  qn) [PVar cd, PVar idVar , PVar x, PVar y]
   where [cd, idVar ,x,y] = newVars ["cd", idStr ,"x","y"]
+
+mkChoicesPattern :: QName -> Pattern
 mkChoicesPattern qn = PComb (mkChoicesName qn) [PVar cd, PVar i, PVar xs]
   where [cd, i,xs] = newVars ["cd", "i","xs"]
+
+mkNarrowedChoicesPattern :: QName -> String -> Pattern
 mkNarrowedChoicesPattern qn asName = PComb (mkChoicesName qn)
  [PVar cd, PAs i (PComb (basics "NarrowedID") [PVar u1, PVar u2]), PVar xs]
  where [i,cd, u1,u2,xs] = newVars [asName,"cd","_","_","xs"]
+
+mkFreeChoicesPattern :: QName -> String -> Pattern
 mkFreeChoicesPattern qn asName = PComb (mkChoicesName qn)
  [PVar cd, PAs i (PComb (basics "FreeID") [PVar u1, PVar u2]), PVar xs]
  where [i,cd,u1,u2,xs] = newVars [asName,"cd", "_","_","xs"]
-mkVarChoicesPattern qn = PComb (mkChoicesName qn)
- [PVar cd, PVar i, PVar xs]
+
+mkVarChoicesPattern :: QName -> Pattern
+mkVarChoicesPattern qn = PComb (mkChoicesName qn) [PVar cd, PVar i, PVar xs]
  where [cd,i,xs] = newVars ["cd","i","_"]
-mkFailPattern    qn = PComb (mkFailName    qn) [PVar cd, PVar info]
+
+mkFailPattern :: QName -> Pattern
+mkFailPattern qn = PComb (mkFailName qn) [PVar cd, PVar info]
   where [cd,info] = newVars ["cd","info"]
-mkGuardPattern   qn = PComb (mkGuardName   qn) [PVar cd, PVar c, PVar e]
+
+mkGuardPattern :: QName -> Pattern
+mkGuardPattern qn = PComb (mkGuardName qn) [PVar cd, PVar c, PVar e]
   where [cd, c,e] = newVars ["cd", "c","e"]
 
+mkPVar :: String -> Int -> Pattern
 mkPVar n i = PVar $ mkVarName n i
 
+mkVar :: String -> Int -> Expr
 mkVar n i = Var $ mkVarName n i
 
+mkVarName :: String -> Int -> (Int, String)
 mkVarName n i
   | n == "_"  = (i, n)
   | otherwise = (i, n ++ show i)
@@ -841,21 +861,29 @@ mkVarName n i
 newVars :: [String] -> [(Int, String)]
 newVars = zip [1..]
 
+mkInstance :: QName -> [QName] -> TypeExpr -> [TVarIName] -> [(QName, Rule)]
+           -> TypeDecl
 mkInstance qn addContexts ctype targs
   = Instance qn ctype $ concatMap (\name -> map (\tv -> Context name [tv]) targs) (qn:addContexts)
 
+consPattern :: QName -> String -> Int -> Pattern
 consPattern qn varName carity
   = PComb qn $ map (PVar . mkVarName varName) [1 .. carity]
 
+catchAllCase :: QName -> Expr -> [(QName, Rule)]
 catchAllCase qn retVal
   = [(qn, simpleRule [PVar (1,"_"), PVar (2,"_"), PVar (3, "d"), PVar (4,"_")] retVal)]
 
+simpleRule :: [Pattern] -> Expr -> Rule
 simpleRule patterns body = Rule patterns [noGuard body] []
 
+intc :: Int -> Expr
 intc i = Lit $ Intc i
 
+charc :: Char -> Expr
 charc c = Lit $ Charc c
 
+mkIdList :: Int -> Expr -> [Expr]
 mkIdList num initid
   | num == 0    = []
   | num == 1    = [left initid]
@@ -867,6 +895,7 @@ mkIdList num initid
       where
         half = n `div` 2
 
+mkSuppList :: Int -> Expr -> [Expr]
 mkSuppList num supp
   | num == 0    = []
   | num == 1    = [leftsupp supp]
@@ -878,8 +907,10 @@ mkSuppList num supp
       where
         half = n `div` 2
 
-isListType   q    = q == renameQName ("Prelude", "[]")
+isListType :: QName -> Bool
+isListType qn = qn == renameQName ("Prelude", "[]")
 
+isTupleType :: QName -> Bool
 isTupleType (m,t) = m == renameModule "Prelude" && take 8 t == "OP_Tuple"
 
 showQName :: QName -> String
