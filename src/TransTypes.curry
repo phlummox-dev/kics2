@@ -603,7 +603,7 @@ bindConsRule hoResult funcName bindArgs combine (num, (FC.Cons qn _ _ texps))
   where
     isHoCons = lookupFM hoResult qn == Just ConsHO
     rule name = (funcName,
-      simpleRule [PVar (1,"cd"), PVar (2, "i"), PComb name $ map (\i -> PVar (i, 'x':show i)) [3 .. (length texps) + (2 :: Int)] ]
+      simpleRule [PVar (1,"cd"), PVar (2, "i"), PComb name $ map (\i -> PVar (i, 'x':show i)) [3 .. (length texps) + 2] ]
         ( applyF (pre ":")
                   [ applyF (basics ":=:")
                     [ Var (2, "i")
@@ -611,8 +611,8 @@ bindConsRule hoResult funcName bindArgs combine (num, (FC.Cons qn _ _ texps))
                     ]
                   , combine [list2ac (zipWith3 bindArgs
                                         (repeat (Var (1, "cd")))
-                                        (mkIdList (length texps :: Int) (Var (2, "i")))
-                    (map (\i -> Var (i, 'x':show i)) [3 ..(length texps) + (2 :: Int)]))]
+                                        (mkIdList (length texps) (Var (2, "i")))
+                    (map (\i -> Var (i, 'x':show i)) [3 ..(length texps) + 2]))]
                   ]))
 
 -- bind i (Choice_TYPENAME j l r) = [ConstraintChoice j (bind i l) (bind i r)]

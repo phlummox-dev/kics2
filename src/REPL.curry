@@ -317,8 +317,8 @@ insertFreeVarsInMainGoal rst goal (Just prog) = case prog of
             || not (rst :> showBindings)
             || isPrtChoices (rst :> ndMode)
             || isIOType ty
-            || length freevars > (10 :: Int) -- due to limited size of tuples used
-                                             -- in PrintBindings
+            || length freevars > 10 -- due to limited size of tuples used
+                                    -- in PrintBindings
             || null whereclause
           then return (GoalWithoutBindings prog)
           else do

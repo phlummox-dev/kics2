@@ -91,7 +91,7 @@ showExports types funcs =
     getTypeName (Instance (_,name) _ _ _) = name
 
     allPublicCons :: TypeDecl -> Bool
-    allPublicCons (Type _ _ _ c) = length (filter isPublicCons c) == (length c :: Int)
+    allPublicCons (Type _ _ _ c) = length (filter isPublicCons c) == length c
       where isPublicCons (Cons _ _ vis _) = vis == Public
     allPublicCons (TypeSyn _ _ _ _)  = False
     allPublicCons (Instance _ _ _ _) = False
