@@ -47,3 +47,6 @@ ghcOptions external
 
 installGlobal :: Bool
 installGlobal external
+
+withProfiling :: Bool
+withProfiling external

@@ -1,6 +1,53 @@
 Release Notes for KiCS2
 =======================
 
+Release notes for KiCS2 Version 0.4.0
+-------------------------------------
+
+Changes to version 0.3.3:
+
+  * The extension for records (with special Curry syntax) was removed.
+    Instead, KiCS2 now supports Haskell's record syntax.
+    See the manual for a detailed description of the new record syntax.
+  * A new representation of AbstractCurry was introduced:
+
+    - AbstractCurry files now contain version information
+    - support for new record syntax
+    - support for newtype declarations
+    - evaluation annotations removed
+    - arity of constructor declarations removed
+    - simplified representation of function rules
+    - String literals added
+  * Library `FunctionInversion` added
+  * Library `AnnotatedFlatCurryPretty` added
+  * Library `Either` extended with functions `fromLeft` and `fromRight`
+  * Library `ShowS` added
+  * Library `AnsiCodes` added
+
+
+Release notes for KiCS2 Version 0.3.3
+-------------------------------------
+
+Changes to version 0.3.2:
+
+  * The Curry syntax is extended to also support binary integer literals.
+    For instance, `0b101010` or `0B101010` can now be lexed
+    and are converted to the integer value `42`.
+  * Changed target code representation of string literals. Before, string
+    literals s were desugared into lists of characters by the frontend
+    and then translated character-wise,
+    resulting in large Haskell code that was hard to read.
+    We now represent string literals s like `"Hello from Curry"` in target
+    code by a call to a primitive function `toCurryString`. For instance,
+    the above literal gets translated to `toCurryString "Hello from Curry"`.
+    While adding some (small) runtime overhead, this improves the readability
+    of the code and shortens the code size.
+  * Curry programs compiled with `kics2` can now be profiled using the GHC's
+    profiling capabilities. Please see the manual for additional information.
+  * Library `AbstractCurryGoodies` added.
+  * Tool `data2xml` for data conversion to XML and back added.
+
+
 Release notes for KiCS2 Version 0.3.2
 -------------------------------------
 
@@ -12,7 +59,6 @@ Changes to version 0.3.1:
   * Tool `CASS`: new analysis `RequiredValues` added.
   * Optimization tool `bindingopt` for transforming Boolean equalities
     into constraint equalities added.
-  * Tool `data2xml` for data conversion to XML and back added.
 
 
 Release notes for KiCS2 Version 0.3.1

@@ -5,14 +5,16 @@
 # Some information about this installation
 # ----------------------------------------
 
-# Is this a global installation (with restricted flexibility)(yes/no)?
+# Is this a global installation (with restricted flexibility) (yes/no)?
 GLOBALINSTALL   = yes
+# Should profiling be enabled (yes/no)?
+PROFILING       = yes
 # The major version number
 MAJORVERSION    = 0
 # The minor version number
-MINORVERSION    = 3
+MINORVERSION    = 4
 # The revision version number
-REVISIONVERSION = 2
+REVISIONVERSION = 0
 # Complete version
 export VERSION  = $(MAJORVERSION).$(MINORVERSION).$(REVISIONVERSION)
 # The version date, extracted from the last git commit
@@ -71,6 +73,8 @@ export CLEANCURRY   = $(BINDIR)/cleancurry$(EXE_SUFFIX)
 export CURRYDOC     = $(BINDIR)/currydoc$(EXE_SUFFIX)
 # The Haskell installation info
 export INSTALLHS    = $(ROOT)/runtime/Installation.hs
+# The Curry installation info
+export INSTALLCURRY = $(ROOT)/src/Installation.curry
 # The version information for the manual
 MANUALVERSION       = $(ROOT)/docs/src/version.tex
 # Logfiles for make
@@ -138,6 +142,12 @@ export GHC_UNREGISTER = "$(GHC-PKG)" unregister --$(GHC_PKG_OPT)="$(PKGDB)"
 export CABAL_INSTALL  = "$(CABAL)" install --with-compiler="$(GHC)"       \
                         --with-hc-pkg="$(GHC-PKG)" --prefix="$(LOCALPKG)" \
                         --global --package-db="$(PKGDB)" -O2
+# Cabal profiling options
+ifeq ($(PROFILING),yes)
+export CABAL_PROFILE = -p
+else
+export CABAL_PROFILE  =
+endif
 # Additional flags passed to the runtime
 export RUNTIMEFLAGS   =
 
@@ -179,7 +189,7 @@ uninstall:
 
 # install additional tools
 .PHONY: tools
-tools:
+tools: $(CURRYSYSTEMBIN)
 	cd currytools && $(MAKE) # shared tools
 	cd tools      && $(MAKE) # compiler specific tools
 	cd cpns       && $(MAKE) # Curry Port Name Server demon
@@ -190,15 +200,18 @@ tools:
 kernel: $(PWD) $(WHICH) $(PKGDB) $(CYMAKE) $(CLEANCURRY) scripts copylibs
 	$(MAKE) $(INSTALLHS) INSTALLPREFIX="$(shell $(PWD))" \
 	                     GHC="$(shell $(WHICH) "$(GHC)")"
-	cd src     && $(MAKE) # build compiler
-	rm -f $(CURRYSYSTEMBIN)
-	ln -s $(BINDIR)/$(CURRYSYSTEM) $(CURRYSYSTEMBIN)
+	cd src && $(MAKE) # build compiler
+	$(MAKE) $(CURRYSYSTEMBIN)
 ifeq ($(GLOBALINSTALL),yes)
 	cd lib     && $(MAKE) unregister
 	cd runtime && $(MAKE) unregister
 	cd runtime && $(MAKE)
 	cd lib     && $(MAKE)
 endif
+
+$(CURRYSYSTEMBIN): $(BINDIR)/$(CURRYSYSTEM)
+	rm -f $@
+	ln -s $< $@
 
 # install the library sources from the trunk directory:
 .PHONY: copylibs
@@ -209,7 +222,7 @@ copylibs:
 $(PKGDB):
 	"$(GHC-PKG)" init $@
 	$(CABAL) update
-	$(CABAL_INSTALL_GECODE) $(filter-out $(GHC_LIBS),$(ALLDEPS))
+	$(CABAL_INSTALL_GECODE) $(CABAL_PROFILE) $(filter-out $(GHC_LIBS),$(ALLDEPS))
 
 # create frontend binary
 $(CYMAKE): .FORCE
@@ -253,6 +266,7 @@ clean: $(CLEANCURRY)
 .PHONY: cleanall
 cleanall: clean
 	-cd docs/src && $(MAKE) cleanall
+	cd frontend  && $(MAKE) cleanall
 	-cd lib      && $(MAKE) cleanall
 	cd scripts   && $(MAKE) cleanall
 	cd src       && $(MAKE) cleanall
@@ -265,6 +279,8 @@ cleanall: clean
 maintainer-clean: cleanall
 	rm -rf $(BINDIR)
 	rm -rf $(LIBDIR)
+	cd currytools && git clean -fdX
+	cd lib-trunk  && git clean -fdX
 
 .PHONY: .FORCE
 .FORCE:
@@ -273,7 +289,9 @@ maintainer-clean: cleanall
 # Building the compiler itself
 ##############################################################################
 
-# generate module with basic installation information
+# generate Haskell module with basic installation information.
+# This information is used for building the compiler itself as well as the
+# libraries, where the information is exposed by the module Distribution.
 $(INSTALLHS): Makefile
 ifneq ($(shell test -x "$(GHC)" ; echo $$?), 0)
 	$(error "Executable 'ghc' not found. You may use 'make <target> GHC=<path>')
@@ -331,6 +349,13 @@ else
 	echo 'installGlobal :: Bool' >> $@
 	echo 'installGlobal = False' >> $@
 endif
+	echo "" >> $@
+	echo 'withProfiling :: Bool' >> $@
+ifeq ($(PROFILING),yes)
+	echo 'withProfiling = True' >> $@
+else
+	echo 'withProfiling = False' >> $@
+endif
 
 ##############################################################################
 # Create documentation for system libraries:
@@ -347,7 +372,7 @@ libdoc: $(CURRYDOC)
 .PHONY: currydoc
 currydoc: $(CURRYDOC)
 
-$(CURRYDOC):
+$(CURRYDOC): $(CURRYSYSTEMBIN)
 	cd currytools && $(MAKE) currydoc
 
 ##############################################################################
@@ -382,9 +407,8 @@ cleanmanual:
 ##############################################################################
 
 # temporary directory to create distribution version
-TMP      = /tmp
 FULLNAME = kics2-$(VERSION)
-TMPDIR   = $(TMP)/$(FULLNAME)
+DISTDIR  = $(FULLNAME)
 TARBALL  = $(FULLNAME).tar.gz
 
 # generate a source distribution of KiCS2
@@ -395,23 +419,21 @@ dist:
 	$(MAKE) $(TARBALL)
 
 # publish the distribution files in the local web pages
-HTMLDIR = ${HOME}/public_html/kics2/download
+HTMLDIR = $(HOME)/public_html/kics2/download
 .PHONY: publish
 publish: $(TARBALL)
-	cp $(TARBALL) docs/INSTALL.html ${HTMLDIR}
-	chmod -R go+rX ${HTMLDIR}
+	cp $(TARBALL) docs/INSTALL.html $(HTMLDIR)
+	chmod -R go+rX $(HTMLDIR)
 	@echo "Don't forget to run 'update-kics2' to make the update visible!"
 
 # test installation of created distribution
 .PHONY: testdist
 testdist: $(TARBALL)
-	cp $(TARBALL) $(TMP)
-	rm -rf $(TMPDIR)
-	cd $(TMP) && tar xzfv $(TARBALL)
-	cd $(TMPDIR) && $(MAKE) install
-	cd $(TMPDIR) && $(MAKE) runtest
-	rm -rf $(TMPDIR)
-	rm -rf $(TMP)/$(TARBALL)
+	rm -rf $(DISTDIR)
+	tar xzfv $(TARBALL)
+	cd $(DISTDIR) && $(MAKE) install
+	cd $(DISTDIR) && $(MAKE) runtest
+	rm -rf $(DISTDIR)
 	@echo "Integration test successfully completed."
 
 # Directories containing development stuff only
@@ -420,9 +442,6 @@ DEV_DIRS = benchmarks debug docs experiments talks
 # Clean all files that should not be included in a distribution
 .PHONY: cleandist
 cleandist:
-ifneq ($(CURDIR), $(TMPDIR))
-	$(error cleandist target called outside $(TMPDIR))
-endif
 	rm -rf .dist-modules .git .gitignore .gitmodules
 	cd currytools              && rm -rf .git .gitignore
 	cd frontend/curry-base     && rm -rf .git .gitignore dist
@@ -434,40 +453,39 @@ endif
 	rm -rf $(LOCALPKG)
 
 $(TARBALL): $(COMP) $(CYMAKE) $(MANUAL)
-	rm -rf $(TMPDIR)
+	rm -rf $(DISTDIR)
 	# clone current git repository
-	git clone . $(TMPDIR)
+	git clone . $(DISTDIR)
 	# adopt paths for submodules
-	cat .dist-modules | sed 's|ROOT|$(ROOT)|' > $(TMPDIR)/.gitmodules
+	cat .dist-modules | sed 's|ROOT|$(ROOT)|' > $(DISTDIR)/.gitmodules
 	# check out submodules
-	cd $(TMPDIR) && git submodule init && git submodule update
+	cd $(DISTDIR) && git submodule init && git submodule update
 	# create local binary directory
-	mkdir -p $(TMPDIR)/bin/.local
+	mkdir -p $(DISTDIR)/bin/.local
 	# copy frontend binary
-	cp -p $(CYMAKE) $(TMPDIR)/bin/
+	cp -p $(CYMAKE) $(DISTDIR)/bin/
 	# copy bootstrap compiler
-	cp -p $(COMP) $(TMPDIR)/bin/.local/
+	cp -p $(COMP) $(DISTDIR)/bin/.local/
 	# generate compiler and REPL in order to have the bootstrapped
 	# Haskell translations in the distribution
-	cd $(TMPDIR) && $(MAKE) Compile       # translate compiler
-	cd $(TMPDIR) && $(MAKE) REPL          # translate REPL
-	cd $(TMPDIR) && $(MAKE) clean         # clean object files
-	cd $(TMPDIR) && $(MAKE) typeinference # precompile typeinference
-	cd $(TMPDIR) && $(MAKE) cleandist     # delete unnessary files
+	cd $(DISTDIR) && $(MAKE) Compile       # translate compiler
+	cd $(DISTDIR) && $(MAKE) REPL          # translate REPL
+	cd $(DISTDIR) && $(MAKE) clean         # clean object files
+	cd $(DISTDIR) && $(MAKE) typeinference # precompile typeinference
+	cd $(DISTDIR) && $(MAKE) cleandist     # delete unnessary files
 	# copy documentation
-	mkdir -p $(TMPDIR)/docs
-	cp $(MANUAL) $(TMPDIR)/docs
+	mkdir -p $(DISTDIR)/docs
+	cp $(MANUAL) $(DISTDIR)/docs
 	# update Makefile
 	cat Makefile \
 	  | sed -e "/^# SNIP FOR DISTRIBUTION/,\$$d" \
 	  | sed 's|^GLOBALINSTALL *=.*$$|GLOBALINSTALL   = yes|' \
+	  | sed 's|^PROFILING *=.*$$|PROFILING   = no|' \
 	  | sed 's|^COMPILERDATE *:=.*$$|COMPILERDATE    = $(COMPILERDATE)|' \
-	  > $(TMPDIR)/Makefile
+	  > $(DISTDIR)/Makefile
 	# Zip it!
-	cd $(TMP) && tar cf $(FULLNAME).tar $(FULLNAME) && gzip $(FULLNAME).tar
-	mv $(TMP)/$(TARBALL) ./$(TARBALL)
-	chmod 644 ./$(TARBALL)
-	rm -rf $(TMPDIR)
+	tar cfvz $(TARBALL) $(DISTDIR)
+	rm -rf $(DISTDIR)
 	@echo "----------------------------------"
 	@echo "Distribution $(TARBALL) generated."
 
@@ -491,7 +509,7 @@ REPL: $(PKGDB) $(INSTALLHS) scripts copylibs
 	cd src && $(MAKE) REPLBoot
 
 .PHONY: typeinference
-typeinference:
+typeinference: $(CURRYSYSTEMBIN)
 	cd currytools && $(MAKE) typeinference
 
 # install the benchmark system

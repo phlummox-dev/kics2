@@ -36,9 +36,10 @@ genTypeDeclarations hoResult tdecl = case tdecl of
   (FC.TypeSyn qf vis tnums texp)
     -> [TypeSyn qf (fcy2absVis vis) (map fcy2absTVar tnums) (fcy2absTExp texp)]
   t@(FC.Type qf vis tnums cdecls)
-    | null cdecls -> Type qf Public  targs []   : []
+      -- type names are always exported to avoid ghc type errors.
+      -- TODO: Describe why/which errors may occur.
+    | null cdecls -> Type qf Public targs []    : []
     | otherwise   -> Type qf Public targs decls : instanceDecls
-         -- type names are always exported to avoid ghc type errors
     where
       decls = concatMap (fcy2absCDecl hoResult) cdecls ++
               [ Cons (mkChoiceName  qf) 3 acvis [coverType, idType, ctype, ctype]
@@ -124,11 +125,13 @@ showInstance hoResult tdecl = case tdecl of
   _ -> error "TransTypes.showInstance"
 
   -- Generate specific show for lists (only for finite lists!)
+showRule4List :: (QName, Rule)
 showRule4List =
     (pre "showsPrec",
     Rule [] [noGuard (constF (pre "showsPrec4CurryList"))] [])
 
 -- Generate Show instance rule for a data constructor:
+showConsRule :: ConsHOResult -> FC.ConsDecl -> [(QName, Rule)]
 showConsRule hoResult (FC.Cons qn carity _ _)
   | isHoCons  = map rule [qn, mkHoConsName qn]
   | otherwise = [rule qn]
@@ -196,11 +199,14 @@ readInstance tdecl = case tdecl of
   _ -> error "TransTypes.readInstance"
 
 -- Generate special Read instance rule for lists
-
---instance Read t0 => Read (OP_List t0) where
+-- according to the following scheme:
+-- @
+-- instance Read t0 => Read (OP_List t0) where
 --  readsPrec d s = map readList (readsPrec d s)
 --   where
---     readList (xs,s) = (foldr OP_Cons OP_List xs,s)
+--     readList :: ([a], String) -> (OP_List a, String)
+--     readList (xs,s) = (foldr OP_Cons OP_List xs, s)
+-- @
 readListRule :: QName -> (QName, Rule)
 readListRule (mn, _) =
   ( pre "readsPrec"
@@ -208,7 +214,9 @@ readListRule (mn, _) =
       [noGuard $ applyF (pre "map") [ constF (mn,"readList")
                                     , applyF (pre "readsPrec") [Var d, Var s]
                                     ]]
-      [LocalFunc (ufunc (mn, "readList") 1 Private
+      [LocalFunc (tfunc (mn, "readList") 1 Private
+        (tupleType [listType (TVar (0, "a")), stringType] ~>
+         tupleType [TCons (mn, "OP_List") [TVar (0, "a")], stringType])
         [simpleRule [tuplePat [PVar xs, PVar s2]]
            (tupleExpr [applyF (pre "foldr") [ constF (mn,"OP_Cons")
                                             , constF (mn,"OP_List")
@@ -217,23 +225,32 @@ readListRule (mn, _) =
       ]
   ) where [d,s,xs,s2] = newVars ["d","s","xs","s2"]
 
--- Generate special Read instance rule for tuple constructors:
-
---readTup ((x1, x2), s) = (OP_Tuple2 x1 x2, s)
+-- Generate special Read instance rule for tuple constructors
+-- according to the following scheme:
+-- @
+-- instance (Read t1, ..., tn) => Read (OP_TupleN t1 ... tn) where
+--   readsPrec d s = map readTuple (readsPrec d s)
+--    where
+--     readTuple :: ((t1, ..., tn), String) -> (OP_TupleN, String)
+--     readTuple ((x1, ..., xn), s) = (OP_TupleN x1 ... xn, s)
+-- @
 readTupleRule :: FC.ConsDecl -> (QName, Rule)
 readTupleRule (FC.Cons qn@(mn,_) carity _ _) =
   ( pre "readsPrec"
   , Rule [PVar d, PVar s]
-      [noGuard $ applyF (pre "map") [ constF (mn,"readTup")
+      [noGuard $ applyF (pre "map") [ constF (mn,"readTuple")
                                     , applyF (pre "readsPrec") [Var d, Var s]
                                     ]]
-      [LocalFunc (ufunc (mn,"readTup") 1 Private
+      [LocalFunc (tfunc (mn,"readTuple") 1 Private
+        (tupleType [tupleType tvars, stringType] ~>
+         tupleType [TCons (mn, "OP_Tuple" ++ show carity) tvars, stringType])
         [simpleRule [tuplePat [ tuplePat $ map (mkPVar "x") [1 .. carity]
                               , PVar s2
                               ]]
           (tupleExpr [ applyF qn (map (mkVar "x") [1 .. carity])
                      , Var s2])])]
   ) where [d,s,s2] = newVars ["d","s","s2"]
+          tvars    = map mkTVar [0 .. carity - 1]
 
 
 -- Generate Read instance rule for data constructors:
@@ -299,7 +316,7 @@ nondetInstance tdecl = case tdecl of
        targs = map fcy2absTVar tnums
        ctype = TCons qf (map TVar targs)
   _ -> error "TransTypes.nondetInstance"
-    
+
 specialConsRules :: QName -> [(QName, Rule)]
 specialConsRules qf = map nameRule
   [ ("choiceCons" , mkChoiceName  qf)
@@ -870,28 +887,46 @@ ordCons2Rule hoResult (qn1, ar1) (FC.Cons qn2 carity2 _ _)
 -- Auxiliary functions
 -- ---------------------------------------------------------------------------
 
-mkChoicePattern  qn idStr = PComb (mkChoiceName  qn) [PVar cd, PVar idVar , PVar x, PVar y]
+mkChoicePattern :: QName -> String -> Pattern
+mkChoicePattern qn idStr = PComb (mkChoiceName  qn) [PVar cd, PVar idVar , PVar x, PVar y]
   where [cd, idVar ,x,y] = newVars ["cd", idStr ,"x","y"]
+
+mkChoicesPattern :: QName -> Pattern
 mkChoicesPattern qn = PComb (mkChoicesName qn) [PVar cd, PVar i, PVar xs]
   where [cd, i,xs] = newVars ["cd", "i","xs"]
+
+mkNarrowedChoicesPattern :: QName -> String -> Pattern
 mkNarrowedChoicesPattern qn asName = PComb (mkChoicesName qn)
  [PVar cd, PAs i (PComb (basics "NarrowedID") [PVar u1, PVar u2]), PVar xs]
  where [i,cd, u1,u2,xs] = newVars [asName,"cd","_","_","xs"]
+
+mkFreeChoicesPattern :: QName -> String -> Pattern
 mkFreeChoicesPattern qn asName = PComb (mkChoicesName qn)
  [PVar cd, PAs i (PComb (basics "FreeID") [PVar u1, PVar u2]), PVar xs]
  where [i,cd,u1,u2,xs] = newVars [asName,"cd", "_","_","xs"]
-mkVarChoicesPattern qn = PComb (mkChoicesName qn)
- [PVar cd, PVar i, PVar xs]
+
+mkVarChoicesPattern :: QName -> Pattern
+mkVarChoicesPattern qn = PComb (mkChoicesName qn) [PVar cd, PVar i, PVar xs]
  where [cd,i,xs] = newVars ["cd","i","_"]
-mkFailPattern    qn = PComb (mkFailName    qn) [PVar cd, PVar info]
+
+mkFailPattern :: QName -> Pattern
+mkFailPattern qn = PComb (mkFailName qn) [PVar cd, PVar info]
   where [cd,info] = newVars ["cd","info"]
-mkGuardPattern   qn = PComb (mkGuardName   qn) [PVar cd, PVar c, PVar e]
+
+mkGuardPattern :: QName -> Pattern
+mkGuardPattern qn = PComb (mkGuardName qn) [PVar cd, PVar c, PVar e]
   where [cd, c,e] = newVars ["cd", "c","e"]
 
+mkPVar :: String -> Int -> Pattern
 mkPVar n i = PVar $ mkVarName n i
 
+mkVar :: String -> Int -> Expr
 mkVar n i = Var $ mkVarName n i
 
+mkTVar :: Int -> TypeExpr
+mkTVar i = TVar (i, 't' : show i)
+
+mkVarName :: String -> Int -> (Int, String)
 mkVarName n i
   | n == "_"  = (i, n)
   | otherwise = (i, n ++ show i)
@@ -899,21 +934,29 @@ mkVarName n i
 newVars :: [String] -> [(Int, String)]
 newVars = zip [1..]
 
+mkInstance :: QName -> [QName] -> TypeExpr -> [TVarIName] -> [(QName, Rule)]
+           -> TypeDecl
 mkInstance qn addContexts ctype targs
   = Instance qn ctype $ concatMap (\name -> map (\tv -> Context name [tv]) targs) (qn:addContexts)
 
+consPattern :: QName -> String -> Int -> Pattern
 consPattern qn varName carity
   = PComb qn $ map (PVar . mkVarName varName) [1 .. carity]
 
+catchAllCase :: QName -> Expr -> [(QName, Rule)]
 catchAllCase qn retVal
   = [(qn, simpleRule [PVar (1,"_"), PVar (2,"_"), PVar (3, "d"), PVar (4,"_")] retVal)]
 
+simpleRule :: [Pattern] -> Expr -> Rule
 simpleRule patterns body = Rule patterns [noGuard body] []
 
+intc :: Int -> Expr
 intc i = Lit $ Intc i
 
+charc :: Char -> Expr
 charc c = Lit $ Charc c
 
+mkIdList :: Int -> Expr -> [Expr]
 mkIdList num initid
   | num == 0    = []
   | num == 1    = [left initid]
@@ -925,6 +968,7 @@ mkIdList num initid
       where
         half = n `div` 2
 
+mkSuppList :: Int -> Expr -> [Expr]
 mkSuppList num supp
   | num == 0    = []
   | num == 1    = [leftsupp supp]
@@ -936,8 +980,10 @@ mkSuppList num supp
       where
         half = n `div` 2
 
-isListType   q    = q == renameQName ("Prelude", "[]")
+isListType :: QName -> Bool
+isListType qn = qn == renameQName ("Prelude", "[]")
 
+isTupleType :: QName -> Bool
 isTupleType (m,t) = m == renameModule "Prelude" && take 8 t == "OP_Tuple"
 
 showQName :: QName -> String

@@ -25,6 +25,8 @@ data Data
   = Cons1 Bool
   | Cons2 (() -> ())
 
+newtype Identity a = Id a
+
 type Record =
   { field1 :: Bool
   , field2 :: Int
@@ -39,9 +41,10 @@ special _ = sum [1 .. 2]
         qualified = 3
 
 -- Literals
-octal   = 0o123
+binary  = 0b101 + 0B101
+octal   = 0o123 + 0O123
 dec     = 123
-hex     = 0x123
+hex     = 0x123 + 0X123
 float   = 2.0
 char    = 'a'
 charEsc = '\n'

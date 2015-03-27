@@ -6,11 +6,11 @@
 --- @author Michael Hanus, Bjoern Peemoeller
 --- @version January 2014
 --- --------------------------------------------------------------------------
-{-# LANGUAGE Records #-}
 module Linker
   ( ReplState (..), NonDetMode (..), MainCompile (..), loadPaths
   , setExitStatus
-  , writeVerboseInfo, mainGoalFile, initReplState, createAndCompileMain
+  , writeVerboseInfo, mainGoalFile, mainModuleIdent, initReplState
+  , createAndCompileMain
   , getTimeCmd
   ) where
 
@@ -30,7 +30,7 @@ import Names         (funcInfoFile)
 import RCFile
 import Utils         (notNull, strip)
 
-type ReplState =
+data ReplState = ReplState
   { kics2Home    :: String     -- installation directory of the system
   , rcvars       :: [(String, String)] -- content of rc file
   , idSupply     :: String     -- IDSupply implementation (ioref, integer or ghc)
@@ -54,6 +54,7 @@ type ReplState =
   , showBindings :: Bool       -- show free variables in main goal in output?
   , showTime     :: Bool       -- show execution of main goal?
   , traceFailure :: Bool       -- trace failure in deterministic expression
+  , profile      :: Bool       -- use GHC's profiling capabilities
   , useGhci      :: Bool       -- use ghci to evaluate main goal
   , safeExec     :: Bool       -- safe execution mode without I/O actions
   , parseOpts    :: String     -- additional options for the front end
@@ -69,44 +70,45 @@ type ReplState =
 
 --- Initial state of REPL
 initReplState :: ReplState
-initReplState =
-  { kics2Home    := ""
-  , rcvars       := []
-  , idSupply     := "ioref"
-  , verbose      := 1
-  , importPaths  := []
-  , libPaths     := map (Inst.installDir </>) ["lib", "lib" </> "meta"]
-  , preludeName  := "Prelude"
-  , outputSubdir := ".curry" </> "kics2"
-  , mainMod      := "Prelude"
-  , addMods      := []
-  , prompt       := "%s> "
-  , optim        := True
-  , ndMode       := BFS
-  , firstSol     := False
-  , interactive  := False
-  , showBindings := True
-  , showTime     := False
-  , traceFailure := False
-  , useGhci      := False
-  , safeExec     := False
-  , parseOpts    := ""
-  , cmpOpts      := ""
-  , ghcOpts      := ""
-  , rtsOpts      := ""
-  , rtsArgs      := ""
-  , quit         := False
-  , exitStatus   := 0
-  , sourceguis   := []
-  , ghcicomm     := Nothing
+initReplState = ReplState
+  { kics2Home    = ""
+  , rcvars       = []
+  , idSupply     = "ioref"
+  , verbose      = 1
+  , importPaths  = []
+  , libPaths     = map (Inst.installDir </>) ["lib", "lib" </> "meta"]
+  , preludeName  = "Prelude"
+  , outputSubdir = ".curry" </> "kics2"
+  , mainMod      = "Prelude"
+  , addMods      = []
+  , prompt       = "%s> "
+  , optim        = True
+  , ndMode       = BFS
+  , firstSol     = False
+  , interactive  = False
+  , showBindings = True
+  , showTime     = False
+  , traceFailure = False
+  , profile      = False
+  , useGhci      = False
+  , safeExec     = False
+  , parseOpts    = ""
+  , cmpOpts      = ""
+  , ghcOpts      = ""
+  , rtsOpts      = ""
+  , rtsArgs      = ""
+  , quit         = False
+  , exitStatus   = 0
+  , sourceguis   = []
+  , ghcicomm     = Nothing
   }
 
 loadPaths :: ReplState -> [String]
-loadPaths rst = "." : rst :> importPaths ++ rst :> libPaths
+loadPaths rst = "." : importPaths rst ++ libPaths rst
 
 --- Sets the exit status in the REPL state.
 setExitStatus :: Int -> ReplState -> ReplState
-setExitStatus s rst = { exitStatus := s | rst }
+setExitStatus s rst = rst { exitStatus = s }
 
 -- ---------------------------------------------------------------------------
 
@@ -114,15 +116,19 @@ setExitStatus s rst = { exitStatus := s | rst }
 mainGoalFile :: String
 mainGoalFile = "Curry_Main_Goal.curry"
 
+--- Module identifier for Main
+mainModuleIdent :: String
+mainModuleIdent = "Curry_Main_Goal"
+
 --- Show an info message for a given verbosity level
 writeVerboseInfo :: ReplState -> Int -> String -> IO ()
 writeVerboseInfo rst lvl msg =
-  unless (rst :> verbose < lvl) (putStrLn msg >> hFlush stdout)
+  unless (verbose rst < lvl) (putStrLn msg >> hFlush stdout)
 
--- Reads the determinism infomation for the main goal file
+--- Reads the determinism infomation for the main goal file
 readInfoFile :: ReplState -> IO [((String,String),Bool)]
 readInfoFile rst = do
-  readQTermFile (funcInfoFile (rst :> outputSubdir) mainGoalFile)
+  readQTermFile (funcInfoFile (outputSubdir rst) mainModuleIdent mainGoalFile)
 
 getGoalInfo :: ReplState -> IO (Bool, Bool)
 getGoalInfo rst = do
@@ -138,35 +144,35 @@ getGoalInfo rst = do
                 (if isio  then "" else "not ") ++ "of IO type..."
   return (isdet, isio)
 
--- Checks whether user-defined ghc options have been changed.
-updateGhcOptions :: ReplState -> IO (ReplState,Bool)
+--- Checks whether user-defined ghc options have been changed.
+updateGhcOptions :: ReplState -> IO (ReplState, Bool)
 updateGhcOptions rst =
   if oldOpts == newOpts
     then return (rst,False)
     else do
       setRCProperty key newOpts
       rcDefs <- readRC
-      return ({ rcvars := rcDefs | rst }, True)
+      return (rst { rcvars = rcDefs }, True)
  where
    key = "ghc_options"
-   oldOpts = rcValue (rst :> rcvars) key
-   newOpts = rst :> ghcOpts
+   oldOpts = rcValue (rcvars rst) key
+   newOpts = ghcOpts rst
 
 --- Result of compiling main program
 data MainCompile = MainError | MainDet | MainNonDet
 
--- Create and compile the main module containing the main goal
+--- Create and compile the main module containing the main goal
 createAndCompileMain :: ReplState -> Bool -> String -> Maybe Int
                      -> IO (ReplState, MainCompile)
 createAndCompileMain rst createExecutable mainExp bindings = do
   (isdet, isio) <- getGoalInfo rst
   (rst',wasUpdated) <- updateGhcOptions rst
-  writeFile mainFile $ mainModule rst' isdet isio (rst :> traceFailure) bindings
+  writeFile mainFile $ mainModule rst' isdet isio (traceFailure rst) bindings
 
-  let ghcCompile = ghcCall rst' useGhci wasUpdated mainFile
+  let ghcCompile = ghcCall rst' useGhci' wasUpdated mainFile
   tghcCompile <- getTimeCmd rst' "GHC compilation" ghcCompile
   writeVerboseInfo rst' 3 $ "Compiling " ++ mainFile ++ " with: " ++ tghcCompile
-  (rst'', status) <- if useGhci
+  (rst'', status) <- if useGhci'
                       then compileWithGhci rst' ghcCompile mainExp
                       else system tghcCompile >>= \stat -> return (rst', stat)
   return (if status > 0
@@ -174,17 +180,17 @@ createAndCompileMain rst createExecutable mainExp bindings = do
           else (setExitStatus 0 rst'',
                 if isdet || isio then MainDet else MainNonDet))
  where
-  mainFile = "." </> rst :> outputSubdir </> "Main.hs"
+  mainFile = "." </> outputSubdir rst </> "Main.hs"
   -- option parsing
-  useGhci = rst :> useGhci && not createExecutable && not (rst :> interactive)
+  useGhci' = useGhci rst && not createExecutable && not (interactive rst)
 
 compileWithGhci :: ReplState -> String -> String -> IO (ReplState, Int)
 compileWithGhci rst ghcCompile mainExp = do
-  comm <- refresh ghcCompile (rst :> verbose > 2)
+  comm <- refresh ghcCompile (verbose rst > 2)
   writeVerboseInfo rst 1 $ "Evaluating expression: " ++ strip mainExp
-  evalMainCmd comm (rst :> showTime)
-  return ({ ghcicomm := Just comm | rst }, 0)
- where refresh = case rst :> ghcicomm of
+  evalMainCmd comm (showTime rst)
+  return (rst { ghcicomm = Just comm }, 0)
+    where refresh = case ghcicomm rst of
                     Nothing  -> initGhciComm
                     Just old -> restartGhciComm old
 
@@ -192,36 +198,37 @@ ghcCall :: ReplState -> Bool -> Bool -> String -> String
 ghcCall rst useGhci recompile mainFile = unwords . filter notNull $
   [ Inst.ghcExec
   , Inst.ghcOptions
-  , if rst :> optim && not useGhci then "-O2"            else ""
-  , if useGhci                     then "--interactive"  else "--make"
-  , if rst :> verbose < 2          then "-v0"            else "-v1"
-  , if withGhcSupply               then "-package ghc"   else ""
-  , if isParSearch                 then "-threaded"      else ""
-  , if withRtsOpts                 then "-rtsopts"       else ""
-  , if recompile                   then "-fforce-recomp" else ""
+  , if optim rst && not useGhci then "-O2"               else ""
+  , if useGhci                  then "--interactive"     else "--make"
+  , if verbose rst < 2          then "-v0"               else "-v1"
+  , if withGhcSupply            then "-package ghc"      else ""
+  , if isParSearch              then "-threaded"         else ""
+  , if withProfiling            then "-prof -fprof-auto" else ""
+  , if withRtsOpts              then "-rtsopts"          else ""
+  , if recompile                then "-fforce-recomp"    else ""
       -- XRelaxedPolyRec due to problem in FlatCurryShow
   , "-XMultiParamTypeClasses", "-XFlexibleInstances", "-XRelaxedPolyRec"
---   , "-cpp" -- use the C pre processor -- TODO WHY?
-  , rst :> ghcOpts
+  , ghcOpts rst
   , "-i" ++ (intercalate ":" ghcImports)
   , mainFile
   ]
  where
-  withGhcSupply = (rst :> idSupply) `elem` ["ghc", "ioref"]
-  withRtsOpts   = notNull (rst :> rtsOpts) || isParSearch
-  isParSearch   = case rst :> ndMode of
+  withGhcSupply = (idSupply rst) `elem` ["ghc", "ioref"]
+  withRtsOpts   = notNull (rtsOpts rst) || isParSearch || withProfiling
+  withProfiling = profile rst
+  isParSearch   = case ndMode rst of
     Par _ -> True
     _     -> False
   ghcImports
     | Inst.installGlobal
-    = map (</> rst :> outputSubdir) ("." : rst :> importPaths)
+    = map (</> outputSubdir rst) ("." : importPaths rst)
     | otherwise
-    = [ rst :> kics2Home </> "runtime"
-      , rst :> kics2Home </> "runtime" </> "idsupply" ++ rst :> idSupply
-      ] ++ map (</> rst :> outputSubdir) (loadPaths rst)
+    = [ kics2Home rst </> "runtime"
+      , kics2Home rst </> "runtime" </> "idsupply" ++ idSupply rst
+      ] ++ map (</> outputSubdir rst) (loadPaths rst)
 
 --- Mode of non-deterministic evaluation of main goal
-data NonDetMode  = DFS | BFS | IDS Int | Par Int | PrDFS | PrtChoices Int
+data NonDetMode  = DFS | BFS | IDS Int | Par Int | PrDFS | PrtChoices Int | DEBUG
 
 data EvalMode    = All | One | Interactive MoreDefault -- | Count
 
@@ -231,25 +238,25 @@ data MoreDefault = MoreYes | MoreNo | MoreAll
 mainModule :: ReplState -> Bool -> Bool -> Bool -> Maybe Int -> String
 mainModule rst isdet isio isTF mbBindings = unlines
   [ "module Main where"
-  , if rst :> interactive then "import MonadList" else ""
+  , if interactive rst then "import MonadList" else ""
   , "import Basics"
   , "import SafeExec"
   , if mbBindings==Nothing
     then ""
-    else ("import Curry_"++ rst :> preludeName)
-  , if (rst :> traceFailure)
+    else ("import Curry_"++ preludeName rst)
+  , if (traceFailure rst)
       then "import Curry_Trace_" ++ dropExtension mainGoalFile
       else "import Curry_" ++ dropExtension mainGoalFile
   , ""
   , "main :: IO ()"
-  , mainExpr "kics2MainGoal" isdet isio isTF (rst :> ndMode) evalMode mbBindings
+  , mainExpr "kics2MainGoal" isdet isio isTF (ndMode rst) evalMode mbBindings
   ]
  where
   evalMode
-    | rst :> interactive = Interactive moreDefault
-    | rst :> firstSol    = One
+    | interactive rst = Interactive moreDefault
+    | firstSol rst    = One
     | otherwise          = All
-  moreDefault = case rcValue (rst :> rcvars) "moresolutions" of
+  moreDefault = case rcValue (rcvars rst) "moresolutions" of
     "yes" -> MoreYes
     "no"  -> MoreNo
     "all" -> MoreAll
@@ -267,6 +274,7 @@ mainExpr goal isdet isio isTF ndMode evalMode mbBindings
     | isdet && isTF         = "failtraceD"
     | isdet                 = "evalD"
     | otherwise             = case ndMode of
+      DEBUG        -> searchExpr $ "debugSearch"
       PrDFS        -> searchExpr $ "prdfs"
       DFS          -> searchExpr $ "printDFS" ++ searchSuffix
       BFS          -> searchExpr $ "printBFS" ++ searchSuffix
@@ -293,15 +301,15 @@ mainExpr goal isdet isio isTF ndMode evalMode mbBindings
 
 
 ---------------------------------------------------------------------------
--- Axuiliaries:
+-- Auxiliaries:
 
 -- Decorates a shell command so that timing information is shown if
 -- the corresponding option is set.
 getTimeCmd :: ReplState -> String -> String -> IO String
 getTimeCmd rst timename cmd
-  | rst :> showTime = do dist <- getDistribution
-                         return (getTimeCmdForDist dist ++ cmd)
-  | otherwise       = return cmd
+  | showTime rst = do dist <- getDistribution
+                      return (getTimeCmdForDist dist ++ cmd)
+  | otherwise    = return cmd
  where
   -- Time command for specific distributions. It might be necessary
   -- to adapt this command.
@@ -319,4 +327,3 @@ getTimeCmd rst timename cmd
     hClose hout
     hClose herr
     return dist
-

@@ -3,16 +3,20 @@
 CURRYHOME=..
 CURRYBIN=$CURRYHOME/bin
 
+# use the right Curry system for the tests:
+PATH=$CURRYBIN:$PATH
+export PATH
+
 TESTPARAMS="--window"
 if [ "$1" = "--nogui" ] ; then
   TESTPARAMS=
 fi
 
 # test for basic language features
-TESTLANG="testFunctional testInfinite testHigher testNondet testCase testLetRec testNarr testUnification testNonLinearPattern testNonStrictUnif testFuncPattern testAsPattern testPolySubExp"
+TESTLANG="testFunctional testInfinite testHigher testNondet testCase testLetRec testRecords testNarr testUnification testNonLinearPattern testNonStrictUnif testFuncPattern testAsPattern testPolySubExp"
 
 # test for standard libraries
-TESTLIBS="testPrelude testArray testCombinatorial testDequeue testDirectory testFiniteMap testFlatCurryGoodies testGlobal testInteger testIO testIOExts testKeyDatabaseSQLite testList testRedBlackTree testSetFunctions testSort testSystem testTraversal testUnsafeSearchTree testExpTypeInference"
+TESTLIBS="testPrelude testArray testCombinatorial testDequeue testDirectory testFiniteMap testFlatCurryGoodies testFormat testGlobal testInteger testIO testIOExts testKeyDatabaseSQLite testList testRedBlackTree testRegExp testSetFunctions testSort testSystem testTraversal testUnsafeSearchTree testExpTypeInference"
 # further tests for the future:
 # testGlobalVariable # not yet implemented
 # testFlatCurryXML # causes memory overflow
@@ -23,7 +27,7 @@ TESTTOOLS="testData2Xml"
 ALLTESTS="$TESTLANG $TESTLIBS $TESTTOOLS"
 
 # clean up before
-$KICS2BIN/cleancurry
+$CURRYBIN/cleancurry
 
 # execute all unit tests:
 echo "Executing unit tests for back end $BACKEND..."

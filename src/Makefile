@@ -23,10 +23,10 @@ CURRY_OPTS = :set path $(TYPEINFDIR):$(LIBDIR)/meta
 COMPILE_DEPS = AbstractHaskell AbstractHaskellGoodies AbstractHaskellPrinter \
                Analysis Classification CompilerOpts EliminateCond Files      \
                LiftCase Message ModuleDeps                                   \
-               Names SCC SimpleMake State TransFunctions TransTypes Utils
+               Names SimpleMake State TransFunctions TransTypes Utils
 
 # Source modules of the REPL (without standard libraries)
-REPL_DEPS = AbstractCurryGoodies Files GhciComm Linker Names RCFile Utils
+REPL_DEPS = Files GhciComm Linker Names RCFile Utils
 
 .PHONY: all
 all: CompileBoot updateInstallInfo REPLBoot
@@ -77,7 +77,10 @@ ifeq ($(shell test -x "$(KICS2)" ; echo $$?),0)
 	$(KICS2) $(CURRY_OPTS) :set parser -Wall :set v2 :l Compile :save :quit
 	mv Compile $(COMP)
 else
-	pakcs $(CURRY_OPTS) :l Compile :save :quit
+	mv $(INSTALLCURRY) $(INSTALLCURRY).bak
+	cp $(INSTALLHS) $(INSTALLCURRY)
+	pakcs $(CURRY_OPTS) :l Compile :save :quit || (mv $(INSTALLCURRY).bak $(INSTALLCURRY) ; exit 1)
+	mv $(INSTALLCURRY).bak $(INSTALLCURRY)
 	mv Compile $(COMP)
 endif
 

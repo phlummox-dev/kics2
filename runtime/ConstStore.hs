@@ -2,12 +2,12 @@
 
 module ConstStore where
 
-import Data.IORef       (IORef, readIORef, modifyIORef, newIORef)
-import qualified Data.Map as Map
-import Unsafe.Coerce    (unsafeCoerce)
-import System.IO.Unsafe (unsafePerformIO)
+import           Data.IORef       (IORef, readIORef, modifyIORef, newIORef)
+import qualified Data.Map as Map  (Map, empty, insert, lookup, union)
+import           Unsafe.Coerce    (unsafeCoerce)
+import           System.IO.Unsafe (unsafePerformIO)
 
-import ID
+import           ID               (Constraints (..), ID, getKey)
 
 -- ---------------------------------------------------------------------------
 -- Constraint Store

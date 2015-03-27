@@ -5,14 +5,13 @@
 --- @author Bjoern Peemoeller, Fabian Skrlac
 --- @version May 2014
 --- --------------------------------------------------------------------------
-{-# LANGUAGE Records #-}
 module TransFunctions ( State (..), defaultState, trProg, runIOES ) where
 
 import FiniteMap (lookupFM, plusFM, delListFromFM)
 import Function  (first)
 
 import qualified AbstractHaskell        as AH
-import qualified AbstractHaskellGoodies as AH
+import qualified AbstractHaskellGoodies as AHG
 import           Analysis
 import           CompilerOpts  (Options (..), defaultOptions, OptimLevel (..))
 import           FlatCurry
@@ -79,7 +78,7 @@ foldM f e (x : xs) = f e x >+= \fex -> foldM f fex xs
 -- Internal state and access functions
 -- ---------------------------------------------------------------------------
 
-type State =
+data State = State
   { typeMap      :: TypeMap
   , ndResult     :: NDResult
   , hoResultType :: TypeHOResult
@@ -91,15 +90,15 @@ type State =
   }
 
 defaultState :: State
-defaultState =
-  { typeMap      := initTypeMap
-  , ndResult     := initNDResult
-  , hoResultType := initTypeHOResult
-  , hoResultCons := initHOResult
-  , hoResultFunc := initHOResult
-  , nextID       := 0
-  , detMode      := False
-  , compOptions  := defaultOptions
+defaultState = State
+  { typeMap      = initTypeMap
+  , ndResult     = initNDResult
+  , hoResultType = initTypeHOResult
+  , hoResultCons = initHOResult
+  , hoResultFunc = initHOResult
+  , nextID       = 0
+  , detMode      = False
+  , compOptions  = defaultOptions
   }
 
 type M a = IOES State a
@@ -108,87 +107,87 @@ type M a = IOES State a
 
 addTypeMap :: TypeMap -> M ()
 addTypeMap newTypes =
- updState (\st -> { typeMap :=  st :> typeMap `plusFM` newTypes  | st })
+ updState (\st -> st { typeMap = typeMap st `plusFM` newTypes })
 
 
 getType :: QName -> M QName
 getType qn = getState >+= \st ->
   maybe (failM $ show qn ++ " not in type map") returnM
-  $ (flip lookupFM) qn (st :> typeMap)
+  $ (flip lookupFM) qn (typeMap st)
 
 -- NDResult
 
 addNDAnalysis :: NDResult -> M ()
 addNDAnalysis newRes = updState $ \st ->
-  { ndResult := newRes `plusFM` st :> ndResult | st }
+  st { ndResult = newRes `plusFM` ndResult st }
 
 getNDClass :: QName -> M NDClass
 getNDClass qn = getState >+= \st ->
   maybe (failM $ show qn ++ " not analysed") returnM
-  $ (flip lookupFM) qn (st :> ndResult)
+  $ (flip lookupFM) qn (ndResult st)
 
 -- HOTypeResult
 
 addHOTypeAnalysis :: TypeHOResult -> M ()
 addHOTypeAnalysis newRes = updState$ \st ->
-  { hoResultType := (newRes `plusFM` st :> hoResultType) | st }
+  st { hoResultType = newRes `plusFM` hoResultType st }
 
 getTypeHOClass :: QName -> M TypeHOClass
 getTypeHOClass qn = getState >+= \st ->
   maybe (failM $ show qn ++ " not analysed") returnM
-  $ (flip lookupFM) qn (st :> hoResultType)
+  $ (flip lookupFM) qn (hoResultType st)
 
 -- HOConsResult
 
 addHOConsAnalysis :: ConsHOResult -> M ()
 addHOConsAnalysis newRes = updState$ \st ->
-  { hoResultCons := (newRes `plusFM` st :> hoResultCons) | st }
+  st { hoResultCons = newRes `plusFM` hoResultCons st }
 
 getConsHOClass :: QName -> M ConsHOClass
 getConsHOClass qn = getState >+= \st ->
   maybe (failM $ show qn ++ " not analysed") returnM
-  $ (flip lookupFM) qn $ (st :> hoResultCons)
+  $ (flip lookupFM) qn $ (hoResultCons st)
 
 -- HOFunResult
 
 addHOFuncAnalysis :: FuncHOResult -> M ()
 addHOFuncAnalysis newRes = updState$ \st ->
-  { hoResultFunc := newRes `plusFM` st :> hoResultFunc | st }
+  st { hoResultFunc = newRes `plusFM` hoResultFunc st }
 
 getFuncHOClass :: QName -> M FuncHOClass
 getFuncHOClass qn = getState >+= \st ->
   maybe (failM $ show qn ++ " not analysed") returnM
-  $ (flip lookupFM) qn $ (st :> hoResultFunc)
+  $ (flip lookupFM) qn $ (hoResultFunc st)
 
 -- IDs
 
 getNextID :: M Int
-getNextID = getState >+= \st -> returnM (st :> nextID)
+getNextID = getState >+= \st -> returnM (nextID st)
 
 setNextID :: Int -> M ()
-setNextID i = updState (\st -> { nextID := i | st })
+setNextID i = updState (\st -> st { nextID = i })
 
 takeNextID :: M Int
 takeNextID =
   getState >+= \st ->
-  let i = st :> nextID in
-  putState ({ nextID := (i + 1) | st }) >+
+  let i = nextID st in
+  putState (st { nextID = (i + 1) }) >+
   returnM i
 
 takeNextIDs :: Int -> M [Int]
 takeNextIDs n =
   getState >+= \st ->
-  let i = st :> nextID in
-  putState ({ nextID := (i + n) | st }) >+
+  let i = nextID st in
+  putState (st { nextID = (i + n) }) >+
   returnM [i .. i+n-1]
 
 -- DetMode
 
 isDetMode :: M Bool
-isDetMode = getState >+= \st -> returnM (st :> detMode)
+isDetMode = getState >+= \st -> returnM (detMode st)
 
 setDetMode :: Bool -> M ()
-setDetMode dm = updState (\st -> { detMode := dm | st})
+setDetMode dm = updState (\st -> st { detMode = dm })
 
 -- Perform an action in a given detMode and restore the original mode
 -- afterwards
@@ -202,18 +201,18 @@ doInDetMode dm action =
 
 isTraceFailure :: M Bool
 isTraceFailure = getState >+= \st ->
-                 returnM (st :> compOptions :> optTraceFailure)
+                 returnM (optTraceFailure (compOptions st))
 
 -- Compiler options
 getCompOptions :: M Options
-getCompOptions = getState >+= \ st -> returnM (st :> compOptions)
+getCompOptions = getState >+= \ st -> returnM (compOptions st)
 
 getCompOption :: (Options -> a) -> M a
 getCompOption select = getCompOptions >+= (returnM . select)
 
 strictSupply :: M Bool
 strictSupply = getCompOption $ \opts ->
-  (opts :> optOptimization >= OptimStrictSupply)
+  (optOptimization opts >= OptimStrictSupply)
 
 -- ---------------------------------------------------------------------------
 -- Program translation
@@ -222,10 +221,10 @@ strictSupply = getCompOption $ \opts ->
 trProg :: Prog -> M (AH.Prog, AnalysisResult)
 trProg p@(Prog m is ts fs _) =
   getState >+= \st ->
-  let modNDRes     = analyseND     p (st :> ndResult)
-      modHOResType = analyseHOType p (st :> hoResultType)
+  let modNDRes     = analyseND     p (ndResult st)
+      modHOResType = analyseHOType p (hoResultType st)
       modHOResCons = analyseHOCons p
-      modHOResFunc = analyseHOFunc p (st :> hoResultType `plusFM` modHOResType)
+      modHOResFunc = analyseHOFunc p (hoResultType st `plusFM` modHOResType)
       modTypeMap   = getTypeMap    ts
       visInfo      = analyzeVisibility p
 
@@ -255,7 +254,7 @@ trFunc :: FuncDecl -> M [AH.FuncDecl]
 trFunc f@(Func qn _ _ _ _) =
   checkGlobal f  >+
   getCompOptions >+= \opts ->
-  case opts :> optOptimization > OptimNone of
+  case optOptimization opts > OptimNone of
     -- translate all functions as non-deterministic by default
     False -> trNDFunc f >+= \ fn -> returnM [fn]
     True  ->
@@ -326,12 +325,12 @@ trGlobalDecl (Func qn a v t r) = case r of
     trDetType 0 t          >+= \t'      ->
     returnM $
       [ AH.Func "" qn' 2 (cvVisibility v) (toTypeSig t')
-        (AH.simpleRule (map AH.PVar [coverName, constStoreName])
+        (AHG.simpleRule (map AH.PVar [coverName, constStoreName])
                     (AH.Symbol $ mkGlobalName qn))
       , AH.Func "" (mkGlobalName qn) 0 AH.Private
         (toTypeSig $ trHOTypeExpr AH.FuncType t)
-        (AH.simpleRule [] (AH.applyF global'
-              [ AH.Let (map (uncurry AH.declVar)
+        (AHG.simpleRule [] (AHG.applyF global'
+              [ AHG.clet (map (uncurry AHG.declVar)
                             [ (constStoreName, emptyCs  )
                             , (coverName     , initCover)
                             ])
@@ -387,7 +386,7 @@ toTypeSig :: AH.TypeExpr -> AH.TypeSig
 toTypeSig ty | null tyVars = AH.FType ty
              | otherwise   = AH.CType ctxt ty
   where
-  tyVars = AH.tyVarsOf ty
+  tyVars = AHG.tyVarsOf ty
   ctxt   = map (\tv -> AH.Context (curryPrelude, "Curry") [tv]) tyVars
 
 trDetType :: Int -> TypeExpr -> M AH.TypeExpr
@@ -459,7 +458,7 @@ trRule qn _ (Rule vs e) =
   let vs' = map cvVarIndex vs
             ++ [topSupplyName | not dm] ++ [coverName, constStoreName]
       e'' = if fc then failCheck qn (map cvVar vs) e' else e'
-  in  returnM $ AH.simpleRule (map AH.PVar vs') e''
+  in  returnM $ AHG.simpleRule (map AH.PVar vs') e''
 trRule qn a (External _) =
   isDetMode      >+= \dm ->
   isTraceFailure >+= \fc ->
@@ -468,7 +467,7 @@ trRule qn a (External _) =
             ++ [topSupplyName | not dm] ++ [coverName, constStoreName]
       e   = funcCall (externalFunc qn) (map AH.Var vs')
       e'  = if fc then failCheck qn (map cvVar vs) e else e
-  in  returnM $ AH.simpleRule (map AH.PVar vs') e'
+  in  returnM $ AHG.simpleRule (map AH.PVar vs') e'
 
 --- Translate a function body.
 trBody :: QName -> [Int] -> Expr -> M AH.Expr
@@ -524,7 +523,7 @@ litBranches bs = case branchPairs of
     branchPairs = [ (l, e) | AH.Branch (AH.PULit l) e <- bs ]
     mkBranch cons match = AH.Branch (AH.PComb cons [AH.PVar litVar])
                         $ funcCall match
-                          [ AH.list2ac $ map pair2ac
+                          [ AHG.list2ac $ map pair2ac
                                        $ map (first AH.Lit) branchPairs
                           , AH.Var litVar, coverVar, constStoreVar
                           ]
@@ -575,7 +574,7 @@ consBranches qn' vs v typeName =
         (funcCall qn' $ concat [vars1, AH.Var e : vars2, mbSuppVar, [coverVar]])
         (funcCall addCs [AH.Var c, constStoreVar])
 
-      lambdaExpr = AH.Lambda [AH.PVar z] $ AH.applyF qn' $ concat
+      lambdaExpr = AH.Lambda [AH.PVar z] $ AHG.applyF qn' $ concat
         [vars1, (AH.Var z) : vars2, mbSuppVar, [coverVar, constStoreVar]]
   in returnM $
     [ AH.Branch (AH.PComb (mkChoiceName  typeName) (map AH.PVar [d, i, l, r]))
@@ -608,16 +607,17 @@ trCompleteExpr e =
 --- Transform an expression and compute a list of new supply variables
 --- to be bound.
 trExpr :: Expr -> M ([VarIndex], AH.Expr)
-trExpr (Var               i) = returnM ([], cvVar     i)
-trExpr (Lit               l) = returnM ([], cvLitExpr l)
-trExpr (Comb ConsCall qn es) =
-  renameCons     qn               >+= \qn'      ->
-  mapM trExpr es >+= unzipArgs >+= \(g, es') ->
-  genIds g (AH.applyF qn' es')
+trExpr (Var                 i) = returnM ([], cvVar     i)
+trExpr (Lit                 l) = returnM ([], cvLitExpr l)
+trExpr e@(Comb ConsCall qn es) = case getString e of
+  Just s -> returnM ([], toCurryString s)
+  _      -> renameCons     qn            >+= \qn'      ->
+            mapM trExpr es >+= unzipArgs >+= \(g, es') ->
+            genIds g (AHG.applyF qn' es')
 
 -- fully applied functions
 trExpr (Comb FuncCall qn es) =
-  getCompOption (\opts -> opts :> optOptimization > OptimNone) >+= \opt ->
+  getCompOption (\opts -> optOptimization opts > OptimNone) >+= \opt ->
   getNDClass qn     >+= \ndCl ->
   getFuncHOClass qn >+= \hoCl ->
   isDetMode         >+= \dm   ->
@@ -629,24 +629,24 @@ trExpr (Comb FuncCall qn es) =
    -- with the additional arguments (idsupply, capsule nesting depth
    -- and the constraint store)
     then takeNextID >+= \i -> genIds (i:g)
-          (AH.applyF qn' (es' ++ [supplyVar i, coverVar, constStoreVar]))
+          (AHG.applyF qn' (es' ++ [supplyVar i, coverVar, constStoreVar]))
     -- for deterministic functions with higher-order result
     -- in non-determinism mode we need to wrap the result
     -- in order to accept the additional arguments
     else genIds g $ case hoCl of
       FuncHORes i | not dm -> wrapDHO i $
-                              AH.applyF qn' (es' ++ [coverVar, constStoreVar])
-      _                    -> AH.applyF qn' (es' ++ [coverVar, constStoreVar])
+                              AHG.applyF qn' (es' ++ [coverVar, constStoreVar])
+      _                    -> AHG.applyF qn' (es' ++ [coverVar, constStoreVar])
 
 -- partially applied functions
 trExpr (Comb (FuncPartCall i) qn es) =
-  getCompOption (\opts -> opts :> optOptimization > OptimNone) >+= \opt ->
+  getCompOption (\opts -> optOptimization opts > OptimNone) >+= \opt ->
   getNDClass qn     >+= \ndCl ->
   getFuncHOClass qn >+= \hoCl ->
   isDetMode         >+= \dm   ->
   renameFun qn      >+= \qn'  ->
   mapM trExpr es >+= unzipArgs  >+= \(g, es') ->
-  genIds g (wrapPartCall False dm opt ndCl hoCl i (AH.applyF qn' es'))
+  genIds g (wrapPartCall False dm opt ndCl hoCl i (AHG.applyF qn' es'))
 
 -- calls to partially applied constructors are treated like calls to partially
 -- applied deterministic first order functions.
@@ -654,13 +654,13 @@ trExpr (Comb (ConsPartCall i) qn es) =
   isDetMode     >+= \dm  ->
   renameCons qn >+= \qn' ->
   mapM trExpr es >+= unzipArgs >+= \(g, es') ->
-  genIds g (wrapPartCall True  dm True D FuncFO i (AH.applyF qn' es'))
+  genIds g (wrapPartCall True  dm True D FuncFO i (AHG.applyF qn' es'))
 
 trExpr (Let ds e) =
   let (vs, es) = unzip ds in
   mapM trExpr es >+= unzipArgs >+= \(g, es') ->
   trExpr e       >+=               \(ge, e') ->
-  genIds (g ++ ge) (AH.Let (zipWith AH.declVar (map cvVarIndex vs) es') e')
+  genIds (g ++ ge) (AHG.clet (zipWith AHG.declVar (map cvVarIndex vs) es') e')
 
 trExpr (Or e1 e2) =
   trExpr e1  >+= \(vs1, e1') ->
@@ -672,8 +672,8 @@ trExpr (Or e1 e2) =
 trExpr (Free vs e) =
   takeNextIDs (length vs) >+= \is   ->
   trExpr e             >+= \(g, e') ->
-  genIds (is ++ g) (AH.Let (zipWith mkFree vs is) e')
-  where mkFree v i = AH.declVar (cvVarIndex v) (generate $ supplyVar i)
+  genIds (is ++ g) (AHG.clet (zipWith mkFree vs is) e')
+  where mkFree v i = AHG.declVar (cvVarIndex v) (generate $ supplyVar i)
 
 -- This case should not occur because:
 --   * Nested case expressions have been lifted using LiftCase
@@ -684,6 +684,23 @@ trExpr (Typed e ty) =
   trExpr e      >+= \(g, e') ->
   trExprType ty >+= \ty'     ->
   genIds g (AH.Typed e' ty')
+
+getString :: Expr -> Maybe String
+getString e = case e of
+  Comb ConsCall cons [Lit (Charc c), s]
+    | cons == renameQName ("Prelude", ":") -> case getString' s of
+        Just s' -> Just (c:s')
+        _       -> Nothing
+  _             -> Nothing
+ where
+  getString' s0 = case s0 of
+    Comb ConsCall cons [Lit (Charc c), s]
+      | cons == renameQName ("Prelude", ":") -> case getString' s of
+        Just s' -> Just (c:s')
+        _       -> Nothing
+    Comb ConsCall nil []
+      | nil == renameQName ("Prelude", "[]") -> Just []
+    _                                        -> Nothing
 
 unzipArgs :: [([VarIndex], AH.Expr)] -> M ([VarIndex], [AH.Expr])
 unzipArgs ises = returnM (concat is, es) where (is, es) = unzip ises
@@ -822,7 +839,7 @@ wrapCs cons n e
                       , e
                       ]
  where
-  acceptCs = AH.applyF (basics, "acceptCs")
+  acceptCs = AHG.applyF (basics, "acceptCs")
   mkWraps m expr | m < 2     = expr
                  | otherwise = mkWraps (m - 1) (acceptCs [expr])
 
@@ -839,9 +856,14 @@ newWrap useDX n e
   wraps m expr = if m <= 1 then expr else wrapDX [wraps (m - 1) expr]
   innermostWrapper = if useDX then wrapDX else wrapNX
 
-wrapDX = AH.applyF (basics, "wrapDX")
-wrapNX = AH.applyF (basics, "wrapNX")
-funId  = AH.applyF (prelude, "id") []
+wrapDX :: [AH.Expr] -> AH.Expr
+wrapDX = AHG.applyF (basics, "wrapDX")
+
+wrapNX :: [AH.Expr] -> AH.Expr
+wrapNX = AHG.applyF (basics, "wrapNX")
+
+funId :: AH.Expr
+funId  = AHG.applyF (prelude, "id") []
 
 -- ---------------------------------------------------------------------------
 -- Primitive operations
@@ -851,7 +873,7 @@ funId  = AH.applyF (prelude, "id") []
 letIdVar :: [(AH.VarIName, AH.Expr)] -> AH.Expr -> M AH.Expr
 letIdVar ds e =
   strictSupply >+= \strict ->
-  returnM $ AH.Let (map (uncurry AH.declVar) ds)
+  returnM $ AHG.clet (map (uncurry AHG.declVar) ds)
           $ if strict then foldr seqCall e (map (AH.Var . fst) ds) else e
 
 curryInt :: QName
@@ -877,17 +899,21 @@ seqCall e1 e2 = funcCall (prelude, "seq") [e1, e2]
 strictCall :: AH.Expr -> AH.Expr -> AH.Expr
 strictCall f e = funcCall (prelude, "$!") [f, e]
 
-consCall = AH.applyF
-funcCall = AH.applyF
+consCall :: QName -> [AH.Expr] -> AH.Expr
+consCall = AHG.applyF
 
-constant qn = AH.applyF qn []
+funcCall :: QName -> [AH.Expr] -> AH.Expr
+funcCall = AHG.applyF
+
+constant :: QName -> AH.Expr
+constant qn = AHG.applyF qn []
 
 failCheck :: QName -> [AH.Expr] -> AH.Expr -> AH.Expr
 failCheck qn vs e
   | isCaseAuxFuncName (snd $ unRenamePrefixedFunc qn) = e
   | otherwise                   = funcCall (basics, "failCheck")
     [ showQName $ unRenameQName qn
-    , AH.list2ac (map (\v -> funcCall (prelude, "show") [v]) vs)
+    , AHG.list2ac (map (\v -> funcCall (prelude, "show") [v]) vs)
     , e
     ]
 
@@ -896,7 +922,7 @@ traceFail cd qn args fail = liftFail
   [ cd
   , funcCall (basics, "traceFail")
     [ showQName qn
-    , AH.list2ac (map (\a -> funcCall (prelude, "show") [a]) args)
+    , AHG.list2ac (map (\a -> funcCall (prelude, "show") [a]) args)
     , fail
     ]
   ]
@@ -911,23 +937,42 @@ consFail qn arg = liftFail
   ]
 
 showQName :: QName -> AH.Expr
-showQName qn = AH.string2ac (q ++ '.' : n)
+showQName qn = AHG.string2ac (q ++ '.' : n)
   where (q, n) = unRenamePrefixedFunc qn
 
-emptyCs     = funcCall (basics, "emptyCs") []
-initCover   = funcCall (basics, "initCover") []
+emptyCs :: AH.Expr
+emptyCs = funcCall (basics, "emptyCs") []
 
-choice      = funcCall (basics, "choice")
-narrow      = funcCall (basics, "narrow")
-narrows     = funcCall (basics, "narrows")
-liftGuard   = funcCall (basics, "guardCons")
-liftFail    = funcCall (basics, "failCons")
+initCover :: AH.Expr
+initCover = funcCall (basics, "initCover") []
 
-leftSupply  = funcCall (basics, "leftSupply")
+choice :: [AH.Expr] -> AH.Expr
+choice = funcCall (basics, "choice")
+
+narrow :: [AH.Expr] -> AH.Expr
+narrow = funcCall (basics, "narrow")
+
+narrows :: [AH.Expr] -> AH.Expr
+narrows = funcCall (basics, "narrows")
+
+liftGuard :: [AH.Expr] -> AH.Expr
+liftGuard = funcCall (basics, "guardCons")
+
+liftFail :: [AH.Expr] -> AH.Expr
+liftFail = funcCall (basics, "failCons")
+
+leftSupply :: [AH.Expr] -> AH.Expr
+leftSupply = funcCall (basics, "leftSupply")
+
+rightSupply :: [AH.Expr] -> AH.Expr
 rightSupply = funcCall (basics, "rightSupply")
 
 generate :: AH.Expr -> AH.Expr
 generate s = funcCall (basics, "generate") [s, coverVar]
+
+toCurryString :: String -> AH.Expr
+toCurryString s = funcCall (curryPrelude, "toCurryString")
+                           [AH.Lit (AH.Stringc s)]
 
 newVars :: [String] -> [AH.VarIName]
 newVars = zip [1 ..]
