@@ -6,9 +6,9 @@
 # ----------------------------------------
 
 # Is this a global installation (with restricted flexibility) (yes/no)?
-GLOBALINSTALL   = yes
+GLOBALINSTALL   = no
 # Should profiling be enabled (yes/no)?
-PROFILING       = yes
+PROFILING       = no
 # The major version number
 MAJORVERSION    = 0
 # The minor version number
@@ -52,7 +52,7 @@ export LOCALPKG      = $(INSTALLPREFIX)/pkg
 export PKGDB         = $(LOCALPKG)/kics2.conf.d
 # The path to a local Gecode 3.1.0 installation
 # (needed for usage of the gecode solver backend for fd constraints)
-export GECODE        =
+export GECODE        = $(HOME)/gecode
 
 # Special files and binaries used in this installation
 # ----------------------------------------------------
@@ -158,7 +158,7 @@ export CABAL_INSTALL_GECODE  = $(CABAL_INSTALL)
 ifdef GECODE
 CABAL_INSTALL_GECODE += --flags=Gecode --extra-include-dirs=$(GECODE)/include \
                         --extra-lib-dirs=$(GECODE)/lib
-LIBDEPS              += monadiccp-gecode
+# LIBDEPS              += monadiccp-gecode
 RUNTIMEDEPS          += monadiccp-gecode
 GHC_OPTS             += -cpp -DGECODE
 endif
