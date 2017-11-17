@@ -3,7 +3,7 @@
 --- It implements the Read-Eval-Print loop for KiCS2
 ---
 --- @author Michael Hanus, Bjoern Peemoeller
---- @version February 2017
+--- @version November 2017
 --- --------------------------------------------------------------------------
 module REPL where
 
@@ -106,6 +106,8 @@ processArgsAndStart rst (arg:args)
   = putStrLn "kics2" >> cleanUpAndExitRepl rst
   | arg == "--numeric-version"
   = putStrLn numericVersion >> cleanUpAndExitRepl rst
+  | arg == "--base-version"
+  = putStrLn "0.0.0" >> cleanUpAndExitRepl rst
   | arg == "-h" || arg == "--help" || arg == "-?"
   = printHelp >> cleanUpAndExitRepl rst
   | isCommand arg = do
@@ -133,8 +135,8 @@ printHelpOnInteractive = putStrLn $ unlines
   , ""
   , "-h|--help|-?      : show this message and quit"
   , "-V|--version      : show version and quit"
-  , "--compiler-name   : show just the compiler name `kics2' and quit"
-  , "--numeric-version : show just the version number and quit"
+  , "--compiler-name   : show the compiler name `kics2' and quit"
+  , "--numeric-version : show the compiler version number and quit"
   , "--noreadline      : do not use input line editing via command `rlwrap'"
   , "-Dprop=val        : define kics2rc property `prop' as `val'"
   , "<commands>        : list of commands of the KiCS2 environment"
