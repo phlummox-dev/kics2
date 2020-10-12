@@ -40,7 +40,7 @@ export CURRYSYSTEM = kics2
 # The major version number
 MAJORVERSION    = 2
 # The minor version number
-MINORVERSION    = 2
+MINORVERSION    = 3
 # The revision version number
 REVISIONVERSION = 0
 # The build version number (if >0, then it is a pre-release)

@@ -1,6 +1,15 @@
 Release Notes for KiCS2
 =======================
 
+Release notes for KiCS2 Version 2.3.0 (October 12, 2020)
+--------------------------------------------------------
+
+Changes to version 2.2.0:
+
+* CPM updated (faster `update` command and support for caret
+  and tilde comparison operators in dependency descriptions)
+
+
 Release notes for KiCS2 Version 2.2.0 (October 30, 2019)
 --------------------------------------------------------
 
