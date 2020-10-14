@@ -622,6 +622,7 @@ cleandist:
 	rm -rf $(BINDIR)
 	rm -rf $(DEV_DIRS)
 	rm -rf $(LOCALPKG)
+	rm -rf docker
 
 $(TARBALL): $(COMP) frontend $(MANUAL)
 	rm -rf $(DISTDIR)
