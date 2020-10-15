@@ -35,7 +35,7 @@ if [ $HELP = yes ] ; then
 fi
 
 # check docker image tag:
-if [ $# -gt 1 -a $1 = "-t" ] ; then
+if [ $# -gt 1 -a "$1" = "-t" ] ; then
   shift ; DOCKERTAG=$1 ; shift
 fi
 
