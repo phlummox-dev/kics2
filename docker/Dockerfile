@@ -1,1 +1,1 @@
-Dockerfile-kics2-2.3.0
+Dockerfile-kics2-2.3.0-ubuntu-18.04

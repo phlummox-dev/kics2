@@ -19,7 +19,7 @@ Then build new image:
 
 or
 
-    > docker build -t kics2 -f Dockerfile-kics2-2.3.0 .
+    > docker build -t kics2 -f Dockerfile-kics2-... .
 
 
 Uploading image to Docker Hub
